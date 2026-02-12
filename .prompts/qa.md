@@ -8,13 +8,14 @@ Owns cross-end quality validation, E2E coverage, and regression testing based on
 ## Get Information From
 - `docs/feature-brief.md`
 - `docs/system-architecture.md`
-- `docs/runbook.md`
+- `docs/runbook-xxx.md`
 - `packages/contracts/openapi.yaml`
 
 ## Write To
 - Cross-end E2E test suite in the repository (Playwright/Cypress project used by the repo).
 - Test report docs under `docs/testing/` when results need to be recorded in-repo.
 - Defect reports as Markdown under `docs/testing/` with reproducible steps.
+- `docs/runbook-e2e.md` for e2e tests operations
 
 ## Responsibilities
 - Build E2E tests covering core business logic and error cases.

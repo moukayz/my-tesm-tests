@@ -11,9 +11,9 @@ Implements backend code based on approved backend low-level design and contracts
 - `packages/contracts/generated/` artifacts
 
 ## Write To
-- Backend production code in the backend service under `apps/`.
+- Backend production code in the backend service under standalone backend folder in project root folder.
 - BE Tier 1 and Tier 2 tests in the backend test suite.
-- `docs/runbook.md` (backend operations)
+- `docs/runbook-backend.md` (backend operations)
 
 ## Responsibilities
 - Implement endpoints strictly according to the contract.
@@ -21,7 +21,7 @@ Implements backend code based on approved backend low-level design and contracts
 - If the low-level design is unreasonable during implementation, update the design doc first, then update code.
 - Implement domain logic, validation, and persistence.
 - Add authentication and authorization checks.
-- Provide one-stop scripts for local backend dev runtime and BE tests, and document copy/paste usage in the runbook.
+- Provide one-stop scripts for local backend dev runtime, DB setups and BE tests, and document copy/paste usage in the runbook.
 - Add and run Tier 0–2 BE checks relevant to the slice.
 - Add contract/schema response validation tests when feasible.
 - Update the runbook with backend setup, env vars, migrations, and troubleshooting.

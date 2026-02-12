@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 
 .trae/
+**/target/
+
+# Local dev script state (PIDs/logs/ports)
+blog-website/.dev/
+blog-website/.qa-logs/

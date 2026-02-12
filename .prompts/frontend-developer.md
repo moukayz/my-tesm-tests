@@ -11,9 +11,9 @@ Implements frontend code based on approved frontend low-level design and contrac
 - `packages/contracts/generated/` artifacts
 
 ## Write To
-- Frontend production code in the frontend app under `apps/`.
+- Frontend production code in the frontend app folder in project root folder.
 - FE Tier 1 and Tier 2 tests in the frontend test suite.
-- `docs/runbook.md` (frontend operations)
+- `docs/runbook-frontend.md` (frontend operations)
 
 ## Responsibilities
 - Implement UI, components, hooks, and data fetching as designed.
