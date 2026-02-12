@@ -1,0 +1,233 @@
+.controlsWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (min-width: 980px) {
+  .controlsWrap {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  .section {
+    flex: 1;
+  }
+}
+
+.section {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--radiusSm);
+  padding: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+}
+
+.sectionTitle {
+  font-family: "Fraunces", ui-serif, Georgia, serif;
+  font-weight: 650;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.18);
+  margin-bottom: 8px;
+}
+
+.toggle.inline {
+  margin-bottom: 0;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.toggleText {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.74);
+}
+
+.setupRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.setupRow .field {
+  margin-bottom: 0;
+}
+
+.setupRow .field {
+  min-width: 160px;
+}
+
+.setupRow select,
+.setupRow input[type='text'] {
+  padding: 8px 9px;
+}
+
+.sizeRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+@media (min-width: 980px) {
+  .sizeRow {
+    flex-wrap: nowrap;
+  }
+}
+
+.sizeRow .field.seed {
+  flex: 0 1 260px;
+  min-width: 180px;
+  margin-bottom: 0;
+}
+
+.sizeRow .field.seed .labelRow {
+  justify-content: flex-start;
+}
+
+.sizeRow .field.seed .hint {
+  white-space: nowrap;
+}
+
+.sizeRow .field.size {
+  flex: 1 1 auto;
+  min-width: 280px;
+  margin-bottom: 0;
+}
+
+.btnGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.setupButtons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.field {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.labelRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hint {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.45);
+}
+
+select,
+input[type='text'] {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 8px 9px;
+}
+
+input[type='range'] {
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.playbackRow {
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 520px) {
+  .playbackRow {
+    flex-wrap: wrap;
+  }
+}
+
+.btn,
+.primary {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--ink);
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.btn:hover { background: rgba(158, 240, 209, 0.06); border-color: rgba(158, 240, 209, 0.22); }
+
+.primary {
+  background: linear-gradient(180deg, rgba(158, 240, 209, 0.16), rgba(158, 240, 209, 0.06));
+  border-color: rgba(158, 240, 209, 0.24);
+}
+
+.primary:hover {
+  background: linear-gradient(180deg, rgba(158, 240, 209, 0.22), rgba(158, 240, 209, 0.08));
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.pillDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.30);
+}
+
+.pill[data-status='running'] .pillDot { background: var(--compare); }
+.pill[data-status='paused'] .pillDot { background: var(--swap); }
+.pill[data-status='done'] .pillDot { background: var(--sorted); }
+.pill[data-status='error'] .pillDot { background: #ff7b7b; }
+
+.pillText {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+@media (max-width: 520px) {
+  .grid2 { grid-template-columns: 1fr; }
+}

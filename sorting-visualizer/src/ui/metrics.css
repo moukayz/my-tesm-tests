@@ -1,0 +1,84 @@
+.metricsWrap {
+  display: grid;
+  gap: 10px;
+}
+
+.sectionTitle {
+  font-family: "Fraunces", ui-serif, Georgia, serif;
+  font-weight: 650;
+  font-size: 15px;
+}
+
+.kvs {
+  display: grid;
+  gap: 8px;
+}
+
+.kv {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.k {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.64);
+}
+
+.v {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.88);
+  font-variant-numeric: tabular-nums;
+}
+
+.cap { text-transform: capitalize; }
+
+.rule {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.10);
+  margin: 2px 0;
+}
+
+.seedBox {
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.seedLabel {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.64);
+  margin-bottom: 6px;
+}
+
+.seedValue {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.86);
+  word-break: break-word;
+  font-variant-numeric: tabular-nums;
+}
+
+.errorBox {
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 123, 123, 0.30);
+  background: rgba(255, 123, 123, 0.08);
+}
+
+.errorTitle {
+  font-family: "Fraunces", ui-serif, Georgia, serif;
+  font-weight: 650;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.errorText {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.78);
+}

@@ -1,0 +1,99 @@
+.allMetricsWrap {
+  display: grid;
+  gap: 10px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.title {
+  font-family: "Fraunces", ui-serif, Georgia, serif;
+  font-weight: 650;
+  font-size: 15px;
+}
+
+.sub {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.66);
+  display: inline-flex;
+  gap: 8px;
+}
+
+.sep { color: rgba(255, 255, 255, 0.16); }
+
+.cap { text-transform: capitalize; }
+
+.seedBox {
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.seedLabel {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.64);
+  margin-bottom: 6px;
+}
+
+.seedValue {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.86);
+  word-break: break-word;
+  font-variant-numeric: tabular-nums;
+}
+
+.table {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.tr {
+  display: grid;
+  grid-template-columns: 86px 76px 64px 1fr 1fr 1fr 1fr 78px;
+  gap: 8px;
+  padding: 10px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: baseline;
+}
+
+.tr.th {
+  border-top: none;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.td {
+  font-size: 12px;
+  color: rgba(250, 251, 252, 0.72);
+  font-variant-numeric: tabular-nums;
+}
+
+.td.algo {
+  color: rgba(250, 251, 252, 0.90);
+  text-transform: capitalize;
+}
+
+.td.num {
+  text-align: right;
+}
+
+.tr[data-status='done'] { background: rgba(177, 255, 183, 0.04); }
+.tr[data-status='error'] { background: rgba(255, 123, 123, 0.05); }
+
+@media (max-width: 1040px) {
+  .tr {
+    grid-template-columns: 84px 72px 64px 1fr 1fr;
+    grid-auto-rows: auto;
+  }
+  .tr .td:nth-child(6),
+  .tr .td:nth-child(7),
+  .tr .td:nth-child(8) {
+    display: none;
+  }
+}
