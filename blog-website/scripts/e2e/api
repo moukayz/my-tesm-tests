@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../_lib.sh
+source "$SCRIPT_DIR/../_lib.sh"
+
+BLOG_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+API_DIR="$BLOG_ROOT/api"
+ENV_FILE="$API_DIR/.env.e2e"
+COMPOSE_FILE="$API_DIR/docker-compose.e2e.yml"
+PROJECT="blog-website-e2e"
+
+require_file "$ENV_FILE" "Missing $ENV_FILE. Create it (usually by copying $API_DIR/.env.example and updating DATABASE_URL to port 5434 + db blog_website_e2e)."
+load_env_file_allow_env_override "$ENV_FILE"
+
+require_env DATABASE_URL "(set it in $ENV_FILE; must point to the E2E DB, not dev)"
+require_env API_BIND "(set it in $ENV_FILE; example: API_BIND=127.0.0.1:3000)"
+require_env CURSOR_HMAC_SECRET "(set it in $ENV_FILE; 32+ bytes recommended)"
+
+export APP_ENV="${APP_ENV:-e2e}"
+
+require_docker_running
+require_file "$COMPOSE_FILE" "Missing compose file: $COMPOSE_FILE"
+
+log "Ensuring E2E Postgres is reachable (project: $PROJECT)"
+if ! wait_for_compose_service_healthy "$PROJECT" "$COMPOSE_FILE" postgres "${DB_READY_TIMEOUT_SECONDS:-60}"; then
+  die "E2E Postgres is not ready. Start it with: $BLOG_ROOT/scripts/e2e/db-up"
+fi
+
+need_cmd cargo
+
+readiness_url=""
+if readiness_url="$(api_readiness_url_from_env)"; then
+  :
+else
+  case "$?" in
+    2)
+      die "API_BIND is set to a wildcard address ($API_BIND). For readiness polling, set API_READINESS_URL in $ENV_FILE (example: API_READINESS_URL=http://<host>:<port>/v1/auth/session)."
+      ;;
+    *)
+      die "Unable to derive readiness URL. Set API_READINESS_URL in $ENV_FILE (example: API_READINESS_URL=http://<host>:<port>/v1/auth/session)."
+      ;;
+  esac
+fi
+
+api_pid=""
+cleanup() {
+  if [[ -n "$api_pid" ]] && kill -0 "$api_pid" >/dev/null 2>&1; then
+    kill "$api_pid" >/dev/null 2>&1 || true
+    wait "$api_pid" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup INT TERM EXIT
+
+log "Starting API (migrations run automatically on startup)"
+(cd "$API_DIR" && cargo run) &
+api_pid="$!"
+
+log "Waiting for readiness: GET /v1/auth/session -> 200"
+if wait_for_http_200 "$readiness_url" "${API_READY_TIMEOUT_SECONDS:-60}"; then
+  log "READY: API responding. Check: curl -sS '$readiness_url'"
+else
+  compose "$PROJECT" "$COMPOSE_FILE" ps >&2 || true
+  die "API did not become ready within timeout."
+fi
+
+wait "$api_pid"

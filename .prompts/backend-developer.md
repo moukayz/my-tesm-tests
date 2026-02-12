@@ -21,10 +21,12 @@ Implements backend code based on approved backend low-level design and contracts
 - If the low-level design is unreasonable during implementation, update the design doc first, then update code.
 - Implement domain logic, validation, and persistence.
 - Add authentication and authorization checks.
+- Provide one-stop scripts for local backend dev runtime and BE tests, and document copy/paste usage in the runbook.
 - Add and run Tier 0–2 BE checks relevant to the slice.
 - Add contract/schema response validation tests when feasible.
 - Update the runbook with backend setup, env vars, migrations, and troubleshooting.
 - Follow spec-change-first rules: update contract before changing API shapes.
+- Write related unit tests and integration tests, and make sure all backend tests pass before shipping.
 
 ## Boundaries
 - Do not change contracts or high-level architecture directly.
@@ -84,11 +86,23 @@ Implements backend code based on approved backend low-level design and contracts
 - Make migrations backward-compatible when possible; avoid breaking changes in-place.
 - Write idempotent endpoints where feasible and handle retries/timeouts explicitly.
 - Keep configuration in env vars with safe defaults; document them in the runbook.
+- Do not hard-code service URLs/hosts (e.g., `127.0.0.1:3000`) in production code or tests; define them via env vars or framework config and load via the service config layer.
+- If the design requires a DB, keep local-dev DB and E2E-test DB isolated using separate Docker setups (e.g., distinct compose files/projects, ports, and volumes) to avoid cross-contamination.
+- when generating local commands/scripts prefer: create containers only on the first run, then reuse existing containers on subsequent runs (avoid forced recreation).
+
+## Testing Gate
+- Ensure all unit tests, API tests, and integration tests pass before completion.
+- E2E tests are not required for completion.
 
 ## Backend Test Requirements
 - Unit tests for domain logic, validators, and policies.
 - Integration tests for endpoints with a real DB and migrations.
 - Contract compatibility checks between API responses and schemas.
+- Completeness expectations:
+  - Cover success and failure paths (validation errors, not found, conflicts, auth/forbidden) for each endpoint and major domain rule.
+  - Validate persistence behaviors (transactions, constraints, idempotency, retries) in integration tests when a DB is required by design.
+  - Assert response shapes and error models match the contract (status code + body), including edge cases.
+  - Avoid skipping tests; if a case is hard to reproduce, add a narrower unit test for the policy and an integration smoke for the endpoint.
 
 ## Backend Test Best Practices
 - TypeScript:

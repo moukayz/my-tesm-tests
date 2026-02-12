@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../_lib.sh
+source "$SCRIPT_DIR/../_lib.sh"
+
+BLOG_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ENV_FILE="$BLOG_ROOT/api/.env"
+COMPOSE_FILE="$BLOG_ROOT/api/docker-compose.yml"
+PROJECT="blog-website-dev"
+STATE_DIR="$BLOG_ROOT/.dev"
+STATE_DB_PORT_FILE="$STATE_DIR/dev-db-port"
+
+require_file "$ENV_FILE" "Missing $ENV_FILE. Create it with: cp $BLOG_ROOT/api/.env.example $ENV_FILE"
+load_env_file_allow_env_override "$ENV_FILE"
+
+require_docker_running
+require_file "$COMPOSE_FILE" "Missing compose file: $COMPOSE_FILE"
+
+log "Stopping dev Postgres (compose project: $PROJECT)"
+compose "$PROJECT" "$COMPOSE_FILE" down --remove-orphans || true
+rm -f "$STATE_DB_PORT_FILE" >/dev/null 2>&1 || true
+log "OK: dev Postgres stopped"

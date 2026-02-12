@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../_lib.sh
+source "$SCRIPT_DIR/../_lib.sh"
+
+BLOG_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+STATE_DIR="$BLOG_ROOT/.dev"
+PID_DIR="$STATE_DIR/pids"
+LOG_DIR="$STATE_DIR/logs"
+STATE_DB_PORT_FILE="$STATE_DIR/dev-db-port"
+
+API_ENV_FILE="$BLOG_ROOT/api/.env"
+WEB_ENV_FILE="$BLOG_ROOT/web/.env.local"
+
+mkdir -p "$PID_DIR" "$LOG_DIR"
+
+stop_pidfile() {
+	local pidfile="$1"
+	local label="$2"
+	local pid=""
+
+	[[ -f "$pidfile" ]] || return 0
+	pid="$(cat "$pidfile" 2>/dev/null || true)"
+	rm -f "$pidfile" >/dev/null 2>&1 || true
+
+	if [[ -z "$pid" ]] || [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+		return 0
+	fi
+
+	if ! kill -0 "$pid" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	log "Stopping ${label} (pid=${pid})"
+	kill "$pid" >/dev/null 2>&1 || true
+
+	local start now
+	start="$(date +%s)"
+	while kill -0 "$pid" >/dev/null 2>&1; do
+		now="$(date +%s)"
+		if ((now - start >= 10)); then
+			log "${label} did not exit after 10s; sending SIGKILL (pid=${pid})"
+			kill -9 "$pid" >/dev/null 2>&1 || true
+			break
+		fi
+		sleep 1
+	done
+}
+
+wait_for_log_line() {
+	local file="$1"
+	local pattern="$2"
+	local timeout_seconds="$3"
+	local pid="$4"
+
+	local start now
+	start="$(date +%s)"
+	while true; do
+		if [[ -f "$file" ]] && grep -q "$pattern" "$file" 2>/dev/null; then
+			return 0
+		fi
+
+		if [[ -n "$pid" ]] && [[ "$pid" =~ ^[0-9]+$ ]] && ! kill -0 "$pid" >/dev/null 2>&1; then
+			return 2
+		fi
+
+		now="$(date +%s)"
+		if ((now - start >= timeout_seconds)); then
+			return 1
+		fi
+		sleep 1
+	done
+}
+
+# Idempotent: stop any prior supervised processes.
+stop_pidfile "$PID_DIR/web.pid" "web"
+stop_pidfile "$PID_DIR/api.pid" "api"
+
+log "Starting dev DB + API + Web"
+
+"$BLOG_ROOT/scripts/dev/db-up"
+
+DEV_DB_PORT="${DEV_DB_PORT:-}"
+if [[ -z "$DEV_DB_PORT" ]] && [[ -f "$STATE_DB_PORT_FILE" ]]; then
+	DEV_DB_PORT="$(cat "$STATE_DB_PORT_FILE" 2>/dev/null || true)"
+fi
+if [[ -n "$DEV_DB_PORT" ]]; then
+	export DEV_DB_PORT
+fi
+
+require_file "$API_ENV_FILE" "Missing $API_ENV_FILE. Create it with: cp $BLOG_ROOT/api/.env.example $API_ENV_FILE"
+load_env_file_allow_env_override "$API_ENV_FILE"
+
+api_readiness_url=""
+if api_readiness_url="$(api_readiness_url_from_env)"; then
+	:
+else
+	case "$?" in
+	2)
+		die "API_BIND is set to a wildcard address ($API_BIND). For readiness polling, set API_READINESS_URL in $API_ENV_FILE."
+		;;
+	*)
+		die "Unable to derive API readiness URL. Set API_READINESS_URL in $API_ENV_FILE."
+		;;
+	esac
+fi
+
+web_port="${WEB_PORT-${PORT-3001}}"
+if [[ -f "$WEB_ENV_FILE" ]]; then
+	# Best-effort: allow WEB_PORT/PORT from the web env file.
+	load_env_file_allow_env_override "$WEB_ENV_FILE"
+	web_port="${WEB_PORT-${PORT-$web_port}}"
+fi
+
+api_pidfile="$PID_DIR/api.pid"
+web_pidfile="$PID_DIR/web.pid"
+api_log="$LOG_DIR/api.log"
+web_log="$LOG_DIR/web.log"
+
+api_pid=""
+web_pid=""
+
+cleanup_on_fail() {
+	# Only stop processes started by this invocation.
+	if [[ -n "${web_pid:-}" ]]; then
+		kill "$web_pid" >/dev/null 2>&1 || true
+	fi
+	if [[ -n "${api_pid:-}" ]]; then
+		kill "$api_pid" >/dev/null 2>&1 || true
+	fi
+}
+trap cleanup_on_fail EXIT
+
+log "Starting API (logs: $api_log)"
+nohup "$BLOG_ROOT/scripts/dev/api" >"$api_log" 2>&1 &
+api_pid="$!"
+printf '%s\n' "$api_pid" >"$api_pidfile"
+
+log "Starting Web (logs: $web_log)"
+nohup "$BLOG_ROOT/scripts/dev/web" >"$web_log" 2>&1 &
+web_pid="$!"
+printf '%s\n' "$web_pid" >"$web_pidfile"
+
+log "Waiting for API readiness..."
+case "$(wait_for_log_line "$api_log" "READY: API responding" "${API_READY_TIMEOUT_SECONDS:-60}" "$api_pid"; echo $?)" in
+	0) : ;;
+	2) die "API process exited early. See: $api_log" ;;
+	*) die "Timed out waiting for API readiness. See: $api_log" ;;
+esac
+
+log "Waiting for Web readiness..."
+case "$(wait_for_log_line "$web_log" "WEB_READY mode=dev" "${WEB_READY_TIMEOUT_SECONDS:-60}" "$web_pid"; echo $?)" in
+	0) : ;;
+	2) die "Web process exited early. See: $web_log" ;;
+	*) die "Timed out waiting for Web readiness. See: $web_log" ;;
+esac
+
+trap - EXIT
+
+log "READY: dev stack is up"
+log "DB  DEV_DB_PORT=${DEV_DB_PORT:-<unknown>}"
+log "API ${api_readiness_url}"
+log "WEB port=${web_port}"
+log "PIDS api=$(cat "$api_pidfile") web=$(cat "$web_pidfile")"
+log "LOGS $api_log $web_log"
+
+exit 0

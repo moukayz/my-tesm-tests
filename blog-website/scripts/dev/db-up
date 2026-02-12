@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../_lib.sh
+source "$SCRIPT_DIR/../_lib.sh"
+
+BLOG_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ENV_FILE="$BLOG_ROOT/api/.env"
+COMPOSE_FILE="$BLOG_ROOT/api/docker-compose.yml"
+PROJECT="blog-website-dev"
+STATE_DIR="$BLOG_ROOT/.dev"
+STATE_DB_PORT_FILE="$STATE_DIR/dev-db-port"
+
+is_port_free() {
+	local port="$1"
+	# Best-effort check; if lsof isn't available, assume free and let docker compose be the source of truth.
+	if command -v lsof >/dev/null 2>&1; then
+		! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
+		return $?
+	fi
+	return 0
+}
+
+pick_free_port() {
+	local start_port="$1"
+	local port="$start_port"
+	local max_tries="${DEV_DB_PORT_MAX_TRIES:-25}"
+	local i=0
+
+	while ((i < max_tries)); do
+		if is_port_free "$port"; then
+			printf '%s' "$port"
+			return 0
+		fi
+		port=$((port + 1))
+		i=$((i + 1))
+	done
+
+	die "Unable to find a free host port for dev Postgres starting at ${start_port} (tried ${max_tries} ports). Set DEV_DB_PORT to a free port."
+}
+
+require_file "$ENV_FILE" "Missing $ENV_FILE. Create it with: cp $BLOG_ROOT/api/.env.example $ENV_FILE"
+load_env_file_allow_env_override "$ENV_FILE"
+
+require_docker_running
+require_file "$COMPOSE_FILE" "Missing compose file: $COMPOSE_FILE"
+
+# Choose a host port for the Postgres container.
+requested_port="${DEV_DB_PORT:-5432}"
+if [[ ! "$requested_port" =~ ^[0-9]+$ ]]; then
+	die "DEV_DB_PORT must be a number (got: ${requested_port})"
+fi
+
+chosen_port="$(pick_free_port "$requested_port")"
+
+mkdir -p "$STATE_DIR"
+
+if [[ "$chosen_port" != "$requested_port" ]]; then
+	log "Host port ${requested_port} is busy; using DEV_DB_PORT=${chosen_port} (override via DEV_DB_PORT)"
+else
+	log "Using DEV_DB_PORT=${chosen_port} (override via DEV_DB_PORT)"
+fi
+
+log "Starting dev Postgres (compose project: $PROJECT)"
+up_out=""
+port_conflict_tries=0
+max_port_conflict_tries="${DEV_DB_PORT_MAX_TRIES:-25}"
+while true; do
+	export DEV_DB_PORT="$chosen_port"
+	if up_out="$(compose "$PROJECT" "$COMPOSE_FILE" up -d postgres 2>&1)"; then
+		break
+	fi
+
+	if printf '%s' "$up_out" | grep -qiE 'port is already allocated|bind: address already in use'; then
+		port_conflict_tries=$((port_conflict_tries + 1))
+		if ((port_conflict_tries >= max_port_conflict_tries)); then
+			printf '%s\n' "$up_out" >&2
+			die "Failed to start dev Postgres due to repeated host port conflicts. Set DEV_DB_PORT to a free port."
+		fi
+
+		next_port="$(pick_free_port $((chosen_port + 1)))"
+		log "Port ${chosen_port} conflicted; retrying with DEV_DB_PORT=${next_port}"
+		chosen_port="$next_port"
+		continue
+	fi
+
+	printf '%s\n' "$up_out" >&2
+	die "Failed to start dev Postgres"
+done
+
+printf '%s\n' "$chosen_port" >"$STATE_DB_PORT_FILE"
+log "DEV_DB_PORT=${chosen_port} (recorded in $STATE_DB_PORT_FILE)"
+
+log "Waiting for Postgres readiness..."
+wait_for_compose_service_healthy "$PROJECT" "$COMPOSE_FILE" postgres "${DB_READY_TIMEOUT_SECONDS:-60}" || die "Postgres did not become ready."
+log "READY: dev Postgres is accepting connections"

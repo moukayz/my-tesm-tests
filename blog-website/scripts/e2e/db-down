@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../_lib.sh
+source "$SCRIPT_DIR/../_lib.sh"
+
+BLOG_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ENV_FILE="$BLOG_ROOT/api/.env.e2e"
+COMPOSE_FILE="$BLOG_ROOT/api/docker-compose.e2e.yml"
+PROJECT="blog-website-e2e"
+
+require_file "$ENV_FILE" "Missing $ENV_FILE. Create it (usually by copying $BLOG_ROOT/api/.env.example and updating DATABASE_URL to port 5434 + db blog_website_e2e)."
+load_env_file_allow_env_override "$ENV_FILE"
+
+require_docker_running
+require_file "$COMPOSE_FILE" "Missing compose file: $COMPOSE_FILE"
+
+log "Stopping E2E Postgres (compose project: $PROJECT)"
+compose "$PROJECT" "$COMPOSE_FILE" down --remove-orphans || true
+log "OK: E2E Postgres stopped"

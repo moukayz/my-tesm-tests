@@ -20,10 +20,12 @@ Implements frontend code based on approved frontend low-level design and contrac
 - Do not start production code before frontend low-level design is approved.
 - If the low-level design is unreasonable during implementation, update the design doc first, then update code.
 - Use contract-generated types and clients only.
+- Provide one-stop scripts for local frontend dev runtime and FE tests, and document copy/paste usage in the runbook.
 - Add and run Tier 0–2 FE checks relevant to the slice.
 - Maintain loading, error, and empty states for all user flows.
 - Update the runbook with frontend setup, env vars, and troubleshooting.
 - Follow spec-change-first rules: update contract before changing UI data shapes.
+- Make sure all frontend tests pass before shipping.
 
 ## Boundaries
 - Do not change contracts or high-level architecture directly.
@@ -88,6 +90,7 @@ Implements frontend code based on approved frontend low-level design and contrac
 - Use `data-testid` for elements targeted by integration/E2E tests.
 - Avoid state duplication: server state via a query library, local UI state via component/hooks.
 - Use feature flags for incomplete flows and keep dead code cleaned up when flags ship.
+- Do not hard-code service URLs (e.g., `127.0.0.1:3000`) in implementation or tests; define them via env vars or framework config and read them through the app’s config layer.
 
 ## Frontend Test Best Practices
 - Unit and integration tooling:
@@ -97,9 +100,21 @@ Implements frontend code based on approved frontend low-level design and contrac
   - Unit: components, hooks, and utilities.
   - Integration: key routes, forms, and error states with mocked network.
   - Contract usage: generated client types compile cleanly.
+- Completeness expectations:
+  - Cover success, loading, empty, and error states for each primary user flow.
+  - Test validation and boundary behaviors (required fields, invalid inputs, server validation errors).
+  - Include permission/auth variations when applicable (unauthenticated, forbidden, expired sessions).
+  - Prefer meaningful assertions (rendered state + side effects) over snapshot-only tests.
+  - Avoid skipping tests; if a case is untestable, add the closest coverage at the nearest boundary.
 - How to run:
   - Use the app’s package.json scripts (preferred): `npm run test:unit`, `npm run test:integration`
   - If scripts are missing, add them in the frontend app package.json and document in the runbook.
+- Environment parity:
+  - Do not couple tests to a specific host/port; use env-configured base URLs and test-time config overrides.
+
+## Testing Gate
+- Ensure all unit tests, API tests, and integration tests pass before completion.
+- E2E tests are not required for completion.
 
 ## Final Report
 - Provide a short summary of what was implemented and which tests were added.

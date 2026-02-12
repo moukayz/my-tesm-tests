@@ -1,0 +1,69 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "Ink & Cedar a tiny blog" [ref=e5] [cursor=pointer]:
+          - /url: /posts
+          - generic [ref=e6]: Ink & Cedar
+          - generic [ref=e7]: a tiny blog
+        - navigation [ref=e8]:
+          - link "Login" [ref=e9] [cursor=pointer]:
+            - /url: /login?next=%2Fposts
+          - link "Register" [ref=e10] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e11]:
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - heading "Latest posts" [level=1] [ref=e15]
+          - paragraph [ref=e16]: Stories, notes, and tiny experiments.
+          - generic [ref=e18]:
+            - link "E2E owner qa_pw_owner_1770892417775 By qa_pw_owner_1770892417775·Feb 12, 2026" [ref=e20] [cursor=pointer]:
+              - /url: /posts/6d51cd88-e4c3-42b3-acfd-e5735f31350c
+              - heading "E2E owner qa_pw_owner_1770892417775" [level=3] [ref=e21]
+              - paragraph [ref=e22]: By qa_pw_owner_1770892417775·Feb 12, 2026
+            - link "E2E forbidden qa_pw_a_1770892417778 By qa_pw_a_1770892417778·Feb 12, 2026" [ref=e24] [cursor=pointer]:
+              - /url: /posts/3c45b6eb-2025-4b7a-aad3-6ce8eb771555
+              - heading "E2E forbidden qa_pw_a_1770892417778" [level=3] [ref=e25]
+              - paragraph [ref=e26]: By qa_pw_a_1770892417778·Feb 12, 2026
+            - link "E2E public browse qa_pw_public_1770892417778 By qa_pw_public_1770892417778·Feb 12, 2026" [ref=e28] [cursor=pointer]:
+              - /url: /posts/c7738a3c-a4aa-4b93-bac5-89180ca9add0
+              - heading "E2E public browse qa_pw_public_1770892417778" [level=3] [ref=e29]
+              - paragraph [ref=e30]: By qa_pw_public_1770892417778·Feb 12, 2026
+            - link "E2E public browse qa_pw_public_1770886253267 By qa_pw_public_1770886253267·Feb 12, 2026" [ref=e32] [cursor=pointer]:
+              - /url: /posts/5a84d5a7-776e-457a-a704-090083ac26fd
+              - heading "E2E public browse qa_pw_public_1770886253267" [level=3] [ref=e33]
+              - paragraph [ref=e34]: By qa_pw_public_1770886253267·Feb 12, 2026
+            - link "E2E forbidden qa_pw_a_1770886253267 By qa_pw_a_1770886253267·Feb 12, 2026" [ref=e36] [cursor=pointer]:
+              - /url: /posts/87cf2e8c-6a46-408e-b40a-7afda51b18d5
+              - heading "E2E forbidden qa_pw_a_1770886253267" [level=3] [ref=e37]
+              - paragraph [ref=e38]: By qa_pw_a_1770886253267·Feb 12, 2026
+            - paragraph [ref=e40]: You reached the end.
+        - complementary [ref=e41]:
+          - heading "About" [level=2] [ref=e42]
+          - paragraph [ref=e43]: A minimal blog with cookie sessions + CSRF protection. Public reading, author-only edits.
+          - link "Login to write" [ref=e45] [cursor=pointer]:
+            - /url: /login?next=%2Fposts%2Fnew
+          - paragraph [ref=e46]:
+            - text: "Tip: the app calls the API via relative"
+            - code [ref=e47]: /v1/*
+            - text: URLs. Configure
+            - code [ref=e48]: API_ORIGIN
+            - text: so Next.js can rewrite
+            - code [ref=e49]: /v1/*
+            - text: to your backend.
+  - generic [ref=e50]:
+    - status [ref=e51]:
+      - generic [ref=e52]:
+        - paragraph [ref=e54]: Welcome back
+        - button "Dismiss" [ref=e55]: Close
+    - status [ref=e56]:
+      - generic [ref=e57]:
+        - paragraph [ref=e59]: Logged out
+        - button "Dismiss" [ref=e60]: Close
+  - button "Open Next.js Dev Tools" [ref=e66] [cursor=pointer]:
+    - img [ref=e67]
+  - alert [ref=e70]
+```

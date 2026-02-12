@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #fbf7f1;
+  --fg: #151411;
+  --muted: #5f676b;
+
+  --card: rgba(255, 255, 255, 0.75);
+  --card-border: rgba(19, 18, 15, 0.08);
+
+  --brand: #0f5a55;
+  --brand-2: #d79b2a;
+  --danger: #b43a2d;
+
+  --ring: rgba(15, 90, 85, 0.35);
+  --shadow: 0 12px 30px rgba(21, 20, 17, 0.08);
+
+  --radius: 16px;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-danger: var(--danger);
+
+  --color-card: var(--card);
+  --color-card-border: var(--card-border);
+
+  --font-sans: var(--font-body);
+  --font-serif: var(--font-heading);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body), ui-sans-serif, system-ui, -apple-system,
+    Segoe UI, sans-serif;
+  min-height: 100vh;
+}
+
+/* Editorial paper background + subtle noise (CSS only) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    radial-gradient(900px 600px at 15% 10%, rgba(215, 155, 42, 0.16), transparent
+        60%),
+    radial-gradient(700px 500px at 85% 15%, rgba(15, 90, 85, 0.14), transparent
+        55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.65), transparent 30%, rgba(0, 0, 0, 0.02)),
+    repeating-linear-gradient(
+      0deg,
+      rgba(21, 20, 17, 0.02),
+      rgba(21, 20, 17, 0.02) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  mix-blend-mode: multiply;
+  opacity: 0.9;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(15, 90, 85, 0.18);
+}
+
+.page-enter {
+  animation: pageIn 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none;
+  }
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

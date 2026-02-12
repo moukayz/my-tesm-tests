@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ENV_FILE="${ROOT_DIR}/web/.env.local"
+
+source "${ROOT_DIR}/scripts/_lib/env.bash"
+
+require_cmd node "Node.js is required (Node 20+)."
+require_cmd npm "npm is required (comes with Node)."
+
+require_file "$ENV_FILE" "Create it with: cp blog-website/web/.env.local.example blog-website/web/.env.local"
+load_env_file_no_override "$ENV_FILE"
+
+require_nonempty_env API_ORIGIN
+
+WEB_PORT="${WEB_PORT-${PORT-3001}}"
+
+printf 'WEB_ENV envFile=%s mode=dev apiOrigin=%s\n' "blog-website/web/.env.local" "$API_ORIGIN"
+
+cd "${ROOT_DIR}/web"
+run_next_dev_with_ready_signal "dev" "$WEB_PORT"

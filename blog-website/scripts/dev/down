@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../_lib.sh
+source "$SCRIPT_DIR/../_lib.sh"
+
+BLOG_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+STATE_DIR="$BLOG_ROOT/.dev"
+PID_DIR="$STATE_DIR/pids"
+
+stop_pidfile() {
+	local pidfile="$1"
+	local label="$2"
+	local pid=""
+
+	[[ -f "$pidfile" ]] || return 0
+	pid="$(cat "$pidfile" 2>/dev/null || true)"
+	rm -f "$pidfile" >/dev/null 2>&1 || true
+
+	if [[ -z "$pid" ]] || [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+		return 0
+	fi
+
+	if ! kill -0 "$pid" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	log "Stopping ${label} (pid=${pid})"
+	kill "$pid" >/dev/null 2>&1 || true
+
+	local start now
+	start="$(date +%s)"
+	while kill -0 "$pid" >/dev/null 2>&1; do
+		now="$(date +%s)"
+		if ((now - start >= 10)); then
+			log "${label} did not exit after 10s; sending SIGKILL (pid=${pid})"
+			kill -9 "$pid" >/dev/null 2>&1 || true
+			break
+		fi
+		sleep 1
+	done
+}
+
+# Idempotent: ok if pid files are missing.
+stop_pidfile "$PID_DIR/web.pid" "web"
+stop_pidfile "$PID_DIR/api.pid" "api"
+
+"$BLOG_ROOT/scripts/dev/db-down" || true
+
+log "OK: dev stack stopped"

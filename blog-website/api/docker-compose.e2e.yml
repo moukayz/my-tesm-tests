@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: blog
+      POSTGRES_PASSWORD: blog
+      POSTGRES_DB: blog_website_e2e
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_e2e_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog -d blog_website_e2e"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres_e2e_data:

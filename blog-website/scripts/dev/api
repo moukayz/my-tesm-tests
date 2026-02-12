@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../_lib.sh
+source "$SCRIPT_DIR/../_lib.sh"
+
+BLOG_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+API_DIR="$BLOG_ROOT/api"
+ENV_FILE="$API_DIR/.env"
+COMPOSE_FILE="$API_DIR/docker-compose.yml"
+PROJECT="blog-website-dev"
+STATE_DIR="$BLOG_ROOT/.dev"
+STATE_DB_PORT_FILE="$STATE_DIR/dev-db-port"
+
+database_url_with_port() {
+	local url="$1"
+	local new_port="$2"
+
+	if [[ ! "$new_port" =~ ^[0-9]+$ ]]; then
+		die "Invalid port: ${new_port}"
+	fi
+
+	local hostport path_and_more host_part
+	if [[ "$url" == *"@"* ]]; then
+		local before_at after_at
+		before_at="${url%@*}"
+		after_at="${url##*@}"
+		hostport="${after_at%%/*}"
+		path_and_more="${after_at#"$hostport"}"
+
+		if [[ "$hostport" =~ ^(.*):([0-9]+)$ ]]; then
+			host_part="${BASH_REMATCH[1]}"
+		else
+			host_part="$hostport"
+		fi
+
+		printf '%s@%s:%s%s' "$before_at" "$host_part" "$new_port" "$path_and_more"
+		return 0
+	fi
+
+	# No userinfo. Expect: scheme://host[:port]/db...
+	if [[ "$url" != *"://"* ]]; then
+		printf '%s' "$url"
+		return 0
+	fi
+
+	local scheme rest
+	scheme="${url%%://*}"
+	rest="${url#*://}"
+	hostport="${rest%%/*}"
+	path_and_more="${rest#"$hostport"}"
+
+	if [[ "$hostport" =~ ^(.*):([0-9]+)$ ]]; then
+		host_part="${BASH_REMATCH[1]}"
+	else
+		host_part="$hostport"
+	fi
+
+	printf '%s://%s:%s%s' "$scheme" "$host_part" "$new_port" "$path_and_more"
+}
+
+require_file "$ENV_FILE" "Missing $ENV_FILE. Create it with: cp $API_DIR/.env.example $ENV_FILE"
+load_env_file_allow_env_override "$ENV_FILE"
+
+require_env DATABASE_URL "(set it in $ENV_FILE)"
+require_env API_BIND "(set it in $ENV_FILE; example: API_BIND=127.0.0.1:3000)"
+require_env CURSOR_HMAC_SECRET "(set it in $ENV_FILE; 32+ bytes recommended)"
+
+# Keep the API's DB port in sync with scripts/dev/db-up.
+effective_db_port="${DEV_DB_PORT:-}"
+if [[ -z "$effective_db_port" ]] && [[ -f "$STATE_DB_PORT_FILE" ]]; then
+	effective_db_port="$(cat "$STATE_DB_PORT_FILE" 2>/dev/null || true)"
+fi
+
+if [[ -n "$effective_db_port" ]]; then
+	DATABASE_URL="$(database_url_with_port "$DATABASE_URL" "$effective_db_port")"
+	export DATABASE_URL
+	log "Using DEV_DB_PORT=${effective_db_port} (DATABASE_URL port overridden for this process)"
+fi
+
+export APP_ENV="${APP_ENV:-dev}"
+
+require_docker_running
+require_file "$COMPOSE_FILE" "Missing compose file: $COMPOSE_FILE"
+
+log "Ensuring dev Postgres is reachable (project: $PROJECT)"
+if ! wait_for_compose_service_healthy "$PROJECT" "$COMPOSE_FILE" postgres "${DB_READY_TIMEOUT_SECONDS:-60}"; then
+  die "Dev Postgres is not ready. Start it with: $BLOG_ROOT/scripts/dev/db-up"
+fi
+
+need_cmd cargo
+
+readiness_url=""
+if readiness_url="$(api_readiness_url_from_env)"; then
+  :
+else
+  case "$?" in
+    2)
+      die "API_BIND is set to a wildcard address ($API_BIND). For readiness polling, set API_READINESS_URL in $ENV_FILE (example: API_READINESS_URL=http://<host>:<port>/v1/auth/session)."
+      ;;
+    *)
+      die "Unable to derive readiness URL. Set API_READINESS_URL in $ENV_FILE (example: API_READINESS_URL=http://<host>:<port>/v1/auth/session)."
+      ;;
+  esac
+fi
+
+api_pid=""
+cleanup() {
+  if [[ -n "$api_pid" ]] && kill -0 "$api_pid" >/dev/null 2>&1; then
+    kill "$api_pid" >/dev/null 2>&1 || true
+    wait "$api_pid" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup INT TERM EXIT
+
+log "Starting API (migrations run automatically on startup)"
+(cd "$API_DIR" && cargo run) &
+api_pid="$!"
+
+log "Waiting for readiness: GET /v1/auth/session -> 200"
+if wait_for_http_200 "$readiness_url" "${API_READY_TIMEOUT_SECONDS:-60}"; then
+	if ! kill -0 "$api_pid" >/dev/null 2>&1; then
+		compose "$PROJECT" "$COMPOSE_FILE" ps >&2 || true
+		die "API process exited during startup (API_BIND may already be in use)."
+	fi
+	log "READY: API responding. Check: curl -sS '$readiness_url'"
+else
+	compose "$PROJECT" "$COMPOSE_FILE" ps >&2 || true
+	die "API did not become ready within timeout."
+fi
+
+wait "$api_pid"

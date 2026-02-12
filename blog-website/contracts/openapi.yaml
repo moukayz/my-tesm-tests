@@ -1,0 +1,412 @@
+openapi: 3.0.3
+info:
+  title: Blog Website API
+  version: 1.0.0
+servers:
+  # Prefer same-origin deployments where the web app proxies `/v1/*` to the API.
+  # The concrete origin/host is provided by environment/configuration (not hard-coded in code).
+  - url: /
+    description: Same-origin (recommended)
+  - url: https://api.example.com
+    description: Hosted example
+tags:
+  - name: auth
+  - name: users
+  - name: posts
+paths:
+  /v1/auth/register:
+    post:
+      tags: [auth]
+      summary: Register a new user and start session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Created
+          headers:
+            Set-Cookie:
+              description: Session cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Login and start session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          headers:
+            Set-Cookie:
+              description: Session cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidCredentialsError' }
+        '429': { $ref: '#/components/responses/RateLimitedError' }
+  /v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: Logout and clear session
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: No Content
+          headers:
+            Set-Cookie:
+              description: Clearing session cookie
+              schema:
+                type: string
+        '401': { $ref: '#/components/responses/UnauthenticatedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /v1/auth/session:
+    get:
+      tags: [auth]
+      summary: Get current session state and CSRF token
+      security:
+        - {}
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+  /v1/users/me:
+    get:
+      tags: [users]
+      summary: Get current user
+      security:
+        - cookieSession: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401': { $ref: '#/components/responses/UnauthenticatedError' }
+  /v1/posts:
+    get:
+      tags: [posts]
+      summary: List posts (public)
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPostsResponse'
+    post:
+      tags: [posts]
+      summary: Create a post (authenticated)
+      security:
+        - cookieSession: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostResponse'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/UnauthenticatedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /v1/posts/{postId}:
+    get:
+      tags: [posts]
+      summary: Get a post (public)
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostResponse'
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    patch:
+      tags: [posts]
+      summary: Update a post (owner only)
+      security:
+        - cookieSession: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePostRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostResponse'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/UnauthenticatedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      tags: [posts]
+      summary: Delete a post (owner only)
+      security:
+        - cookieSession: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: No Content
+        '401': { $ref: '#/components/responses/UnauthenticatedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: bw_session
+  parameters:
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+  responses:
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ConflictError:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InvalidCredentialsError:
+      description: Invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnauthenticatedError:
+      description: Unauthenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenError:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFoundError:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimitedError:
+      description: Rate limited
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+    CreatePostRequest:
+      type: object
+      additionalProperties: false
+      required: [title, body]
+      properties:
+        title: { type: string }
+        body: { type: string }
+    UpdatePostRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: { type: string }
+        body: { type: string }
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, username, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Author:
+      type: object
+      additionalProperties: false
+      required: [id, username]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+    PostSummary:
+      type: object
+      additionalProperties: false
+      required: [id, title, author, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        author: { $ref: '#/components/schemas/Author' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PostDetail:
+      type: object
+      additionalProperties: false
+      required: [id, title, body, author, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        body: { type: string }
+        author: { $ref: '#/components/schemas/Author' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AuthResponse:
+      type: object
+      additionalProperties: false
+      required: [user]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+    SessionResponse:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [authenticated]
+          properties:
+            authenticated: { type: boolean, enum: [false] }
+        - type: object
+          additionalProperties: false
+          required: [authenticated, user, csrfToken]
+          properties:
+            authenticated: { type: boolean, enum: [true] }
+            user: { $ref: '#/components/schemas/User' }
+            csrfToken: { type: string }
+    MeResponse:
+      type: object
+      additionalProperties: false
+      required: [user]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+    PostResponse:
+      type: object
+      additionalProperties: false
+      required: [post]
+      properties:
+        post: { $ref: '#/components/schemas/PostDetail' }
+    ListPostsResponse:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PostSummary' }
+        nextCursor:
+          type: string
+          nullable: true
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, requestId]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details:
+              type: object
+              nullable: true
+            requestId: { type: string }
