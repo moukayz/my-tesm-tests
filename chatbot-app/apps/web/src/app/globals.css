@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  --surface: #0b1120;
+  --panel: #0f172a;
+  --panel-muted: #111827;
+  --accent: #f97316;
+  --accent-soft: #fb923c;
+  --ink: #e2e8f0;
+  --ink-muted: #94a3b8;
+  --ring: rgba(251, 146, 60, 0.45);
+  --shadow: rgba(15, 23, 42, 0.5);
+}
+
+@theme inline {
+  --color-background: var(--surface);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+* {
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+  scrollbar-width: thin;
+}
+
+body {
+  background: radial-gradient(circle at top, #111827, #020617 45%);
+  color: var(--ink);
+  font-family: var(--font-body), ui-sans-serif, system-ui;
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(251, 146, 60, 0.3);
+}

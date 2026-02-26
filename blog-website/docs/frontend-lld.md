@@ -219,7 +219,7 @@ Concrete configuration keys and where they are set/consumed:
 | `API_ORIGIN` | Dev: `blog-website/web/.env.local` (required). E2E: injected by `blog-website/scripts/e2e/web` (derived from `E2E_API_ORIGIN`) or set explicitly in `blog-website/web/.env.e2e`. CI/hosting env | `blog-website/web/next.config.*` (rewrites) | API origin that `/v1/*` is proxied/rewritten to |
 | `E2E_BASE_URL` | `blog-website/web/.env.e2e`, CI env | `blog-website/web/playwright.config.*` (`use.baseURL`) | Web origin the browser navigates to (tests use `page.goto('/')`) |
 | `E2E_API_ORIGIN` | `blog-website/web/.env.e2e`, CI env | Playwright tests/fixtures (any direct API calls) and `blog-website/scripts/e2e/web` | API origin used by the test runner when it must talk to API directly |
-| `VITEST_ORIGIN` (optional) | `blog-website/web/.env.test` or CI env | `blog-website/web/vitest.config.*` (`test.environmentOptions.url`) | JSDOM base origin so relative URLs resolve in unit/component tests |
+| `VITEST_ORIGIN` (optional) | `blog-website/web/.env.app` or CI env | `blog-website/web/vitest.config.*` (`test.environmentOptions.url`) | JSDOM base origin so relative URLs resolve in unit/component tests |
 
 Notes/guardrails about the surfaces:
 
@@ -255,8 +255,10 @@ Policy alignment (repo invariant): loopback origins may appear in `.env*` files,
 
 Loading rules (both scripts):
 
+- Precedence (highest -> lowest): `process.env` > mode-specific env (`.env.local` or `.env.e2e`) > app defaults (`.env.app`).
 - Prefer env file values, but do not override already-set `process.env` keys (CI can override locally).
-- Fail fast with an actionable message if the required env file is missing:
+- Fail fast with an actionable message if required env files are missing:
+  - app: `cp blog-website/web/.env.app.example blog-website/web/.env.app`
   - dev: `cp blog-website/web/.env.local.example blog-website/web/.env.local`
   - e2e: `cp blog-website/web/.env.e2e.example blog-website/web/.env.e2e`
 
@@ -264,8 +266,8 @@ Loading rules (both scripts):
 
 Required inputs:
 
-- Loads `blog-website/web/.env.local`.
-- Requires `API_ORIGIN` to be present after env resolution.
+- Loads `blog-website/web/.env.local` (overrides) and `blog-website/web/.env.app` (defaults).
+- Requires `API_ORIGIN` and `WEB_PORT` (or `PORT`) to be present after env resolution.
 
 Process behavior:
 
@@ -276,8 +278,9 @@ Process behavior:
 
 Required inputs:
 
-- Loads `blog-website/web/.env.e2e`.
+- Loads `blog-website/web/.env.e2e` (overrides) and `blog-website/web/.env.app` (defaults).
 - Requires `E2E_BASE_URL` and `E2E_API_ORIGIN` to be present after env resolution.
+- Ensures `WEB_PORT`/`PORT` matches the port in `E2E_BASE_URL`.
 
 Config consistency rules (expected by QA):
 
@@ -297,7 +300,7 @@ Goal: QA/devs can tell when the web server is ready without guessing.
 Both scripts must:
 
 - Print a single, machine-searchable line to stdout before starting Next.js:
-  - `WEB_ENV envFile=<path> mode=<dev|e2e> apiOrigin=<value>`
+  - `WEB_ENV envFiles=<modeEnv,appEnv> mode=<dev|e2e> apiOrigin=<value>`
 - Print a single, machine-searchable line to stdout exactly once when Next.js is ready to serve requests:
   - `WEB_READY mode=<dev|e2e>`
   - Readiness is detected by observing Next.js dev-server output reaching its "ready" state (do not implement an origin-poll that hard-codes loopback literals).
@@ -641,5 +644,5 @@ These are optional improvements; do not change contracts for initial delivery.
 - Plain text body: must render as text (no HTML); if Markdown is later added, re-evaluate XSS and preview.
 - Validation tags: UI expects `details.fieldErrors` map when `validation_error`; if backend omits it, UI falls back to `error.message`.
 - Script entrypoints: `blog-website/scripts/dev/web` and `blog-website/scripts/e2e/web` are part of the repo-level DX contract, but the `blog-website/scripts/**` tree may not exist yet; this document specifies required behavior so implementation can follow it.
-- Concurrent dev + e2e web: `blog-website/web/package.json` pins `npm run dev` to port 3001, and `blog-website/web/.env.e2e.example` also defaults `E2E_BASE_URL` to port 3001; if the repo requirement remains that dev and E2E stacks run concurrently, either the E2E web port must differ or the web script must support a port override driven by env (while keeping origins out of source).
+- Concurrent dev + e2e web: `blog-website/web/.env.app.example` defaults `WEB_PORT` to 3001, and `blog-website/web/.env.e2e.example` defaults `E2E_BASE_URL` to port 3001; if dev and E2E stacks must run concurrently, set a distinct E2E web port in `.env.e2e` (the script derives `WEB_PORT`/`PORT` from `E2E_BASE_URL`).
 - E2E env completeness: `blog-website/web/.env.e2e.example` currently does not include `API_ORIGIN`; the LLD relies on `blog-website/scripts/e2e/web` deriving it from `E2E_API_ORIGIN`. If script complexity is undesired, add `API_ORIGIN` to the `.env.e2e` template.

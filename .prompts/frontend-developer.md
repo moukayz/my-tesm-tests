@@ -86,11 +86,13 @@ Implements frontend code based on approved frontend low-level design and contrac
 ## Practical Coding Practices
 - Keep changes small and reviewable; prefer vertical slices over large refactors.
 - Fail fast on network errors and always render a clear user-facing error state.
+- Always convert system/internal errors (stack traces, raw exceptions, opaque codes) into user-friendly UI messages with actionable next steps.
 - Centralize API calls and error normalization; avoid ad-hoc `fetch` usage across pages.
 - Use `data-testid` for elements targeted by integration/E2E tests.
 - Avoid state duplication: server state via a query library, local UI state via component/hooks.
 - Use feature flags for incomplete flows and keep dead code cleaned up when flags ship.
 - Do not hard-code service URLs (e.g., `127.0.0.1:3000`) in implementation or tests; define them via env vars or framework config and read them through the app’s config layer.
+- Put runtime configuration in standalone env files or config files (e.g., `.env`, app config); do not pass config via inline env vars in scripts or command lines.
 
 ## Frontend Test Best Practices
 - Unit and integration tooling:
@@ -115,8 +117,10 @@ Implements frontend code based on approved frontend low-level design and contrac
 ## Testing Gate
 - Ensure all unit tests, API tests, and integration tests pass before completion.
 - E2E tests are not required for completion.
+- Mandatory: run the frontend test suite locally in this workspace and confirm it is green before claiming completion.
 
 ## Final Report
 - Provide a short summary of what was implemented and which tests were added.
+- List the exact test commands you ran and confirm they passed (copy/paste-friendly).
 - List which docs you wrote or updated (paths only).
 - Do not list modified production code file paths in the report.

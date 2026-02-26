@@ -3,15 +3,18 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ENV_FILE="${ROOT_DIR}/web/.env.e2e"
+ENV_APP_FILE="${ROOT_DIR}/web/.env.app"
+ENV_E2E_FILE="${ROOT_DIR}/web/.env.e2e"
 
 source "${ROOT_DIR}/scripts/_lib/env.bash"
 
 require_cmd node "Node.js is required (Node 20+)."
 require_cmd npm "npm is required (comes with Node)."
 
-require_file "$ENV_FILE" "Create it with: cp blog-website/web/.env.e2e.example blog-website/web/.env.e2e"
-load_env_file_no_override "$ENV_FILE"
+require_file "$ENV_APP_FILE" "Create it with: cp blog-website/web/.env.app.example blog-website/web/.env.app"
+require_file "$ENV_E2E_FILE" "Create it with: cp blog-website/web/.env.e2e.example blog-website/web/.env.e2e"
+load_env_file_no_override "$ENV_E2E_FILE"
+load_env_file_no_override "$ENV_APP_FILE"
 
 require_nonempty_env E2E_BASE_URL
 require_nonempty_env E2E_API_ORIGIN
@@ -30,15 +33,19 @@ if [[ -z "$derivedPort" ]]; then
   print_web_error_and_die "missing_e2e_port" "E2E_BASE_URL must include an explicit port so the web server can bind consistently."
 fi
 
-if [[ -n "${WEB_PORT-}" ]]; then
-  if [[ "$WEB_PORT" != "$derivedPort" ]]; then
-    print_web_error_and_die "port_mismatch" "WEB_PORT (${WEB_PORT}) must match the port in E2E_BASE_URL (${derivedPort})."
-  fi
-else
-  WEB_PORT="$derivedPort"
+if [[ -n "${PORT-}" && "$PORT" != "$derivedPort" ]]; then
+  print_web_error_and_die "port_mismatch" "PORT (${PORT}) must match the port in E2E_BASE_URL (${derivedPort})."
 fi
 
-printf 'WEB_ENV envFile=%s mode=e2e apiOrigin=%s\n' "blog-website/web/.env.e2e" "$API_ORIGIN"
+if [[ -n "${WEB_PORT-}" && "$WEB_PORT" != "$derivedPort" ]]; then
+  print_web_error_and_die "port_mismatch" "WEB_PORT (${WEB_PORT}) must match the port in E2E_BASE_URL (${derivedPort})."
+fi
+
+WEB_PORT="$derivedPort"
+PORT="$derivedPort"
+export PORT
+
+printf 'WEB_ENV envFiles=%s,%s mode=e2e apiOrigin=%s\n' "blog-website/web/.env.e2e" "blog-website/web/.env.app" "$API_ORIGIN"
 
 cd "${ROOT_DIR}/web"
 run_next_dev_with_ready_signal "e2e" "$WEB_PORT"

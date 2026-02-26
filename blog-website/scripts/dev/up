@@ -13,7 +13,8 @@ LOG_DIR="$STATE_DIR/logs"
 STATE_DB_PORT_FILE="$STATE_DIR/dev-db-port"
 
 API_ENV_FILE="$BLOG_ROOT/api/.env"
-WEB_ENV_FILE="$BLOG_ROOT/web/.env.local"
+WEB_APP_ENV_FILE="$BLOG_ROOT/web/.env.app"
+WEB_LOCAL_ENV_FILE="$BLOG_ROOT/web/.env.local"
 
 mkdir -p "$PID_DIR" "$LOG_DIR"
 
@@ -108,12 +109,14 @@ else
 	esac
 fi
 
-web_port="${WEB_PORT-${PORT-3001}}"
-if [[ -f "$WEB_ENV_FILE" ]]; then
-	# Best-effort: allow WEB_PORT/PORT from the web env file.
-	load_env_file_allow_env_override "$WEB_ENV_FILE"
-	web_port="${WEB_PORT-${PORT-$web_port}}"
+web_port="${WEB_PORT-${PORT-}}"
+if [[ -f "$WEB_LOCAL_ENV_FILE" ]]; then
+	load_env_file_allow_env_override "$WEB_LOCAL_ENV_FILE"
 fi
+if [[ -f "$WEB_APP_ENV_FILE" ]]; then
+	load_env_file_allow_env_override "$WEB_APP_ENV_FILE"
+fi
+web_port="${WEB_PORT-${PORT-$web_port}}"
 
 api_pidfile="$PID_DIR/api.pid"
 web_pidfile="$PID_DIR/web.pid"

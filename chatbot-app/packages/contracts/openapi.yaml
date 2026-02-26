@@ -1,0 +1,193 @@
+openapi: 3.0.3
+info:
+  title: Chatbot App API
+  version: 1.0.0
+  description: Contract for model catalog and stateless streaming chat completions. The backend does not persist chat history or identity.
+servers:
+  - url: /api/v1
+tags:
+  - name: Models
+  - name: Streaming
+
+paths:
+  /models:
+    get:
+      tags: [Models]
+      summary: List available models
+      responses:
+        "200":
+          description: Model list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /chat/completions:stream:
+    post:
+      tags: [Streaming]
+      summary: Stream assistant response for a chat completion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatCompletionRequest"
+      responses:
+        "200":
+          description: SSE stream of thinking and answer events
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Server-Sent Events stream.
+
+                  Event types:
+                  - event: thinking, data: { token: string }
+                  - event: answer, data: { token: string }
+                  - event: done, data: { completion_id: string, finish_reason: string }
+                  - event: error, data: ErrorResponse
+
+                  Invariants:
+                  - The server MUST emit exactly one terminal event: either `done` or `error`.
+                  - After emitting the terminal event, the server MUST close the HTTP response.
+                  - `done` MUST be the last event in a successful stream.
+
+                  E2E stability notes (normative for mocks):
+                  - Mocks SHOULD emit `done` rather than relying on connection close.
+                  - Clients MAY treat clean EOF as completion only when no `error` was emitted.
+              examples:
+                thinking:
+                  summary: Thinking token
+                  value: "event: thinking\ndata: {\"token\":\"...\"}\n\n"
+                done:
+                  summary: Terminal completion event
+                  value: "event: done\ndata: {\"completion_id\":\"c1\",\"finish_reason\":\"stop\"}\n\n"
+                error:
+                  summary: Terminal error event
+                  value: "event: error\ndata: {\"error\":{\"code\":\"DEPENDENCY_ERROR\",\"message\":\"The model service is unavailable. Please retry.\",\"request_id\":\"req_123\"}}\n\n"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        "503":
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unprocessable:
+      description: Unprocessable
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+    ErrorDetail:
+      type: object
+      required: [code, message, request_id]
+      properties:
+        code:
+          type: string
+          description: Stable error code. See docs/api/error-model.md.
+          enum:
+            - VALIDATION_ERROR
+            - PAYLOAD_TOO_LARGE
+            - MODEL_NOT_FOUND
+            - MODEL_UNAVAILABLE
+            - MODEL_CONFIG_INVALID
+            - STREAM_INTERRUPTED
+            - STREAM_TIMEOUT
+            - CONFIG_MISSING
+            - CONFIG_CONFLICT
+            - ENV_MISSING
+            - ENV_INVALID
+            - INTERNAL_ERROR
+            - DEPENDENCY_ERROR
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: The request payload is invalid.
+        details:
+          type: object
+          additionalProperties: true
+        request_id:
+          type: string
+
+    Model:
+      type: object
+      required: [id, label, supports_streaming]
+      properties:
+        id:
+          type: string
+          example: gpt-4o-mini
+        label:
+          type: string
+          example: GPT-4o Mini
+        description:
+          type: string
+        context_length:
+          type: integer
+          example: 128000
+        supports_streaming:
+          type: boolean
+        default_temperature:
+          type: number
+          format: float
+
+    ModelListResponse:
+      type: object
+      required: [models]
+      properties:
+        models:
+          type: array
+          description: Ordered list of available models. Order SHOULD be stable and SHOULD follow the underlying config/fixture order.
+          items:
+            $ref: "#/components/schemas/Model"
+        updated_at:
+          type: string
+          format: date-time
+
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+
+    ChatCompletionRequest:
+      type: object
+      required: [model_id, messages]
+      properties:
+        model_id:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+        temperature:
+          type: number
+          format: float
+        max_tokens:
+          type: integer

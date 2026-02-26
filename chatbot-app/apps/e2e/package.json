@@ -1,0 +1,16 @@
+{
+  "name": "chatbot-app-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "e2e:servers": "node ./scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^24.0.8",
+    "typescript": "^5.9.2",
+    "wait-on": "^7.2.0"
+  }
+}

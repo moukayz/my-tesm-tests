@@ -98,12 +98,7 @@ packages/
   shared/
 docs/
   feature-brief.md
-  system-architecture.md
-  implementation-plan.md
-  <frontend-app>-design.md
-  <backend-app>-design.md
-  runbook.md
-  adr/
+  ...other docs
 .github/workflows/
 ```
 

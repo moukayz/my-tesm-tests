@@ -1,0 +1,20 @@
+{
+  "models": [
+    {
+      "id": "e2e-alpha",
+      "label": "E2E Alpha",
+      "description": "Primary E2E validation model",
+      "supports_streaming": true,
+      "context_length": 128000,
+      "default_temperature": 0.7
+    },
+    {
+      "id": "e2e-beta",
+      "label": "E2E Beta",
+      "description": "Secondary E2E validation model",
+      "supports_streaming": true,
+      "context_length": 128000,
+      "default_temperature": 0.7
+    }
+  ]
+}

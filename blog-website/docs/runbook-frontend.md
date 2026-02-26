@@ -16,7 +16,7 @@ blog-website/scripts/dev/web
 
 Notes:
 
-- This wrapper is responsible for ensuring `blog-website/web/.env.local` exists (from `blog-website/web/.env.local.example`) and then running `npm run dev`.
+- This wrapper is responsible for ensuring `blog-website/web/.env.app` and `blog-website/web/.env.local` exist (from the matching `*.example` files) and then running `npm run dev`.
 - The underlying "manual" commands in this runbook remain valid.
 - The wrapper prints machine-searchable lines:
   - `WEB_ENV envFile=... mode=dev apiOrigin=...`
@@ -24,8 +24,8 @@ Notes:
 
 ### Port override (config-driven)
 
-- Default dev port follows the current Next dev default in `blog-website/web/package.json`.
-- To avoid port collisions, set `WEB_PORT` (or `PORT`) in your shell or in `blog-website/web/.env.local`.
+- Default dev port comes from `WEB_PORT` in `blog-website/web/.env.app`.
+- To avoid port collisions, set `WEB_PORT` (preferred) or `PORT` in your shell or in `blog-website/web/.env.local`.
 
 ## Prerequisites
 - Node.js 20+
@@ -39,16 +39,30 @@ The API uses cookie sessions + CSRF tokens, so the frontend is built to call rel
 In local dev, Next.js rewrites `/v1/*` to your backend origin.
 
 ### Environment variables
-- `API_ORIGIN` (optional)
+- Precedence (highest -> lowest): `process.env` > `blog-website/web/.env.local` > `blog-website/web/.env.app`.
+- `API_ORIGIN`
   - Used by framework rewrites/proxy to route `/v1/*` to the API origin.
-  - Set via `.env*` or your tool configuration (avoid in-code defaults).
+  - Set in `blog-website/web/.env.local` (dev override) or CI env.
   - Example (dev): `API_ORIGIN=http://127.0.0.1:3000`
+- `WEB_PORT`
+  - Dev server port (read by `blog-website/scripts/dev/web`).
+  - Set in `blog-website/web/.env.app` (default) and override in `.env.local` when needed.
+- `VITEST_ORIGIN` (optional)
+  - JSDOM base URL for unit/integration tests.
+  - Set in `blog-website/web/.env.app` or CI env.
 
 ## Install
 
 ```bash
 cd blog-website/web
 npm install
+```
+
+## Env setup
+
+```bash
+cp blog-website/web/.env.app.example blog-website/web/.env.app
+cp blog-website/web/.env.local.example blog-website/web/.env.local
 ```
 
 ## Generate OpenAPI Types
@@ -71,8 +85,8 @@ Canonical entrypoint (design-level):
 blog-website/scripts/dev/web
 ```
 
-- Default frontend URL: `http://127.0.0.1:3001`
-- Expected backend origin (default rewrite): `http://127.0.0.1:3000`
+- Default frontend URL: from `WEB_PORT` in `blog-website/web/.env.app` (example: `http://127.0.0.1:3001`).
+- Expected backend origin (default rewrite): from `API_ORIGIN` in `blog-website/web/.env.local` (example: `http://127.0.0.1:3000`).
 
 ## Tests
 

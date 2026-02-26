@@ -1,0 +1,39 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "description": "This project was bootstrapped with Fastify-CLI.",
+  "main": "app.ts",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "npm run build:ts && tsc -p test/tsconfig.json && c8 node --test -r ts-node/register \"test/**/*.ts\"",
+    "test:unit": "npm run build:ts && tsc -p test/tsconfig.json && node --test -r ts-node/register \"test/unit/**/*.ts\"",
+    "test:integration": "npm run build:ts && tsc -p test/tsconfig.json && node --test -r ts-node/register \"test/integration/**/*.ts\"",
+    "start": "npm run build:ts && node scripts/fastify-with-env.mjs start -l info -P dist/app.js",
+    "build:ts": "tsc",
+    "watch:ts": "tsc -w",
+    "dev": "npm run build:ts && concurrently -k -p \"[{name}]\" -n \"TypeScript,App\" -c \"yellow.bold,cyan.bold\" \"npm:watch:ts\" \"npm:dev:start\"",
+    "dev:start": "node scripts/fastify-with-env.mjs start --ignore-watch=.ts$ -w -l info -P dist/app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.0.0",
+    "fastify-cli": "^7.4.1",
+    "openai": "^4.70.0",
+    "yaml": "^2.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.8",
+    "c8": "^10.1.2",
+    "ts-node": "^10.4.0",
+    "concurrently": "^9.0.0",
+    "fastify-tsconfig": "^3.0.0",
+    "typescript": "~5.9.2"
+  }
+}

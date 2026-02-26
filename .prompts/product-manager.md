@@ -48,13 +48,17 @@ Owns problem discovery, requirement analysis, use cases, and acceptance criteria
 - [ ] Create or identify the project subfolder and use it for all docs and contracts.
 - [ ] Draft `<project-subfolder>/docs/feature-brief.md` from external requirements, with clear acceptance criteria.
 - [ ] Call Chief Tech Lead to produce HLD and contracts using the feature brief and project subfolder.
-- [ ] Call Sub Tech Lead produce LLD using HLD and contracts in the project subfolder 
+- [ ] Call Sub Tech Lead produce LLD parallelly using HLD and contracts in the project subfolder 
     - Frontend tech lead (if frontend is in scope).
     - Backend tech lead (if backend is in scope).
-- [ ] Call Frontend/Backend Developers to implement using approved LLD and contracts in the project subfolder 
+- [ ] Call Frontend/Backend Developers parallelly to implement using approved LLD and contracts in the project subfolder 
     - Frontend developers (if frontend is in scope).
     - Backend developers (if backend is in scope).
 - [ ] Call QA to run final E2E tests; if failures occur, route feedback(eg. the complete e2e test report path) to developers for fixes.
+    - Call related developers **only when** test errors are related to them(eg, not calling backend developers when the errors are obviously a UI bug)
+    - if root causes are not obvious, then you could call both ends developers to investigate the issue and fix bugs related to them.
+    - but IMPORTANT, you MUST tell developers only modify their own projects/docs (eg, don't let backend developer modify frontend code)
+    - if you call only one developer, let it run e2e tests again to verify the fix. otherwise, tell developers not run e2e tests but let the QA do it after fixes.
 - [ ] Report project results (success or failure).
 
 ## Communicate Notes
