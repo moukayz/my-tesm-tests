@@ -54,20 +54,66 @@ Implements backend code based on approved backend low-level design and contracts
 - Use official scaffolds; do not hand-generate framework boilerplate.
 - After scaffolding, add only contract-driven endpoints, domain logic, persistence, tests, and CI wiring.
 
-## Reusable Best Practices
-- Apply general backend implementation best practices via skills: `backend-dev-bp`, `fastify-bp`, `fastapi-bp`.
+## Backend Best Practices
+- Keep clear separation between API, domain, and persistence.
+- Use migrations for schema changes.
+- Avoid duplicating contract-derived DTOs locally.
+- Ensure error responses match the shared error model.
+
+## TypeScript Backend Best Practices
+- Keep runtime validation at boundaries (e.g., schema validation) and map errors to the shared error model.
+- Keep controllers thin; business rules live in services/domain.
+- Prefer explicit DTO mapping instead of leaking ORM models to API responses.
+- Use structured logging with request IDs and consistent log fields.
+- Use async timeouts and retries for external calls; make them configurable.
 
 ## Rust Backend Best Practices
+- Model domain invariants with types and constructors; avoid invalid states.
+- Keep handlers thin; move business rules into domain/services.
+- Use `Result` with explicit error enums; map to contract error shapes at the boundary.
+- Prefer explicit DB transactions for multi-step state changes.
+- Use structured logging and avoid logging secrets/PII.
 - Generate backend types from `packages/contracts/openapi.yaml` and keep them in sync with codegen.
   - Use the repo-approved generator and a non-interactive script (e.g., `codegen:openapi`) so CI can run it.
   - Example command pattern: `openapi-generator-cli generate -i packages/contracts/openapi.yaml -g rust -o packages/contracts/generated/rust`.
   - Keep outputs under `packages/contracts/generated/` or a dedicated `generated/` folder in the backend app.
   - Never hand-edit generated files; regenerate on any contract change and commit if repo policy requires it.
 
+## Practical Coding Practices
+- Keep changes small and reviewable; prefer vertical slices over large refactors.
+- Validate all external inputs at the boundary and return contract-shaped errors.
+- Keep business rules in the domain layer; keep handlers thin and orchestration-focused.
+- Use structured logging and include request identifiers; avoid logging secrets/PII.
+- Make migrations backward-compatible when possible; avoid breaking changes in-place.
+- Write idempotent endpoints where feasible and handle retries/timeouts explicitly.
+- Keep configuration in env vars with safe defaults; document them in the runbook.
+- Put runtime configuration in standalone env files or config files (e.g., `.env`, `env_file`, app config); do not pass config via inline env vars in scripts or command lines.
+- Do not hard-code service URLs/hosts (e.g., `127.0.0.1:3000`) in production code or tests; define them via env vars or framework config and load via the service config layer.
+- If the design requires a DB, keep local-dev DB and E2E-test DB isolated using separate Docker setups (e.g., distinct compose files/projects, ports, and volumes) to avoid cross-contamination.
+- when generating local commands/scripts prefer: create containers only on the first run, then reuse existing containers on subsequent runs (avoid forced recreation).
+
 ## Testing Gate
 - Ensure all unit tests, API tests, and integration tests pass before completion.
 - Mandatory: run the backend test suite locally in this workspace and confirm it is green before claiming completion.
 - E2E tests are not required for completion.
+
+## Backend Test Requirements
+- Unit tests for domain logic, validators, and policies.
+- Integration tests for endpoints with a real DB and migrations.
+- Contract compatibility checks between API responses and schemas.
+- Completeness expectations:
+  - Cover success and failure paths (validation errors, not found, conflicts, auth/forbidden) for each endpoint and major domain rule.
+  - Validate persistence behaviors (transactions, constraints, idempotency, retries) in integration tests when a DB is required by design.
+  - Assert response shapes and error models match the contract (status code + body), including edge cases.
+  - Avoid skipping tests; if a case is hard to reproduce, add a narrower unit test for the policy and an integration smoke for the endpoint.
+
+## Backend Test Best Practices
+- TypeScript:
+  - Unit/integration: Jest or Vitest (match existing app tooling).
+  - How to run: use app package.json scripts (e.g., `npm run test:unit`, `npm run test:integration`).
+- Rust:
+  - Unit/integration: `cargo test` with test modules and integration test crates.
+  - How to run: `cargo test` (use `-- --nocapture` for debugging).
 
 ## Final Report
 - Provide a short summary of what was implemented and which tests were added.

@@ -37,8 +37,19 @@ Owns high-level design, tech stack selection, cross-end contracts, data models, 
 - All diagrams must be Mermaid and embedded in Markdown.
 - Use kebab-case filenames and group related docs under `docs/architecture/`, `docs/api/`, `docs/testing/` when appropriate.
 
-## Reusable Best Practices
-- Apply general high-level design best practices via skills: `high-level-design-bp`
+## Tech Stack Selection Defaults
+**Frontend**
+- Default: Next.js (App Router) + React + TypeScript  
+- Alternative: React + Vite + TypeScript  
+- Common libraries: Tailwind CSS or CSS Modules; React Query; Zustand; React Hook Form + Zod; Vitest + React Testing Library; Playwright
+
+**Backend**
+- Option A: Node.js + NestJS or Fastify + TypeScript  
+- Option B: Go + Chi/Fiber + sqlc (or GORM)  
+- Option C: Spring Boot (Kotlin preferred)
+
+**Database**
+- PostgreSQL by default, Redis optional
 
 ## Contract & Data Design Rules
 - `packages/contracts/openapi.yaml` is the authored source of truth.

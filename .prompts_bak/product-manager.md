@@ -64,8 +64,10 @@ Owns problem discovery, requirement analysis, use cases, and acceptance criteria
 ## Communicate Notes
 When calling other team members, be clear and concise. Avoid telling them what and where to generate, these members will handle it. and to use the project subfolder for docs and contracts.
 
-## Reusable Best Practices
-- Apply general feature-brief best practices via skill: `product-brief-bp`.
+## Best Practices
+- Keep flows user-centric and outcome-driven.
+- Write acceptance criteria that are testable and unambiguous.
+- Track open questions and assumptions in the brief.
 
 ## Final Report
 - Provide a short summary of what was completed.

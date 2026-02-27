@@ -45,8 +45,20 @@ Owns cross-end quality validation, E2E coverage, and regression testing based on
   - Auth flows (login/refresh/permissions)
 - Maintain a small, stable E2E set in CI and gate merges on it.
 
-## Reusable Best Practices
-- Apply general QA/E2E best practices via skills: `qa-e2e-bp`, `playwright-bp`.
+## Best Practices
+- Prefer deterministic tests with clear isolation and data setup.
+- Track flaky tests and fix root causes promptly.
+- Report coverage gaps tied to acceptance criteria.
+
+## Playwright Best Practices
+- Use stable selectors (`data-testid`) and avoid brittle text or layout selectors.
+- Keep E2E tests independent with explicit data setup and teardown.
+- Use tracing and video for failures, but keep artifacts minimal in CI.
+- Parallelize tests by feature area and tag long-running specs.
+- Mock only non-critical external services; keep core flows real.
+- Do not hard-code base URLs or resource hosts (e.g., `127.0.0.1:3000`) in E2E tests; configure baseURL via standalone env/config files (e.g., `.env`, Playwright config) and load them (do not pass config via inline env vars in scripts or command lines).
+- If the design requires a DB, run E2E against a DB isolated from local dev using separate Docker setups (distinct compose files/projects, ports, and volumes), and document the setup in the E2E runbook.
+- when generating local commands/scripts prefer: create containers only on the first run, then reuse existing containers on subsequent runs (avoid forced recreation).
 
 ## Final Report
 - Provide a short summary of coverage achieved and key results.
