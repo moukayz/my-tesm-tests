@@ -1,0 +1,48 @@
+.controlBar {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  padding: var(--space-4) 0;
+}
+
+.btn {
+  padding: var(--space-2) var(--space-6);
+  font-size: var(--font-size-base);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1.5;
+  transition: background-color 0.15s ease;
+}
+
+.btn:focus-visible {
+  outline: 2px solid #0969da;
+  outline-offset: 2px;
+}
+
+.btn--primary {
+  background-color: #2ea043;
+  color: #ffffff;
+  border-color: #2ea043;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background-color: #238636;
+}
+
+.btn--primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn--secondary {
+  background-color: #f6f8fa;
+  color: #24292e;
+  border-color: var(--color-border-default);
+}
+
+.btn--secondary:hover {
+  background-color: #eaeef2;
+}

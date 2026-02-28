@@ -1,0 +1,137 @@
+.diffViewer {
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--color-border-default);
+  background: #f6f8fa;
+}
+
+.colHeader {
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: #57606a;
+}
+
+.body {
+  overflow-x: auto;
+}
+
+.diffRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-base);
+  min-height: var(--diff-row-height);
+  line-height: var(--diff-row-height);
+  border-bottom: 1px solid #eaeef2;
+}
+
+.diffRow:last-child {
+  border-bottom: none;
+}
+
+.diffRow--added {
+  background-color: var(--color-diff-added-bg);
+}
+
+.diffRow--removed {
+  background-color: var(--color-diff-removed-bg);
+}
+
+.diffRow--equal {
+  background-color: var(--color-diff-equal-bg);
+}
+
+.diffRow--modified {
+  background-color: transparent;
+}
+
+.col--modifiedLeft {
+  background-color: var(--color-diff-modified-left-bg);
+}
+
+.col--modifiedRight {
+  background-color: var(--color-diff-modified-right-bg);
+}
+
+.diffRow--modified .marker {
+  color: var(--color-diff-modified-marker);
+  font-weight: 700;
+}
+
+.inlineHighlight {
+  background-color: var(--color-diff-inline-highlight);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.col {
+  display: flex;
+  align-items: flex-start;
+  padding: 0 var(--space-2);
+  min-width: 0;
+  border-right: 1px solid #eaeef2;
+}
+
+.col--right {
+  border-right: none;
+}
+
+.lineno {
+  flex-shrink: 0;
+  width: 3em;
+  text-align: right;
+  padding-right: var(--space-2);
+  color: #8b949e;
+  user-select: none;
+}
+
+.marker {
+  flex-shrink: 0;
+  width: 1.5em;
+  text-align: center;
+  user-select: none;
+}
+
+.diffRow--added .marker {
+  color: var(--color-diff-added-marker);
+  font-weight: 700;
+}
+
+.diffRow--removed .marker {
+  color: var(--color-diff-removed-marker);
+  font-weight: 700;
+}
+
+.content {
+  white-space: pre-wrap;
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 899px) {
+  .header {
+    grid-template-columns: 1fr;
+  }
+
+  .header .colHeader:last-child {
+    border-top: 1px solid var(--color-border-default);
+  }
+
+  .diffRow {
+    grid-template-columns: 1fr;
+  }
+
+  .col--left {
+    border-right: none;
+    border-bottom: 1px solid #eaeef2;
+  }
+}

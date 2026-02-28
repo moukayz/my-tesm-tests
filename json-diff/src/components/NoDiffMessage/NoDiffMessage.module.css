@@ -1,0 +1,20 @@
+.noDiffMessage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background-color: var(--color-success-bg);
+  color: var(--color-success-text);
+  border: 1px solid #c6e9c9;
+  border-radius: 6px;
+  font-size: var(--font-size-base);
+}
+
+.icon {
+  font-size: 1.4em;
+  flex-shrink: 0;
+}
+
+.text {
+  line-height: 1.5;
+}

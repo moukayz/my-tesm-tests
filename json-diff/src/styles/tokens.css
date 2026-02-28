@@ -1,0 +1,41 @@
+:root {
+  /* Colours — Diff */
+  --color-diff-added-bg: #e6ffed;
+  --color-diff-added-text: #24292e;
+  --color-diff-added-marker: #22863a;
+  --color-diff-removed-bg: #ffeef0;
+  --color-diff-removed-text: #24292e;
+  --color-diff-removed-marker: #cb2431;
+  --color-diff-equal-bg: #ffffff;
+  --color-diff-equal-text: #24292e;
+  --color-diff-modified-left-bg: #ffeef0;
+  --color-diff-modified-right-bg: #e6ffed;
+  --color-diff-modified-marker: #b08800;
+  --color-diff-inline-highlight: #fff3b0;
+
+  /* Colours — UI */
+  --color-error: #d32f2f;
+  --color-error-bg: #fff5f5;
+  --color-success-bg: #f0fff4;
+  --color-success-text: #276749;
+  --color-border-default: #d0d7de;
+  --color-border-error: #d32f2f;
+
+  /* Typography */
+  --font-mono: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-base: 14px;
+  --font-size-sm: 12px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Layout */
+  --panel-min-height: 240px;
+  --diff-row-height: 20px;
+}

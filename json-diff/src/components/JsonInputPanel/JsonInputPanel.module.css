@@ -1,0 +1,42 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  color: #24292e;
+}
+
+.textarea {
+  width: 100%;
+  min-height: var(--panel-min-height);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-base);
+  border: 1px solid var(--color-border-default);
+  border-radius: 4px;
+  padding: var(--space-3);
+  resize: vertical;
+  box-sizing: border-box;
+  line-height: 1.5;
+  background: #ffffff;
+  color: #24292e;
+}
+
+.textarea:focus {
+  outline: 2px solid #0969da;
+  outline-offset: -1px;
+  border-color: #0969da;
+}
+
+.textarea--error {
+  border-color: var(--color-border-error);
+}
+
+.error {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-1);
+}

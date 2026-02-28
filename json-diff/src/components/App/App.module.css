@@ -1,0 +1,32 @@
+.appLayout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  text-align: center;
+  padding: var(--space-4) 0 0;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #24292e;
+}
+
+.inputPanels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 899px) {
+  .inputPanels {
+    grid-template-columns: 1fr;
+  }
+}
+
+.resultsArea {
+  margin-top: var(--space-2);
+}

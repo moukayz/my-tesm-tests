@@ -1,0 +1,27 @@
+@import './styles/tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  color: #24292e;
+  background: #f6f8fa;
+}
+
+body {
+  min-height: 100vh;
+}
+
+#root {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
