@@ -1,0 +1,130 @@
+[
+  {
+    "date": "2026/9/25",
+    "weekDay": "星期五",
+    "dayNum": 1,
+    "overnight": "巴黎",
+    "plan": "巴黎圣母院，圣礼拜堂，凯旋门，傍晚卢浮宫（夜场）",
+    "train": []
+  },
+  {
+    "date": "2026/9/26",
+    "weekDay": "星期六",
+    "dayNum": 2,
+    "overnight": "巴黎",
+    "plan": "凡尔赛宫，下午/傍晚：埃菲尔铁塔，游船",
+    "train": ["Paris ↔ Versailles（往返）"]
+  },
+  {
+    "date": "2026/9/27",
+    "weekDay": "星期日",
+    "dayNum": 3,
+    "overnight": "巴黎",
+    "plan": "橘园美术馆、奥赛博物馆、罗丹博物馆，下午：枫丹白露宫",
+    "train": ["Paris ↔ Fontainebleau-Avon（往返）"]
+  },
+  {
+    "date": "2026/9/28",
+    "weekDay": "星期一",
+    "dayNum": 4,
+    "overnight": "巴黎",
+    "plan": "圣米歇尔山（全天）",
+    "train": ["Paris ↔ Rennes（往返）"]
+  },
+  {
+    "date": "2026/9/29",
+    "weekDay": "星期二",
+    "dayNum": 5,
+    "overnight": "奥格斯堡",
+    "plan": "早上出发到科隆，游玩约3小时，傍晚到奥格斯堡（具体时刻待确认）",
+    "train": ["EST 9423: Paris → Cologne (time TBD)", "ICE 1011: Cologne → Augsburg (time TBD)"]
+  },
+  {
+    "date": "2026/9/30",
+    "weekDay": "星期三",
+    "dayNum": 6,
+    "overnight": "奥格斯堡",
+    "plan": "新天鹅堡周边",
+    "train": ["Augsburg ↔ Füssen（往返）"]
+  },
+  {
+    "date": "2026/10/1",
+    "weekDay": "星期四",
+    "dayNum": 7,
+    "overnight": "奥格斯堡",
+    "plan": "慕尼黑市内",
+    "train": ["Augsburg ↔ Munich（往返）"]
+  },
+  {
+    "date": "2026/10/2",
+    "weekDay": "星期五",
+    "dayNum": 8,
+    "overnight": "奥尔蒂塞伊",
+    "plan": "到多洛米蒂(Bolzano)，租车，开始游玩（具体时刻待确认）",
+    "train": ["ICE 905: Augsburg → Munich (time TBD)", "EC 81: Munich → Bolzano (time TBD)"]
+  },
+  {
+    "date": "2026/10/3",
+    "weekDay": "星期六",
+    "dayNum": 9,
+    "overnight": "奥尔蒂塞伊",
+    "plan": "多洛米蒂（全天）",
+    "train": []
+  },
+  {
+    "date": "2026/10/4",
+    "weekDay": "星期日",
+    "dayNum": 10,
+    "overnight": "佛罗伦萨",
+    "plan": "上午多洛米蒂，中午还车，火车到佛罗伦萨",
+    "train": ["Bolzano → Florence【~3h15m】（单程）"]
+  },
+  {
+    "date": "2026/10/5",
+    "weekDay": "星期一",
+    "dayNum": 11,
+    "overnight": "佛罗伦萨",
+    "plan": "比萨、市区、主教座堂（Duomo）、巴杰罗博物馆、梅第奇礼拜堂",
+    "train": ["Florence ↔ Pisa（往返）"]
+  },
+  {
+    "date": "2026/10/6",
+    "weekDay": "星期二",
+    "dayNum": 12,
+    "overnight": "佛罗伦萨",
+    "plan": "乌菲兹美术馆、佛罗伦萨学院美术馆",
+    "train": []
+  },
+  {
+    "date": "2026/10/7",
+    "weekDay": "星期三",
+    "dayNum": 13,
+    "overnight": "罗马",
+    "plan": "下午：佛罗伦萨 → 罗马",
+    "train": ["Florence → Rome（单程）"]
+  },
+  {
+    "date": "2026/10/8",
+    "weekDay": "星期四",
+    "dayNum": 14,
+    "overnight": "罗马",
+    "plan": "梵蒂冈",
+    "train": []
+  },
+  {
+    "date": "2026/10/9",
+    "weekDay": "星期五",
+    "dayNum": 15,
+    "overnight": "罗马",
+    "plan": "古罗马专题",
+    "train": []
+  },
+  {
+    "date": "2026/10/10",
+    "weekDay": "星期六",
+    "dayNum": 16,
+    "overnight": "—",
+    "plan": "上午罗马，下午离境",
+    "train": []
+  }
+]

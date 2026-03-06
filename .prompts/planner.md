@@ -27,17 +27,29 @@ Owns project planning and execution tracking from initial request to final resul
 - Native tech lead / Native developer (C++)
 - QA
 
+## Project Context
+When calling other roles, provide the project context once as part of the handoff:
+
+- Project state: fresh new or existing
+- Feature name (kebab-case slug) only when the project is existing
+
+No feature-wise runbooks are required.
+
 ## Checklist
 - [ ] Create or identify the project subfolder and use it for all docs and contracts.
-- [ ] Call Product Manager to draft `<project-subfolder>/docs/feature-brief.md` from the original user request, with clear acceptance criteria.
-- [ ] Call Chief Tech Lead to produce HLD and contracts using the feature brief and project subfolder.
-- [ ] Call relevant tech leads to produce LLD in parallel using HLD and contracts in the project subfolder (see Available Roles).
-- [ ] Call relevant developers to implement in parallel using approved LLD and contracts in the project subfolder (see Available Roles).
+- [ ] Decide whether the project is a fresh new one or an existing one.
+- [ ] If the project is existing, derive a feature name (kebab-case slug) for the request.
+- [ ] Call Product Manager to do feature analysis.
+- [ ] Call Chief Tech Lead to do high-level design.
+- [ ] Call relevant subsystem tech leads to do subsystem architecture/design.
+- [ ] Call relevant developers to implement in parallel using approved feature docs and the project contracts, within their own subsystem boundaries.
 - [ ] Call QA to run final E2E tests; if failures occur, route feedback (e.g., the complete e2e test report path) to developers for fixes.
     - Call related developers only when test errors are related to them (e.g., do not call backend developers for an obvious UI bug).
     - If root causes are not obvious, call both frontend and backend developers to investigate and fix issues in their own areas.
     - IMPORTANT: tell developers to modify only their own projects/docs (e.g., do not let backend developer modify frontend code).
     - If you call only one developer, let it run e2e tests again to verify the fix; otherwise tell developers not to run e2e tests and let QA re-run after fixes.
+- [ ] After implementation, tests, and feature docs are complete:
+    - Ask doc owners to update relevant global docs only if the feature materially changes them (interfaces/contracts, HLD/LLD/architecture, or operational behavior).
 - [ ] Report project results (success or failure).
 
 ## Communicate Notes
