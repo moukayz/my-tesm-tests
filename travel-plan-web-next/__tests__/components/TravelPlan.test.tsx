@@ -13,6 +13,11 @@ jest.mock('../../components/TrainDelayTab', () => ({
   default: () => <div data-testid="train-delay-tab">TrainDelayTab</div>,
 }))
 
+jest.mock('../../components/TrainTimetableTab', () => ({
+  __esModule: true,
+  default: () => <div data-testid="train-timetable-tab">TrainTimetableTab</div>,
+}))
+
 describe('TravelPlan', () => {
   it('renders the page heading', () => {
     render(<TravelPlan />)
@@ -23,8 +28,10 @@ describe('TravelPlan', () => {
     render(<TravelPlan />)
     const itinerary = screen.getByTestId('itinerary-tab')
     const delays = screen.getByTestId('train-delay-tab')
+    const timetable = screen.getByTestId('train-timetable-tab')
     expect(itinerary.parentElement).not.toHaveClass('hidden')
     expect(delays.parentElement).toHaveClass('hidden')
+    expect(timetable.parentElement).toHaveClass('hidden')
   })
 
   it('switches to TrainDelayTab when Delays tab is clicked', () => {
@@ -36,6 +43,17 @@ describe('TravelPlan', () => {
     expect(delays.parentElement).not.toHaveClass('hidden')
   })
 
+  it('switches to TrainTimetableTab when Timetable tab is clicked', () => {
+    render(<TravelPlan />)
+    fireEvent.click(screen.getByRole('button', { name: /^timetable$/i }))
+    const itinerary = screen.getByTestId('itinerary-tab')
+    const delays = screen.getByTestId('train-delay-tab')
+    const timetable = screen.getByTestId('train-timetable-tab')
+    expect(itinerary.parentElement).toHaveClass('hidden')
+    expect(delays.parentElement).toHaveClass('hidden')
+    expect(timetable.parentElement).not.toHaveClass('hidden')
+  })
+
   it('switches back to ItineraryTab when Itinerary tab is clicked', () => {
     render(<TravelPlan />)
     fireEvent.click(screen.getByRole('button', { name: /train delays/i }))
@@ -44,9 +62,10 @@ describe('TravelPlan', () => {
     expect(itinerary.parentElement).not.toHaveClass('hidden')
   })
 
-  it('renders both tab buttons', () => {
+  it('renders all three tab buttons', () => {
     render(<TravelPlan />)
     expect(screen.getByRole('button', { name: /^itinerary$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /train delays/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^timetable$/i })).toBeInTheDocument()
   })
 })
