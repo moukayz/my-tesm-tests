@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
-import { query, PARQUET } from '../../lib/db.js'
+import { query, PARQUET } from '../../lib/db'
 
 const CUTOFF = `(SELECT MAX(time) - INTERVAL 3 MONTHS FROM ${PARQUET})`
 
-export async function GET(request) {
+export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const train = searchParams.get('train')
   const station = searchParams.get('station')
-  if (!train || !station) return NextResponse.json({ error: 'train and station params required' }, { status: 400 })
+  if (!train || !station)
+    return NextResponse.json({ error: 'train and station params required' }, { status: 400 })
 
   const trainEsc = train.replace(/'/g, "''")
   const stationEsc = station.replace(/'/g, "''")
@@ -46,6 +47,7 @@ export async function GET(request) {
 
     return NextResponse.json({ stats: stats[0] ?? null, trends })
   } catch (e) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    const err = e as Error
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

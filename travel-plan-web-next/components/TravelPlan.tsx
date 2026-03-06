@@ -4,8 +4,10 @@ import { useState } from 'react'
 import ItineraryTab from './ItineraryTab'
 import TrainDelayTab from './TrainDelayTab'
 
+type Tab = 'itinerary' | 'delays'
+
 export default function TravelPlan() {
-  const [tab, setTab] = useState('itinerary')
+  const [tab, setTab] = useState<Tab>('itinerary')
 
   return (
     <div className="flex flex-col items-center">
@@ -37,8 +39,12 @@ export default function TravelPlan() {
         </button>
       </div>
 
-      <div className={tab === 'itinerary' ? '' : 'hidden'}><ItineraryTab /></div>
-      <div className={tab === 'delays' ? 'w-full' : 'hidden'}><TrainDelayTab /></div>
+      <div className={tab === 'itinerary' ? '' : 'hidden'}>
+        <ItineraryTab />
+      </div>
+      <div className={tab === 'delays' ? 'w-full' : 'hidden'}>
+        <TrainDelayTab />
+      </div>
     </div>
   )
 }

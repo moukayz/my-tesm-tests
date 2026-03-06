@@ -5,7 +5,7 @@ export const metadata = {
   description: 'A detailed view of your upcoming trip',
 }
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh">
       <body className="bg-gray-100 text-gray-800 min-h-screen">{children}</body>

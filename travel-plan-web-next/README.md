@@ -19,11 +19,13 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 | Layer | Technology |
 |---|---|
 | Framework | Next.js 15 (App Router) |
+| Language | TypeScript 5 |
 | UI | React 19 + Tailwind CSS v3 |
 | Charts | Recharts |
 | Data (static) | `data/route.json` |
-| Data (dynamic) | DuckDB CLI querying parquet files |
-| Runtime | Node.js |
+| Data (dynamic) | DuckDB querying parquet files via Node.js API routes |
+| Runtime | Node.js 18+ |
+| Testing | Jest 30 + React Testing Library |
 
 ---
 
@@ -32,21 +34,40 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 ```
 travel-plan-web-next/
 ├── app/
-│   ├── layout.js               # Root layout, imports globals.css
-│   ├── page.js                 # Entry page, renders <TravelPlan />
-│   ├── globals.css             # Tailwind base/components/utilities
+│   ├── layout.tsx               # Root layout, imports globals.css
+│   ├── page.tsx                 # Entry page, renders <TravelPlan />
+│   ├── globals.css              # Tailwind base/components/utilities
+│   ├── lib/
+│   │   ├── db.ts                # DuckDB singleton + query helper + convertBigInt
+│   │   ├── itinerary.ts         # RouteDay/ProcessedDay types, getOvernightColor, processItinerary
+│   │   └── trainDelay.ts        # DelayStats/TrendPoint types, formatDay, buildStatItems
 │   └── api/
-│       ├── trains/route.js     # GET /api/trains
-│       ├── stations/route.js   # GET /api/stations?train=<name>
-│       └── delay-stats/route.js# GET /api/delay-stats?train=<name>&station=<name>
+│       ├── trains/route.ts      # GET /api/trains
+│       ├── stations/route.ts    # GET /api/stations?train=<name>
+│       └── delay-stats/route.ts # GET /api/delay-stats?train=<name>&station=<name>
 ├── components/
-│   ├── TravelPlan.jsx          # Tab switcher (keeps both tabs mounted)
-│   ├── ItineraryTab.jsx        # Trip table with rowspan + color logic
-│   ├── TrainDelayTab.jsx       # Delay search UI + stats grid + chart
-│   └── AutocompleteInput.jsx   # Reusable text input with filtered dropdown
+│   ├── TravelPlan.tsx           # Tab switcher (keeps both tabs mounted)
+│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic
+│   ├── TrainDelayTab.tsx        # Delay search UI + stats grid + chart
+│   └── AutocompleteInput.tsx    # Reusable text input with filtered dropdown
+├── __tests__/
+│   ├── unit/
+│   │   ├── itinerary.test.ts    # getOvernightColor, processItinerary
+│   │   ├── db.test.ts           # convertBigInt
+│   │   └── trainDelay.test.ts   # formatDay, buildStatItems
+│   ├── integration/
+│   │   ├── api-trains.test.ts
+│   │   ├── api-stations.test.ts
+│   │   └── api-delay-stats.test.ts
+│   └── components/
+│       ├── AutocompleteInput.test.tsx
+│       └── TravelPlan.test.tsx
 ├── data/
-│   └── route.json              # Static trip itinerary data (16 days)
-├── next.config.js
+│   └── route.json               # Static trip itinerary data (16 days)
+├── next.config.ts
+├── tsconfig.json
+├── jest.config.ts
+├── jest.setup.ts
 ├── tailwind.config.js
 ├── postcss.config.js
 └── package.json
@@ -66,12 +87,10 @@ travel-plan-web-next/
 
 All three API routes (`/api/trains`, `/api/stations`, `/api/delay-stats`) follow the same pattern:
 
-1. Build a SQL query string
-2. Write it to a temp file in `os.tmpdir()`
-3. Run `duckdb -json -f <tmpfile>` via `execSync` with `cwd` set to the `travel-plan-web` sibling directory (where the parquet files live)
-4. Parse and return the JSON result
-
-The parquet data directory is resolved as `../travel-plan-web/db_railway_stats/` relative to this project's root, so no data files need to be copied.
+1. Parse and validate query params
+2. Build a parameterised SQL string (single-quotes escaped)
+3. Call `query()` from `app/lib/db.ts`, which runs the SQL against an in-memory DuckDB instance pointed at `db_railway_stats/*.parquet`
+4. Return the result as JSON (BigInt values are converted to numbers before serialisation)
 
 ### Data Flow (Train Delays)
 
@@ -91,14 +110,7 @@ User types train name
 ## Prerequisites
 
 - Node.js 18+
-- [DuckDB CLI](https://duckdb.org/docs/installation/) installed and on `$PATH`
-- The sibling directory `../travel-plan-web/db_railway_stats/` must contain the parquet files
-
-Verify DuckDB is available:
-
-```bash
-duckdb --version
-```
+- The `db_railway_stats/` directory at the project root must contain the parquet files
 
 ---
 
@@ -130,6 +142,16 @@ npm start
 ```bash
 npm run lint
 ```
+
+### Tests
+
+```bash
+npm test                # run all tests
+npm run test:watch      # watch mode
+npm run test:coverage   # with coverage report
+```
+
+52 tests across 8 suites covering unit logic, API route integration, and component behaviour.
 
 ---
 

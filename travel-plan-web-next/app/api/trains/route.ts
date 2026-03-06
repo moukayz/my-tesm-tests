@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { query, PARQUET } from '../../lib/db.js'
+import { query, PARQUET } from '../../lib/db'
 
 export async function GET() {
   try {
@@ -10,6 +10,7 @@ export async function GET() {
     `)
     return NextResponse.json(rows)
   } catch (e) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    const err = e as Error
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

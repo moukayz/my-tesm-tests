@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { query, PARQUET } from '../../lib/db.js'
+import { query, PARQUET } from '../../lib/db'
 
-export async function GET(request) {
+export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const train = searchParams.get('train')
   if (!train) return NextResponse.json({ error: 'train param required' }, { status: 400 })
@@ -16,6 +16,7 @@ export async function GET(request) {
     `)
     return NextResponse.json(rows)
   } catch (e) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    const err = e as Error
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

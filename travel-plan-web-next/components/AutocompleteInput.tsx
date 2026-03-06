@@ -2,17 +2,35 @@
 
 import { useState, useRef, useEffect } from 'react'
 
-export default function AutocompleteInput({ id, value, onChange, onSelect, options, placeholder, disabled }) {
+interface AutocompleteInputProps {
+  id: string
+  value: string
+  onChange: (text: string) => void
+  onSelect: (opt: string) => void
+  options: string[]
+  placeholder?: string
+  disabled?: boolean
+}
+
+export default function AutocompleteInput({
+  id,
+  value,
+  onChange,
+  onSelect,
+  options,
+  placeholder,
+  disabled,
+}: AutocompleteInputProps) {
   const [open, setOpen] = useState(false)
-  const containerRef = useRef(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const filtered = value
-    ? options.filter(opt => opt.toLowerCase().includes(value.toLowerCase()))
+    ? options.filter((opt) => opt.toLowerCase().includes(value.toLowerCase()))
     : options
 
   useEffect(() => {
-    function handleClickOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
     }
@@ -20,12 +38,12 @@ export default function AutocompleteInput({ id, value, onChange, onSelect, optio
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  function handleChange(e) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     onChange(e.target.value)
     setOpen(true)
   }
 
-  function handleSelect(opt) {
+  function handleSelect(opt: string) {
     onSelect(opt)
     setOpen(false)
   }
@@ -45,7 +63,7 @@ export default function AutocompleteInput({ id, value, onChange, onSelect, optio
       />
       {open && !disabled && filtered.length > 0 && (
         <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
-          {filtered.map(opt => (
+          {filtered.map((opt) => (
             <li
               key={opt}
               onMouseDown={() => handleSelect(opt)}
