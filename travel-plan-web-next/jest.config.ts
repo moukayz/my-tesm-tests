@@ -10,7 +10,7 @@ const config: Config = {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   testEnvironment: 'jest-environment-jsdom',
-  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/'],
+  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/', '<rootDir>/__tests__/e2e/'],
   collectCoverageFrom: [
     'app/**/*.{ts,tsx}',
     'components/**/*.{ts,tsx}',

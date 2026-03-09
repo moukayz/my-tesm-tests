@@ -26,6 +26,12 @@ async function selectTrain(page: Page, trainName: string) {
   await option.click()
 }
 
+async function getTimetableContainer(page: Page) {
+  const header = page.getByRole('heading', { name: 'Planned Timetable' })
+  await expect(header).toBeVisible({ timeout: 15_000 })
+  return header.locator('..').locator('..')
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -62,15 +68,15 @@ test.describe('Timetable tab — real parquet queries', () => {
     await openTimetableTab(page)
     await selectTrain(page, 'ICE 905')
 
-    await expect(page.getByText('Planned Timetable')).toBeVisible({ timeout: 15_000 })
+    const timetable = await getTimetableContainer(page)
 
     // First station: Berlin Hauptbahnhof — no arrival, departs 23:10
-    await expect(page.getByText('Berlin Hauptbahnhof')).toBeVisible()
-    await expect(page.getByText('23:10')).toBeVisible()
+    await expect(timetable.getByRole('cell', { name: 'Berlin Hauptbahnhof' })).toBeVisible()
+    await expect(timetable.getByRole('cell', { name: '23:10' })).toBeVisible()
 
     // Last station: München Hbf — arrives 07:14, no departure
-    await expect(page.getByText('München Hbf')).toBeVisible()
-    await expect(page.getByText('07:14')).toBeVisible()
+    await expect(timetable.getByRole('cell', { name: 'München Hbf' })).toBeVisible()
+    await expect(timetable.getByRole('cell', { name: '07:14' })).toBeVisible()
   })
 
   test('timetable shows all 16 stops for ICE 905', async ({ page }) => {
@@ -107,7 +113,7 @@ test.describe('Timetable tab — real parquet queries', () => {
   test('switching away and back to Timetable tab preserves state', async ({ page }) => {
     await openTimetableTab(page)
     await selectTrain(page, 'ICE 905')
-    await expect(page.getByText('Planned Timetable')).toBeVisible({ timeout: 15_000 })
+    const timetable = await getTimetableContainer(page)
 
     // Switch to another tab and back
     await page.getByRole('button', { name: 'Itinerary' }).click()
@@ -115,7 +121,7 @@ test.describe('Timetable tab — real parquet queries', () => {
 
     // Table should still be visible (hidden via CSS, not unmounted)
     await expect(page.getByText('Planned Timetable')).toBeVisible()
-    await expect(page.getByText('Berlin Hauptbahnhof')).toBeVisible()
+    await expect(timetable.getByRole('cell', { name: 'Berlin Hauptbahnhof' })).toBeVisible()
   })
 })
 

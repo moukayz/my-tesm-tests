@@ -1,15 +1,28 @@
+export interface TrainRoute {
+  train_id: string
+  start?: string
+  end?: string
+}
+
+export interface PlanSections {
+  morning: string
+  afternoon: string
+  evening: string
+}
+
 export interface RouteDay {
   date: string
   weekDay: string
   dayNum: number
   overnight: string
-  plan: string
-  train: string[]
+  plan: PlanSections
+  train: TrainRoute[]
 }
 
 export interface ProcessedDay extends RouteDay {
   overnightRowSpan: number
 }
+
 
 export function getOvernightColor(location: string): string {
   if (location === '—') return '#f5f5f5'
@@ -46,4 +59,44 @@ export function processItinerary(data: RouteDay[]): ProcessedDay[] {
     result[overnightStartIndex].overnightRowSpan = overnightSpan
   }
   return result
+}
+
+export function normalizeTrainId(trainId: string): string {
+  const trimmed = trainId.trim()
+  const match = trimmed.match(/^([A-Za-z]{2,4})(\d+)$/)
+  if (!match) return trimmed
+  return `${match[1].toUpperCase()} ${match[2]}`
+}
+
+// Map city names to their possible station name variations
+const CITY_ALIASES: Record<string, string[]> = {
+  cologne: ['köln', 'koeln', 'cologne'],
+  munich: ['münchen', 'munich'],
+  augsburg: ['augsburg'],
+  bolzano: ['bozen', 'bolzano'],
+  lyon: ['lyon'],
+  paris: ['paris'],
+  rome: ['rome', 'roma'],
+  florence: ['florence', 'firenze'],
+  pisa: ['pisa'],
+}
+
+export function findMatchingStation(
+  stations: Array<{ station_name: string; [key: string]: unknown }>,
+  cityName: string,
+  side: 'from' | 'to'
+): (typeof stations)[number] | null {
+  const normalizedCity = cityName.toLowerCase().trim()
+  const aliases = CITY_ALIASES[normalizedCity] || [normalizedCity]
+
+  // Find all stations that match any of the city aliases
+  const matches = stations.filter((station) => {
+    const stationName = station.station_name.toLowerCase()
+    return aliases.some((alias) => stationName.includes(alias))
+  })
+
+  if (matches.length === 0) return null
+
+  // For 'from', prefer the first match; for 'to', prefer the last match
+  return side === 'from' ? matches[0] : matches[matches.length - 1]
 }

@@ -35,7 +35,11 @@ describe('processItinerary', () => {
     weekDay: '星期一',
     dayNum,
     overnight,
-    plan: 'some plan',
+    plan: {
+      morning: 'morning plan',
+      afternoon: 'afternoon plan',
+      evening: 'evening plan',
+    },
     train: [],
   })
 
@@ -79,11 +83,41 @@ describe('processItinerary', () => {
   })
 
   it('preserves all original fields', () => {
-    const day = makeDay('Paris', 1)
+    const day: RouteDay = {
+      date: '2026/9/25',
+      weekDay: '星期五',
+      dayNum: 1,
+      overnight: 'Paris',
+      plan: {
+        morning: 'some plan',
+        afternoon: 'some plan',
+        evening: 'some plan',
+      },
+      train: [{ train_id: 'ICE905', start: 'berlin', end: 'munich' }],
+    }
     const [result] = processItinerary([day])
     expect(result.date).toBe(day.date)
     expect(result.weekDay).toBe(day.weekDay)
     expect(result.plan).toBe(day.plan)
     expect(result.train).toEqual(day.train)
+  })
+})
+
+describe('normalizeTrainId', () => {
+  it('inserts a space between letters and digits when missing', () => {
+    const { normalizeTrainId } = require('../../app/lib/itinerary')
+    expect(normalizeTrainId('ICE905')).toBe('ICE 905')
+    expect(normalizeTrainId('EC81')).toBe('EC 81')
+    expect(normalizeTrainId('EST9423')).toBe('EST 9423')
+  })
+
+  it('keeps train ids that already contain a space', () => {
+    const { normalizeTrainId } = require('../../app/lib/itinerary')
+    expect(normalizeTrainId('ICE 905')).toBe('ICE 905')
+  })
+
+  it('returns the input for non-train labels', () => {
+    const { normalizeTrainId } = require('../../app/lib/itinerary')
+    expect(normalizeTrainId('Paris ↔ Versailles（往返）')).toBe('Paris ↔ Versailles（往返）')
   })
 })

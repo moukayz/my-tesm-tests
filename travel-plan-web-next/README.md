@@ -7,6 +7,9 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 ## Features
 
 - **Itinerary tab** — full trip schedule rendered as a table with merged overnight-location cells and pastel color-coding per destination
+  - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away
+  - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
+  - Changes persist to `data/route.json` via `POST /api/plan-update`
 - **Train Delays tab** — search any train and station to see delay statistics (avg, median, p75/p90/p95, max) and a daily trend chart over the last 3 months
 - Autocomplete inputs for both train and station with filtered dropdowns and scroll
 - Tab state is persistent — switching tabs does not reset the delay query
@@ -20,7 +23,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 |---|---|
 | Framework | Next.js 15 (App Router) |
 | Language | TypeScript 5 |
-| UI | React 19 + Tailwind CSS v3 |
+| UI | React 19 + Tailwind CSS v3 + lucide-react |
 | Charts | Recharts |
 | Data (static) | `data/route.json` |
 | Data (dynamic) | DuckDB querying parquet files via Node.js API routes |
@@ -44,10 +47,12 @@ travel-plan-web-next/
 │   └── api/
 │       ├── trains/route.ts      # GET /api/trains
 │       ├── stations/route.ts    # GET /api/stations?train=<name>
-│       └── delay-stats/route.ts # GET /api/delay-stats?train=<name>&station=<name>
+│       ├── delay-stats/route.ts # GET /api/delay-stats?train=<name>&station=<name>
+│       ├── plan-update/route.ts # POST /api/plan-update
+│       └── train-stops/route.ts # GET /api/train-stops
 ├── components/
 │   ├── TravelPlan.tsx           # Tab switcher (keeps both tabs mounted)
-│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic
+│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic, inline editing, drag-and-drop
 │   ├── TrainDelayTab.tsx        # Delay search UI + stats grid + chart
 │   └── AutocompleteInput.tsx    # Reusable text input with filtered dropdown
 ├── __tests__/
@@ -59,8 +64,12 @@ travel-plan-web-next/
 │   │   ├── api-trains.test.ts
 │   │   ├── api-stations.test.ts
 │   │   └── api-delay-stats.test.ts
+│   ├── integration/
+│   │   ├── api-plan-update.test.ts
+│   │   └── api-train-stops.test.ts
 │   └── components/
 │       ├── AutocompleteInput.test.tsx
+│       ├── ItineraryTab.test.tsx
 │       └── TravelPlan.test.tsx
 ├── data/
 │   └── route.json               # Static trip itinerary data (16 days)
@@ -83,9 +92,18 @@ travel-plan-web-next/
 
 `AutocompleteInput` is a controlled component that accepts an `options` string array and filters it case-insensitively against the current input value. It uses `onMouseDown` (not `onClick`) for list item selection so the event fires before the input's `onBlur`, preventing the dropdown from closing before a selection registers.
 
+### Itinerary Plan Editing
+
+Each plan row (Morning / Afternoon / Evening) supports two interaction modes:
+
+- **Inline edit** — double-click a row to replace the activity text with an `<input>`. Commit with Enter or by clicking away (blur). Only one row is editable at a time. On blur, if the value changed a `POST /api/plan-update` is issued; on failure the value reverts and an error message is shown.
+- **Drag-and-drop reorder** — drag the grip handle (right side of each row) to swap activity values within the same day. An optimistic update is applied immediately; on API failure the swap reverts. The time-of-day labels (icons for Morning / Afternoon / Evening) are fixed and are not draggable. Drag handles are hidden while a row is in edit mode.
+
+`planOverrides` in `ItineraryTab` is a client-side override layer (keyed by day index) that sits on top of the static `route.json` import so both interactions compose correctly without a page reload.
+
 ### API Routes
 
-All three API routes (`/api/trains`, `/api/stations`, `/api/delay-stats`) follow the same pattern:
+All three train-data API routes (`/api/trains`, `/api/stations`, `/api/delay-stats`) follow the same pattern:
 
 1. Parse and validate query params
 2. Build a parameterised SQL string (single-quotes escaped)
@@ -151,7 +169,7 @@ npm run test:watch      # watch mode
 npm run test:coverage   # with coverage report
 ```
 
-52 tests across 8 suites covering unit logic, API route integration, and component behaviour.
+124 tests across 14 suites covering unit logic, API route integration, and component behaviour (including inline editing and drag-and-drop).
 
 ---
 
@@ -189,6 +207,16 @@ Returns all distinct train names from the parquet dataset.
 Returns all stations for a given train, ordered by their position on the line.
 
 **Response:** `[{ station_name: string, station_num: number }]`
+
+---
+
+### `POST /api/plan-update`
+
+Persists an updated plan object for a single day to `data/route.json`.
+
+**Body:** `{ "dayIndex": 0, "plan": { "morning": "...", "afternoon": "...", "evening": "..." } }`
+
+**Response:** `200` with the updated day object, `400` for validation errors, `500` for file errors.
 
 ---
 

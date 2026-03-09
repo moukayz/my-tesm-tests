@@ -32,3 +32,11 @@ Maintain high test coverage. Run `npm test -- --coverage` before committing.
 ## No Exceptions
 
 Apply TDD to all code changes—bugfixes, refactoring, new features, API endpoints.
+
+## Before Planning or Editing
+
+Always read `README.md` first to get essential project information (tech stack, structure, architecture, API reference) before doing any planning or editing in this project.
+
+## After Editing
+
+After completing any change, update `README.md` if the change affects features, tech stack, project structure, architecture, API routes, or test counts. Keep the README accurate and in sync with the codebase.
