@@ -61,8 +61,8 @@ export async function GET(request: Request) {
     if (rows.length === 0) return NextResponse.json(null)
 
     // Find matching stations for departure and arrival cities
-    const fromStation = findMatchingStation(rows, from, 'from')
-    const toStation = findMatchingStation(rows, to, 'to')
+    const fromStation = findMatchingStation(rows as unknown as Array<{ station_name: string; [key: string]: unknown }>, from, 'from') as TimetableRow | null
+    const toStation = findMatchingStation(rows as unknown as Array<{ station_name: string; [key: string]: unknown }>, to, 'to') as TimetableRow | null
 
     if (!fromStation || !toStation) return NextResponse.json(null)
 

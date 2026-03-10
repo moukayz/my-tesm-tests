@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { getIronSession } from 'iron-session'
+import { cookies } from 'next/headers'
+import { sessionOptions, SessionData } from '../../lib/session'
 
 interface UpdatePlanRequest {
   dayIndex: number
@@ -12,6 +15,11 @@ interface UpdatePlanRequest {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getIronSession<SessionData>(await cookies(), sessionOptions)
+  if (!session.isLoggedIn) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body: UpdatePlanRequest = await request.json()
 

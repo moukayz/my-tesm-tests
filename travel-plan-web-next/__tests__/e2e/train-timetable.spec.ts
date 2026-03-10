@@ -116,12 +116,113 @@ test.describe('Timetable tab — real parquet queries', () => {
     const timetable = await getTimetableContainer(page)
 
     // Switch to another tab and back
-    await page.getByRole('button', { name: 'Itinerary' }).click()
+    await page.getByRole('button', { name: 'Train Delays' }).click()
     await page.getByRole('button', { name: 'Timetable' }).click()
 
     // Table should still be visible (hidden via CSS, not unmounted)
     await expect(page.getByText('Planned Timetable')).toBeVisible()
     await expect(timetable.getByRole('cell', { name: 'Berlin Hauptbahnhof' })).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// French (TGV 8088) and Eurostar (EST 9423) UI tests
+// ---------------------------------------------------------------------------
+
+test.describe('Timetable tab — French and Eurostar GTFS queries', () => {
+  test('typing "8088" shows TGV 8088 in dropdown', async ({ page }) => {
+    await openTimetableTab(page)
+    const trainInput = page.getByRole('textbox', { name: /train/i })
+    await trainInput.fill('8088')
+
+    const dropdown = page.getByRole('list')
+    await dropdown.waitFor({ state: 'visible' })
+    await expect(dropdown.getByRole('listitem').filter({ hasText: 'TGV 8088' })).toBeVisible()
+  })
+
+  test('all dropdown items contain the search term when typing "8088"', async ({ page }) => {
+    await openTimetableTab(page)
+    const trainInput = page.getByRole('textbox', { name: /train/i })
+    await trainInput.fill('8088')
+
+    const dropdown = page.getByRole('list')
+    await dropdown.waitFor({ state: 'visible' })
+    const items = dropdown.getByRole('listitem')
+    const count = await items.count()
+    expect(count).toBeGreaterThan(0)
+    for (let i = 0; i < count; i++) {
+      await expect(items.nth(i)).toContainText('8088')
+    }
+  })
+
+  test('TGV 8088 timetable shows 4 stops without ride date', async ({ page }) => {
+    await openTimetableTab(page)
+    await selectTrain(page, 'TGV 8088')
+
+    await expect(page.getByText('Planned Timetable')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/latest run:/i)).not.toBeVisible()
+
+    const rows = page.locator('table tbody tr').filter({ visible: true })
+    await expect(rows).toHaveCount(4)
+
+    const timetable = await getTimetableContainer(page)
+    await expect(timetable.getByRole('cell', { name: 'Saint-Malo' })).toBeVisible()
+    await expect(timetable.getByRole('cell', { name: 'Paris Montparnasse Hall 1 - 2' })).toBeVisible()
+  })
+
+  test('typing "9423" shows EST 9423 in dropdown', async ({ page }) => {
+    await openTimetableTab(page)
+    const trainInput = page.getByRole('textbox', { name: /train/i })
+    await trainInput.fill('9423')
+
+    const dropdown = page.getByRole('list')
+    await dropdown.waitFor({ state: 'visible' })
+    await expect(dropdown.getByRole('listitem').filter({ hasText: 'EST 9423' })).toBeVisible()
+  })
+
+  test('EST 9423 timetable shows 5 stops with ride date', async ({ page }) => {
+    await openTimetableTab(page)
+    await selectTrain(page, 'EST 9423')
+
+    await expect(page.getByText('Planned Timetable')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/latest run:/i)).toBeVisible()
+
+    const rows = page.locator('table tbody tr').filter({ visible: true })
+    await expect(rows).toHaveCount(5)
+
+    const timetable = await getTimetableContainer(page)
+    await expect(timetable.getByRole('cell', { name: 'Paris-Nord' })).toBeVisible()
+    await expect(timetable.getByRole('cell', { name: 'Köln Hbf' })).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// French and Eurostar API tests
+// ---------------------------------------------------------------------------
+
+test.describe('GET /api/timetable — French and Eurostar GTFS queries', () => {
+  test('TGV 8088: 4 stops, unique station_nums, null ride_date', async ({ request }) => {
+    const res = await request.get('/api/timetable?train=TGV+8088&railway=french')
+    expect(res.ok()).toBeTruthy()
+    const rows = await res.json()
+    expect(rows).toHaveLength(4)
+    expect(rows[0].station_name).toBe('Saint-Malo')
+    expect(rows[rows.length - 1].station_name).toBe('Paris Montparnasse Hall 1 - 2')
+    rows.forEach((row: Record<string, unknown>) => expect(row.ride_date).toBeNull())
+    const nums = rows.map((r: { station_num: number }) => r.station_num)
+    expect(new Set(nums).size).toBe(nums.length)
+  })
+
+  test('EST 9423: 5 stops, Paris-Nord → Köln Hbf, ride_date present', async ({ request }) => {
+    const res = await request.get('/api/timetable?train=EST+9423&railway=eurostar')
+    expect(res.ok()).toBeTruthy()
+    const rows = await res.json()
+    expect(rows).toHaveLength(5)
+    expect(rows[0].station_name).toBe('Paris-Nord')
+    expect(rows[rows.length - 1].station_name).toBe('Köln Hbf')
+    rows.forEach((row: Record<string, unknown>) => expect(row.ride_date).not.toBeNull())
+    const nums = rows.map((r: { station_num: number }) => r.station_num)
+    expect(new Set(nums).size).toBe(nums.length)
   })
 })
 

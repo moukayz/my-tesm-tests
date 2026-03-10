@@ -115,7 +115,7 @@ describe('POST /api/plan-update', () => {
   })
 
   it('rejects missing plan fields with error', async () => {
-    const invalidPayloads = [
+    const invalidPayloads: Array<{ dayIndex: number; plan: Partial<{ morning: string; afternoon: string; evening: string }> }> = [
       { dayIndex: 0, plan: { morning: 'Morning', afternoon: 'Afternoon' } }, // Missing evening
       { dayIndex: 0, plan: { morning: 'Morning' } }, // Missing multiple
       { dayIndex: 0, plan: {} }, // Empty plan

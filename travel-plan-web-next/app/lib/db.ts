@@ -2,6 +2,7 @@ import duckdb from 'duckdb'
 import { join } from 'path'
 
 export const PARQUET = `read_parquet('${join(process.cwd(), 'db_railway_stats')}/*.parquet')`
+export const EURO_GTFS = join(process.cwd(), 'euro-railway-timetable')
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let db: any

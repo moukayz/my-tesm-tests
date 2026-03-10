@@ -9,6 +9,7 @@ out/
 dist/
 
 # Environment variables
+# .env.test is intentionally tracked (safe test-only credentials)
 .env
 .env.local
 .env.*.local

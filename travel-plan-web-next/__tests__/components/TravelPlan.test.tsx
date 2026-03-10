@@ -20,12 +20,12 @@ jest.mock('../../components/TrainTimetableTab', () => ({
 
 describe('TravelPlan', () => {
   it('renders the page heading', () => {
-    render(<TravelPlan />)
+    render(<TravelPlan isLoggedIn={true} />)
     expect(screen.getByText('Travel Plan Itinerary')).toBeInTheDocument()
   })
 
-  it('shows ItineraryTab by default', () => {
-    render(<TravelPlan />)
+  it('shows ItineraryTab by default when logged in', () => {
+    render(<TravelPlan isLoggedIn={true} />)
     const itinerary = screen.getByTestId('itinerary-tab')
     const delays = screen.getByTestId('train-delay-tab')
     const timetable = screen.getByTestId('train-timetable-tab')
@@ -35,7 +35,7 @@ describe('TravelPlan', () => {
   })
 
   it('switches to TrainDelayTab when Delays tab is clicked', () => {
-    render(<TravelPlan />)
+    render(<TravelPlan isLoggedIn={true} />)
     fireEvent.click(screen.getByRole('button', { name: /train delays/i }))
     const itinerary = screen.getByTestId('itinerary-tab')
     const delays = screen.getByTestId('train-delay-tab')
@@ -44,7 +44,7 @@ describe('TravelPlan', () => {
   })
 
   it('switches to TrainTimetableTab when Timetable tab is clicked', () => {
-    render(<TravelPlan />)
+    render(<TravelPlan isLoggedIn={true} />)
     fireEvent.click(screen.getByRole('button', { name: /^timetable$/i }))
     const itinerary = screen.getByTestId('itinerary-tab')
     const delays = screen.getByTestId('train-delay-tab')
@@ -55,17 +55,39 @@ describe('TravelPlan', () => {
   })
 
   it('switches back to ItineraryTab when Itinerary tab is clicked', () => {
-    render(<TravelPlan />)
+    render(<TravelPlan isLoggedIn={true} />)
     fireEvent.click(screen.getByRole('button', { name: /train delays/i }))
     fireEvent.click(screen.getByRole('button', { name: /^itinerary$/i }))
     const itinerary = screen.getByTestId('itinerary-tab')
     expect(itinerary.parentElement).not.toHaveClass('hidden')
   })
 
-  it('renders all three tab buttons', () => {
-    render(<TravelPlan />)
+  it('renders all three tab buttons when logged in', () => {
+    render(<TravelPlan isLoggedIn={true} />)
     expect(screen.getByRole('button', { name: /^itinerary$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /train delays/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^timetable$/i })).toBeInTheDocument()
+  })
+
+  it('hides Itinerary tab button when not logged in', () => {
+    render(<TravelPlan isLoggedIn={false} />)
+    expect(screen.queryByRole('button', { name: /^itinerary$/i })).not.toBeInTheDocument()
+  })
+
+  it('shows Train Delays and Timetable buttons when not logged in', () => {
+    render(<TravelPlan isLoggedIn={false} />)
+    expect(screen.getByRole('button', { name: /train delays/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^timetable$/i })).toBeInTheDocument()
+  })
+
+  it('defaults to Train Delays tab when not logged in', () => {
+    render(<TravelPlan isLoggedIn={false} />)
+    const delays = screen.getByTestId('train-delay-tab')
+    expect(delays.parentElement).not.toHaveClass('hidden')
+  })
+
+  it('does not render ItineraryTab content when not logged in', () => {
+    render(<TravelPlan isLoggedIn={false} />)
+    expect(screen.queryByTestId('itinerary-tab')).not.toBeInTheDocument()
   })
 })

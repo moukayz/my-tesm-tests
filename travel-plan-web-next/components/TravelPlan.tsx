@@ -7,14 +7,21 @@ import TrainTimetableTab from './TrainTimetableTab'
 
 type Tab = 'itinerary' | 'delays' | 'timetable'
 
-export default function TravelPlan() {
-  const [tab, setTab] = useState<Tab>('itinerary')
+interface TravelPlanProps {
+  isLoggedIn?: boolean
+}
 
-  const tabs: { id: Tab; label: string }[] = [
+export default function TravelPlan({ isLoggedIn = false }: TravelPlanProps) {
+  const allTabs: { id: Tab; label: string }[] = [
     { id: 'itinerary', label: 'Itinerary' },
     { id: 'delays', label: 'Train Delays' },
     { id: 'timetable', label: 'Timetable' },
   ]
+
+  const tabs = isLoggedIn ? allTabs : allTabs.filter(t => t.id !== 'itinerary')
+  const defaultTab: Tab = isLoggedIn ? 'itinerary' : 'delays'
+
+  const [tab, setTab] = useState<Tab>(defaultTab)
 
   return (
     <div className="flex flex-col items-center">
@@ -39,9 +46,11 @@ export default function TravelPlan() {
         ))}
       </div>
 
-      <div className={tab === 'itinerary' ? '' : 'hidden'}>
-        <ItineraryTab />
-      </div>
+      {isLoggedIn && (
+        <div className={tab === 'itinerary' ? '' : 'hidden'}>
+          <ItineraryTab />
+        </div>
+      )}
       <div className={tab === 'delays' ? 'w-full' : 'hidden'}>
         <TrainDelayTab />
       </div>

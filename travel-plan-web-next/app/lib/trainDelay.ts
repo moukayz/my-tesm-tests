@@ -17,6 +17,7 @@ export interface TrendPoint {
 export interface TrainRow {
   train_name: string
   train_type: string
+  railway: 'german' | 'french' | 'eurostar'
 }
 
 export interface StationRow {

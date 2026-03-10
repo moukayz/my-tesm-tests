@@ -3,7 +3,7 @@ import { render, screen, waitFor, within, fireEvent } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import ItineraryTab from '../../components/ItineraryTab'
 
-function getDbTrainCount(routeData: Array<{ train: Array<{ start?: string; end?: string }> }>) {
+function getDbTrainCount(routeData: Array<{ train: Array<Record<string, unknown>> }>) {
   return routeData.flatMap((day) => day.train).filter((train) => train.start && train.end).length
 }
 
@@ -186,7 +186,7 @@ describe('ItineraryTab', () => {
     render(<ItineraryTab />)
     const routeData = (await import('../../data/route.json')).default
     const dbTrainCount = getDbTrainCount(routeData)
-    const allTrains = routeData.flatMap((day) => day.train)
+    const allTrains = routeData.flatMap((day) => day.train) as Array<Record<string, unknown>>
     const nonDbTrain = allTrains.find((train) => !train.start || !train.end)
     if (!nonDbTrain) {
       expect(allTrains.every((train) => train.start && train.end)).toBe(true)
@@ -194,7 +194,7 @@ describe('ItineraryTab', () => {
     }
     // Non-DB trains should be displayed as-is
     await waitFor(() => {
-      expect(screen.getByText(nonDbTrain.train_id)).toBeInTheDocument()
+      expect(screen.getByText(nonDbTrain.train_id as string)).toBeInTheDocument()
     })
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
@@ -202,8 +202,18 @@ describe('ItineraryTab', () => {
   })
 })
 
+async function renderAndAwaitSchedules() {
+  const { default: routeData } = await import('../../data/route.json')
+  const dbTrainCount = getDbTrainCount(routeData)
+  render(<ItineraryTab />)
+  if (dbTrainCount > 0) {
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount))
+  }
+  return routeData
+}
+
 function setupFetchWithPlanUpdate(overrides: Record<string, unknown> = {}) {
-  const responses = {
+  const responses: Record<string, unknown> = {
     '/api/timetable': null,
     '/api/plan-update': { success: true },
     ...overrides,
@@ -223,14 +233,13 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('does not render an edit button in the plan cell', async () => {
     setupFetchWithPlanUpdate()
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
     expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument()
   })
 
   it('double-clicking an activity row shows an input pre-filled with current value', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
 
@@ -241,8 +250,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('only the double-clicked row enters edit mode; others stay in display mode', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
 
@@ -256,8 +264,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('allows typing in the edit input', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     const input = await screen.findByDisplayValue(routeData[0].plan.morning)
@@ -270,8 +277,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('blurring the input exits edit mode', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     const input = await screen.findByDisplayValue(routeData[0].plan.morning)
@@ -285,8 +291,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('blurring with a changed value calls POST /api/plan-update', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     const input = await screen.findByDisplayValue(routeData[0].plan.morning)
@@ -309,8 +314,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('shows the saved value in display mode after blur', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     const input = await screen.findByDisplayValue(routeData[0].plan.morning)
@@ -325,7 +329,6 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
   })
 
   it('reverts to original value and shows error on API failure', async () => {
-    const routeData = (await import('../../data/route.json')).default
     global.fetch = jest.fn(() =>
       Promise.resolve({
         json: () => Promise.resolve({ error: 'Invalid day index' }),
@@ -333,7 +336,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
         status: 400,
       } as Response)
     )
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     const input = await screen.findByDisplayValue(routeData[0].plan.morning)
@@ -350,8 +353,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('pressing Enter commits the change and exits edit mode', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     const input = await screen.findByDisplayValue(routeData[0].plan.morning)
@@ -368,8 +370,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('pressing Enter calls POST /api/plan-update', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     const input = await screen.findByDisplayValue(routeData[0].plan.morning)
@@ -388,8 +389,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('pressing Shift+Enter does not exit edit mode', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     const input = await screen.findByDisplayValue(routeData[0].plan.morning)
@@ -402,8 +402,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('the edit element is a textarea to support multi-line input', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     await screen.findByDisplayValue(routeData[0].plan.morning)
@@ -414,7 +413,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('displays multi-line values with preserved newlines in display mode', async () => {
     setupFetchWithPlanUpdate()
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     const textarea = await screen.findByRole('textbox')
@@ -432,8 +431,7 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
   it('allows editing different activity rows one after another', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     // Edit morning of day 0
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
@@ -462,7 +460,7 @@ describe('ItineraryTab - Markdown Rendering', () => {
 
   it('renders **bold** as <strong> in display mode', async () => {
     setupFetchWithPlanUpdate()
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
     await editRowWithValue('plan-row-0-morning', '**bold text**')
     await waitFor(() => {
       const row = screen.getByTestId('plan-row-0-morning')
@@ -472,7 +470,7 @@ describe('ItineraryTab - Markdown Rendering', () => {
 
   it('renders *italic* as <em> in display mode', async () => {
     setupFetchWithPlanUpdate()
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
     await editRowWithValue('plan-row-0-morning', '*italic text*')
     await waitFor(() => {
       const row = screen.getByTestId('plan-row-0-morning')
@@ -482,7 +480,7 @@ describe('ItineraryTab - Markdown Rendering', () => {
 
   it('renders `code` as <code> in display mode', async () => {
     setupFetchWithPlanUpdate()
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
     await editRowWithValue('plan-row-0-morning', '`code text`')
     await waitFor(() => {
       const row = screen.getByTestId('plan-row-0-morning')
@@ -492,7 +490,7 @@ describe('ItineraryTab - Markdown Rendering', () => {
 
   it('renders ~~strikethrough~~ as <del> in display mode', async () => {
     setupFetchWithPlanUpdate()
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
     await editRowWithValue('plan-row-0-morning', '~~strike~~')
     await waitFor(() => {
       const row = screen.getByTestId('plan-row-0-morning')
@@ -502,7 +500,7 @@ describe('ItineraryTab - Markdown Rendering', () => {
 
   it('preserves newlines as line breaks in display mode', async () => {
     setupFetchWithPlanUpdate()
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
     await editRowWithValue('plan-row-0-morning', 'line one\nline two')
     await waitFor(() => {
       const row = screen.getByTestId('plan-row-0-morning')
@@ -519,8 +517,7 @@ describe('ItineraryTab - Drag and Drop', () => {
   // Test 1: drag handles rendered in display mode
   it('renders a drag handle for each of the 3 plan sections in display mode', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     const firstDateCell = screen.getByText(routeData[0].date)
     const firstRow = firstDateCell.closest('tr') as HTMLElement
@@ -531,7 +528,7 @@ describe('ItineraryTab - Drag and Drop', () => {
   // Test 2: drag handle NOT rendered for the row being edited
   it('does not render a drag handle for the row being edited', async () => {
     setupFetchWithPlanUpdate()
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
 
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
 
@@ -546,8 +543,7 @@ describe('ItineraryTab - Drag and Drop', () => {
   // Test 3: plan section rows have draggable attribute in display mode
   it('plan section rows are draggable in display mode', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
 
     const morningRow = screen.getByTestId(`plan-row-0-morning`)
     expect(morningRow).toHaveAttribute('draggable', 'true')
@@ -556,8 +552,7 @@ describe('ItineraryTab - Drag and Drop', () => {
   // Test 4: source row gets opacity-40 on dragStart
   it('source row gets muted appearance on dragStart', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
 
     const morningRow = screen.getByTestId('plan-row-0-morning')
     fireEvent.dragStart(morningRow, mockDragEvent)
@@ -568,8 +563,7 @@ describe('ItineraryTab - Drag and Drop', () => {
   // Test 5: target row highlights on dragOver same day
   it('target row shows highlight on dragOver of same-day section', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
 
     const morningRow = screen.getByTestId('plan-row-0-morning')
     const eveningRow = screen.getByTestId('plan-row-0-evening')
@@ -583,8 +577,7 @@ describe('ItineraryTab - Drag and Drop', () => {
   // Test 6: dragOver on different-day section does NOT highlight
   it('dragOver on a different-day section does NOT show highlight', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
 
     const morningRow0 = screen.getByTestId('plan-row-0-morning')
     const morningRow1 = screen.getByTestId('plan-row-1-morning')
@@ -598,8 +591,7 @@ describe('ItineraryTab - Drag and Drop', () => {
   // Test 7: dropping swaps values and calls POST /api/plan-update
   it('dropping swaps activity values and calls POST /api/plan-update with swapped plan', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     const morningRow = screen.getByTestId('plan-row-0-morning')
     const eveningRow = screen.getByTestId('plan-row-0-evening')
@@ -633,8 +625,7 @@ describe('ItineraryTab - Drag and Drop', () => {
   // Test 8: dropping on same slot does not swap or call API
   it('dropping on the same slot does not swap or call the API', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     const morningRow = screen.getByTestId('plan-row-0-morning')
     const originalMorning = routeData[0].plan.morning.trim()
@@ -655,7 +646,6 @@ describe('ItineraryTab - Drag and Drop', () => {
 
   // Test 9: on API failure values revert and error appears
   it('on API failure: values revert and error message appears', async () => {
-    const routeData = (await import('../../data/route.json')).default
     global.fetch = jest.fn((url: RequestInfo | URL, options?: RequestInit) => {
       const path = url.toString().split('?')[0].replace('http://localhost', '')
       if (path === '/api/plan-update') {
@@ -668,7 +658,7 @@ describe('ItineraryTab - Drag and Drop', () => {
       return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
     })
 
-    render(<ItineraryTab />)
+    const routeData = await renderAndAwaitSchedules()
 
     const morningRow = screen.getByTestId('plan-row-0-morning')
     const eveningRow = screen.getByTestId('plan-row-0-evening')
@@ -694,8 +684,7 @@ describe('ItineraryTab - Drag and Drop', () => {
   // Test 10: dragEnd without drop clears all drag visual state
   it('dragEnd without drop clears all drag visual state', async () => {
     setupFetchWithPlanUpdate()
-    const routeData = (await import('../../data/route.json')).default
-    render(<ItineraryTab />)
+    await renderAndAwaitSchedules()
 
     const morningRow = screen.getByTestId('plan-row-0-morning')
     const eveningRow = screen.getByTestId('plan-row-0-evening')

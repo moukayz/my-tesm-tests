@@ -9,6 +9,7 @@ export default function TrainTimetableTab() {
   const [trains, setTrains] = useState<TrainRow[]>([])
   const [trainInput, setTrainInput] = useState('')
   const [selectedTrain, setSelectedTrain] = useState('')
+  const [selectedRailway, setSelectedRailway] = useState('')
   const [timetable, setTimetable] = useState<TimetableRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +28,8 @@ export default function TrainTimetableTab() {
     }
     setLoading(true)
     setError(null)
-    fetch(`/api/timetable?train=${encodeURIComponent(selectedTrain)}`)
+    const railwayParam = selectedRailway ? `&railway=${selectedRailway}` : ''
+    fetch(`/api/timetable?train=${encodeURIComponent(selectedTrain)}${railwayParam}`)
       .then((r) => r.json())
       .then((data) => {
         setTimetable(Array.isArray(data) ? data : [])
@@ -37,16 +39,20 @@ export default function TrainTimetableTab() {
         setError('Failed to load timetable')
         setLoading(false)
       })
-  }, [selectedTrain])
+  }, [selectedTrain, selectedRailway])
 
   function handleTrainChange(text: string) {
     setTrainInput(text)
-    if (text !== selectedTrain) setSelectedTrain('')
+    if (text !== selectedTrain) {
+      setSelectedTrain('')
+      setSelectedRailway('')
+    }
   }
 
   function handleTrainSelect(name: string) {
     setTrainInput(name)
     setSelectedTrain(name)
+    setSelectedRailway(trains.find((t) => t.train_name === name)?.railway ?? 'german')
   }
 
   const rideDate = timetable[0]?.ride_date?.slice(0, 10) ?? null

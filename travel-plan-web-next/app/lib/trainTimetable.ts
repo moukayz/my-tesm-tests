@@ -8,8 +8,6 @@ export interface TimetableRow {
 
 export function formatTime(ts: string | null): string {
   if (!ts) return '—'
-  // ts is like "2026-02-09 07:14:00"
-  const parts = ts.split(' ')
-  if (parts.length < 2) return ts
-  return parts[1].slice(0, 5)
+  const timeStr = ts.includes(' ') ? ts.split(' ')[1] : ts
+  return timeStr.slice(0, 5)
 }

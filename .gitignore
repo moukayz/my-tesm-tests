@@ -31,3 +31,4 @@ blog-website/.dev/
 blog-website/.qa-logs/
 
 .next/
+*.zip

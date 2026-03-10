@@ -4,8 +4,26 @@ import userEvent from '@testing-library/user-event'
 import TrainTimetableTab from '../../components/TrainTimetableTab'
 
 const mockTrains = [
-  { train_name: 'ICE 905', train_type: 'ICE' },
-  { train_name: 'TGV 6201', train_type: 'TGV' },
+  { train_name: 'ICE 905', train_type: 'ICE', railway: 'german' },
+  { train_name: 'TGV 6201', train_type: 'TGV', railway: 'french' },
+  { train_name: '9002', train_type: 'Eurostar', railway: 'eurostar' },
+]
+
+const mockFrenchTimetable = [
+  {
+    station_name: 'Paris Gare de Lyon',
+    station_num: 0,
+    arrival_planned_time: null,
+    departure_planned_time: '07:14:00',
+    ride_date: null,
+  },
+  {
+    station_name: 'Lyon Part-Dieu',
+    station_num: 5,
+    arrival_planned_time: '09:00:00',
+    departure_planned_time: null,
+    ride_date: null,
+  },
 ]
 
 const mockTimetable = [
@@ -170,5 +188,64 @@ describe('TrainTimetableTab', () => {
     await waitFor(() =>
       expect(screen.getByText('Failed to load timetable')).toBeInTheDocument()
     )
+  })
+
+  it('includes railway=french in timetable URL when French train selected', async () => {
+    setupFetch({ '/api/timetable': mockFrenchTimetable })
+    const user = userEvent.setup()
+    render(<TrainTimetableTab />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+
+    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.click(screen.getByText('TGV 6201'))
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('railway=french')
+      )
+    )
+  })
+
+  it('includes railway=eurostar in timetable URL when Eurostar train selected', async () => {
+    setupFetch()
+    const user = userEvent.setup()
+    render(<TrainTimetableTab />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+
+    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.click(screen.getByText('9002'))
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('railway=eurostar')
+      )
+    )
+  })
+
+  it('renders GTFS time format (HH:MM:SS) as HH:MM', async () => {
+    setupFetch({ '/api/timetable': mockFrenchTimetable })
+    const user = userEvent.setup()
+    render(<TrainTimetableTab />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+
+    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.click(screen.getByText('TGV 6201'))
+
+    await waitFor(() => expect(screen.getByText('Planned Timetable')).toBeInTheDocument())
+    expect(screen.getByText('07:14')).toBeInTheDocument()
+    expect(screen.getByText('09:00')).toBeInTheDocument()
+  })
+
+  it('does not show ride date when ride_date is null', async () => {
+    setupFetch({ '/api/timetable': mockFrenchTimetable })
+    const user = userEvent.setup()
+    render(<TrainTimetableTab />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+
+    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.click(screen.getByText('TGV 6201'))
+
+    await waitFor(() => expect(screen.getByText('Planned Timetable')).toBeInTheDocument())
+    expect(screen.queryByText(/latest run/i)).not.toBeInTheDocument()
   })
 })

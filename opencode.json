@@ -13,7 +13,9 @@
       "*": "allow"
     },
     "skill": {
-      "*": "deny"
+      "*":"allow",
+      "*-timetable": "deny",
+      "euro-railway-timetable": "allow"
     }
   },
   "agent": {

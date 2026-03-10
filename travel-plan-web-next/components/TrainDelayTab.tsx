@@ -34,7 +34,7 @@ export default function TrainDelayTab() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/trains')
+    fetch('/api/trains?railway=german')
       .then((r) => r.json())
       .then((data) => setTrains(Array.isArray(data) ? data : []))
       .catch(() => setError('Failed to load train list'))

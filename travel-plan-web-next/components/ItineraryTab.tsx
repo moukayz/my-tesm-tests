@@ -164,10 +164,10 @@ export default function ItineraryTab() {
 
       for (const day of routeData) {
         for (const trainEntry of day.train) {
-          if (!trainEntry.start || !trainEntry.end) continue
+          if (!('start' in trainEntry) || !trainEntry.start || !trainEntry.end) continue
 
           const trainId = normalizeTrainId(trainEntry.train_id)
-          const key = buildScheduleKey(trainId, trainEntry.start, trainEntry.end)
+          const key = buildScheduleKey(trainId, trainEntry.start as string, trainEntry.end as string)
           if (key in schedules) continue
 
           try {
@@ -181,8 +181,8 @@ export default function ItineraryTab() {
             let fromStation = null as TimetableRow | null
             let toStation = null as TimetableRow | null
 
-            fromStation = findMatchingStation(rows, trainEntry.start, 'from') as TimetableRow | null
-            toStation = findMatchingStation(rows, trainEntry.end, 'to') as TimetableRow | null
+            fromStation = findMatchingStation(rows as unknown as Array<{ station_name: string; [key: string]: unknown }>, trainEntry.start as string, 'from') as TimetableRow | null
+            toStation = findMatchingStation(rows as unknown as Array<{ station_name: string; [key: string]: unknown }>, trainEntry.end as string, 'to') as TimetableRow | null
 
             if (!fromStation || !toStation) {
               schedules[key] = null

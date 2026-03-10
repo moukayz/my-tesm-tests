@@ -29,15 +29,17 @@ const mockDelayData = {
 
 function setupFetch(overrides: Record<string, unknown> = {}) {
   const defaults: Record<string, unknown> = {
-    '/api/trains': mockTrains,
+    '/api/trains?railway=german': mockTrains,
     '/api/stations': mockStations,
     '/api/delay-stats': mockDelayData,
   }
   const responses = { ...defaults, ...overrides }
   global.fetch = jest.fn((url: RequestInfo | URL) => {
-    const path = url.toString().split('?')[0].replace('http://localhost', '')
+    const full = url.toString().replace('http://localhost', '')
+    const path = full.split('?')[0]
+    const key = responses[full] !== undefined ? full : path
     return Promise.resolve({
-      json: () => Promise.resolve(responses[path] ?? []),
+      json: () => Promise.resolve(responses[key] ?? []),
     } as Response)
   })
 }
@@ -51,7 +53,7 @@ describe('TrainDelayTab', () => {
     expect(screen.getByText('Train')).toBeInTheDocument()
     expect(screen.getByText('Station')).toBeInTheDocument()
     // Flush the initial fetch so its state update lands inside act
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
   })
 
   it('loads trains on mount and shows them in the dropdown on focus', async () => {
@@ -59,7 +61,7 @@ describe('TrainDelayTab', () => {
     const user = userEvent.setup()
     render(<TrainDelayTab />)
     await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith('/api/trains')
+      expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german')
     )
     await user.click(screen.getByPlaceholderText(/ICE 905/i))
     expect(screen.getByText('ICE 905')).toBeInTheDocument()
@@ -77,7 +79,7 @@ describe('TrainDelayTab', () => {
   it('station input is disabled before a train is selected', async () => {
     setupFetch()
     render(<TrainDelayTab />)
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
     expect(screen.getByPlaceholderText('Type to search station')).toBeDisabled()
   })
 
@@ -85,7 +87,7 @@ describe('TrainDelayTab', () => {
     setupFetch()
     const user = userEvent.setup()
     render(<TrainDelayTab />)
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
 
     await user.click(screen.getByPlaceholderText(/ICE 905/i))
     await user.click(screen.getByText('ICE 905'))
@@ -106,7 +108,7 @@ describe('TrainDelayTab', () => {
     setupFetch()
     const user = userEvent.setup()
     render(<TrainDelayTab />)
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
 
     await user.click(screen.getByPlaceholderText(/ICE 905/i))
     await user.click(screen.getByText('ICE 905'))
@@ -125,7 +127,7 @@ describe('TrainDelayTab', () => {
     setupFetch({ '/api/delay-stats': { stats: null, trends: [] } })
     const user = userEvent.setup()
     render(<TrainDelayTab />)
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
 
     await user.click(screen.getByPlaceholderText(/ICE 905/i))
     await user.click(screen.getByText('ICE 905'))
@@ -146,7 +148,7 @@ describe('TrainDelayTab', () => {
     setupFetch()
     const user = userEvent.setup()
     render(<TrainDelayTab />)
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
 
     await user.click(screen.getByPlaceholderText(/ICE 905/i))
     await user.click(screen.getByText('ICE 905'))

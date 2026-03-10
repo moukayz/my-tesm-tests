@@ -33,9 +33,22 @@ Maintain high test coverage. Run `npm test -- --coverage` before committing.
 
 Apply TDD to all code changes—bugfixes, refactoring, new features, API endpoints.
 
+## Bugfix Test Backfill Rule
+
+After fixing any bug, explicitly check whether the issue exposed missing coverage in unit, integration, or E2E tests. If coverage is missing, add the corresponding test(s) so the same bug is caught automatically in the future.
+
+## After Editing Implementation Code
+
+After editing any implementation file, run **all** test layers and confirm they pass before considering the task done:
+
+1. `npm test` — unit + integration + component tests (Jest)
+2. `npm run test:e2e` — end-to-end tests (Playwright)
+
+Do not mark a change complete if any test in any layer is failing.
+
 ## Before Planning or Editing
 
-Always read `README.md` first to get essential project information (tech stack, structure, architecture, API reference) before doing any planning or editing in this project.
+Always read [README.md](./README.md) first to get essential project information (tech stack, structure, architecture, API reference) before doing any planning or editing in this project.
 
 ## After Editing
 

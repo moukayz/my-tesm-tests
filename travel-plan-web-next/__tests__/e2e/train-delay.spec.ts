@@ -38,9 +38,8 @@ async function selectStation(page: Page, stationName: string) {
 // ---------------------------------------------------------------------------
 
 test.describe('Train Delays tab — real parquet queries', () => {
-  test('page loads with both tabs visible', async ({ page }) => {
+  test('page loads with Train Delays tab visible', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByRole('button', { name: 'Itinerary' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Train Delays' })).toBeVisible()
   })
 
