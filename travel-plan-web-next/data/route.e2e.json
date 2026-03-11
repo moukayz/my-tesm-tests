@@ -5,9 +5,9 @@
     "dayNum": 1,
     "overnight": "巴黎",
     "plan": {
-      "morning": "e2e-morning",
+      "morning": "e2e-evening",
       "afternoon": "e2e-afternoon",
-      "evening": "e2e-evening"
+      "evening": "e2e-morning"
     },
     "venueHours": [
       {

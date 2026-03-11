@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query, STOPS_PARQUET, EURO_GTFS } from '../../lib/db'
+import logger from '../../lib/logger'
 
 type TimetableRow = {
   station_name: string
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: `Unknown railway: ${railway}` }, { status: 400 })
 
   const trainEsc = train.replace(/'/g, "''")
+  const t0 = Date.now()
 
   try {
     let rows: TimetableRow[]
@@ -76,9 +78,10 @@ export async function GET(request: Request) {
       `)
     }
 
+    logger.info({ train, railway: railway || 'german', rows: rows.length, ms: Date.now() - t0 }, '/api/timetable')
     return NextResponse.json(rows)
   } catch (e) {
-    const err = e as Error
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    logger.error({ err: e, train, railway: railway || 'german', ms: Date.now() - t0 }, '/api/timetable error')
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 }

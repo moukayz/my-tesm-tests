@@ -14,7 +14,7 @@ export async function pgQuery<T = Record<string, unknown>>(
   if (process.env.VERCEL) {
     const { neon } = await import('@neondatabase/serverless')
     const db = neon(process.env.DATABASE_URL!)
-    const rows = await db(sql, params ?? [])
+    const rows = await (db as unknown as (sql: string, params?: unknown[]) => Promise<unknown[]>)(sql, params ?? [])
     return rows as T[]
   }
   const result = await getPool().query(sql, params)

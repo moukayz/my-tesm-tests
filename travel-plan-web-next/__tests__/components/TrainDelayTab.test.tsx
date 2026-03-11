@@ -47,6 +47,48 @@ function setupFetch(overrides: Record<string, unknown> = {}) {
 describe('TrainDelayTab', () => {
   afterEach(() => jest.restoreAllMocks())
 
+  it('shows a loading spinner while the train list is being fetched', () => {
+    global.fetch = jest.fn(() => new Promise(() => {})) // never resolves
+    render(<TrainDelayTab />)
+    expect(screen.getByRole('status')).toBeInTheDocument()
+  })
+
+  it('shows a loading spinner next to the Station label while stations are loading', async () => {
+    global.fetch = jest.fn((url: RequestInfo | URL) => {
+      const full = url.toString().replace('http://localhost', '')
+      if (full === '/api/trains?railway=german') return Promise.resolve({ json: () => Promise.resolve(mockTrains) } as Response)
+      return new Promise(() => {}) // stations never resolve
+    })
+    const user = userEvent.setup()
+    render(<TrainDelayTab />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
+    await user.click(screen.getByText('ICE 905'))
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/stations'))
+    )
+    expect(screen.getByRole('status')).toBeInTheDocument()
+  })
+
+  it('shows a loading spinner while delay stats are loading', async () => {
+    global.fetch = jest.fn((url: RequestInfo | URL) => {
+      const full = url.toString().replace('http://localhost', '')
+      const path = full.split('?')[0]
+      if (full === '/api/trains?railway=german') return Promise.resolve({ json: () => Promise.resolve(mockTrains) } as Response)
+      if (path === '/api/stations') return Promise.resolve({ json: () => Promise.resolve(mockStations) } as Response)
+      return new Promise(() => {}) // delay-stats never resolves
+    })
+    const user = userEvent.setup()
+    render(<TrainDelayTab />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
+    await user.click(screen.getByText('ICE 905'))
+    await waitFor(() => expect(screen.getByPlaceholderText('Type to search station')).not.toBeDisabled())
+    await user.type(screen.getByPlaceholderText('Type to search station'), 'Berlin')
+    await user.click(screen.getByText('Berlin Hbf'))
+    expect(screen.getByRole('status')).toBeInTheDocument()
+  })
+
   it('renders the Train and Station labels', async () => {
     setupFetch()
     render(<TrainDelayTab />)

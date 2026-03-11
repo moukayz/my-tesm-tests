@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query, STOPS_PARQUET } from '../../lib/db'
 import { pgQuery } from '../../lib/pgdb'
+import logger from '../../lib/logger'
 
 export async function GET(request: NextRequest) {
   const railway = request.nextUrl.searchParams.get('railway')
+  const t0 = Date.now()
 
   try {
     if (railway === 'german') {
@@ -12,6 +14,7 @@ export async function GET(request: NextRequest) {
         FROM ${STOPS_PARQUET}
         ORDER BY train_name
       `)
+      logger.info({ railway: 'german', rows: result.length, ms: Date.now() - t0 }, '/api/trains')
       return NextResponse.json(result.map((r) => ({ ...r, railway: 'german' as const })))
     }
 
@@ -37,6 +40,13 @@ export async function GET(request: NextRequest) {
       `),
     ])
 
+    if (germanResult.status === 'rejected')
+      logger.error({ err: germanResult.reason }, '/api/trains german query failed')
+    if (frenchResult.status === 'rejected')
+      logger.error({ err: frenchResult.reason }, '/api/trains french query failed')
+    if (eurostarResult.status === 'rejected')
+      logger.error({ err: eurostarResult.reason }, '/api/trains eurostar query failed')
+
     const germanRows = germanResult.status === 'fulfilled' ? germanResult.value : []
     const frenchRows = frenchResult.status === 'fulfilled' ? frenchResult.value : []
     const eurostarRows = eurostarResult.status === 'fulfilled' ? eurostarResult.value : []
@@ -54,9 +64,10 @@ export async function GET(request: NextRequest) {
         return true
       })
 
+    logger.info({ rows: combined.length, ms: Date.now() - t0 }, '/api/trains')
     return NextResponse.json(combined)
   } catch (e) {
-    const err = e as Error
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    logger.error({ err: e, railway, ms: Date.now() - t0 }, '/api/trains error')
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 }

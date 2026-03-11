@@ -67,6 +67,27 @@ function setupFetch(overrides: Record<string, unknown> = {}) {
 describe('TrainTimetableTab', () => {
   afterEach(() => jest.restoreAllMocks())
 
+  it('shows a loading spinner while the train list is being fetched', () => {
+    global.fetch = jest.fn(() => new Promise(() => {})) // never resolves
+    render(<TrainTimetableTab />)
+    expect(screen.getByRole('status')).toBeInTheDocument()
+  })
+
+  it('shows a loading spinner while the timetable is loading', async () => {
+    global.fetch = jest.fn((url: RequestInfo | URL) => {
+      if (url.toString().includes('/api/trains')) {
+        return Promise.resolve({ json: () => Promise.resolve(mockTrains) } as Response)
+      }
+      return new Promise(() => {}) // timetable never resolves
+    })
+    const user = userEvent.setup()
+    render(<TrainTimetableTab />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
+    await user.click(screen.getByText('ICE 905'))
+    expect(screen.getByRole('status')).toBeInTheDocument()
+  })
+
   it('renders the Train label', async () => {
     setupFetch()
     render(<TrainTimetableTab />)

@@ -30,6 +30,8 @@ export default function TrainDelayTab() {
   const [selectedStation, setSelectedStation] = useState('')
   const [stats, setStats] = useState<DelayStats | null>(null)
   const [trends, setTrends] = useState<TrendPoint[]>([])
+  const [trainsLoading, setTrainsLoading] = useState(true)
+  const [stationsLoading, setStationsLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,6 +40,7 @@ export default function TrainDelayTab() {
       .then((r) => r.json())
       .then((data) => setTrains(Array.isArray(data) ? data : []))
       .catch(() => setError('Failed to load train list'))
+      .finally(() => setTrainsLoading(false))
   }, [])
 
   useEffect(() => {
@@ -47,6 +50,7 @@ export default function TrainDelayTab() {
       setSelectedStation('')
       return
     }
+    setStationsLoading(true)
     fetch(`/api/stations?train=${encodeURIComponent(selectedTrain)}`)
       .then((r) => r.json())
       .then((rows) => {
@@ -55,6 +59,7 @@ export default function TrainDelayTab() {
         setSelectedStation('')
       })
       .catch(() => setError('Failed to load stations'))
+      .finally(() => setStationsLoading(false))
   }, [selectedTrain])
 
   useEffect(() => {
@@ -127,12 +132,21 @@ export default function TrainDelayTab() {
         </div>
 
         <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-          <label
-            htmlFor="station-input"
-            className="text-xs font-semibold uppercase tracking-wider text-gray-700"
-          >
-            Station
-          </label>
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="station-input"
+              className="text-xs font-semibold uppercase tracking-wider text-gray-700"
+            >
+              Station
+            </label>
+            {stationsLoading && (
+              <span
+                role="status"
+                aria-label="Loading"
+                className="inline-block w-3.5 h-3.5 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"
+              />
+            )}
+          </div>
           <AutocompleteInput
             id="station-input"
             value={stationInput}
@@ -147,7 +161,16 @@ export default function TrainDelayTab() {
       </div>
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
-      {loading && <p className="text-gray-500 text-sm">Loading...</p>}
+      {(trainsLoading || loading) && (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <span
+            role="status"
+            aria-label="Loading"
+            className="inline-block w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"
+          />
+          <span>{trainsLoading ? 'Loading trains…' : 'Loading stats…'}</span>
+        </div>
+      )}
 
       {!loading && stats && (
         <>

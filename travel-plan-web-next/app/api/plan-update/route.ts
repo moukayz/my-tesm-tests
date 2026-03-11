@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '../../../auth'
 import { getRouteStore } from '../../lib/routeStore'
+import logger from '../../lib/logger'
 
 interface UpdatePlanRequest {
   dayIndex: number
@@ -14,6 +15,7 @@ interface UpdatePlanRequest {
 export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session?.user) {
+    logger.warn('/api/plan-update unauthorized request')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -49,9 +51,10 @@ export async function POST(request: NextRequest) {
     }
 
     const updatedDay = await store.updatePlan(body.dayIndex, body.plan)
+    logger.info({ user: session.user.email, dayIndex: body.dayIndex }, '/api/plan-update ok')
     return NextResponse.json(updatedDay, { status: 200 })
   } catch (error) {
-    console.error('Error updating plan:', error)
+    logger.error({ err: error, user: session.user.email, dayIndex: body?.dayIndex }, '/api/plan-update error')
     return NextResponse.json(
       { error: 'Internal server error while updating plan' },
       { status: 500 }
