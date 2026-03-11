@@ -1,17 +1,14 @@
 /**
  * @jest-environment node
  */
-jest.mock('../../app/lib/db', () => ({
-  query: jest.fn(),
-  DELAY_PARQUET: 'mock_delay_parquet',
-  STOPS_PARQUET: 'mock_stops_parquet',
-  convertBigInt: jest.fn((x) => x),
+jest.mock('../../app/lib/pgdb', () => ({
+  pgQuery: jest.fn(),
 }))
 
 import { GET } from '../../app/api/delay-stats/route'
-import { query } from '../../app/lib/db'
+import { pgQuery } from '../../app/lib/pgdb'
 
-const mockQuery = query as jest.Mock
+const mockPgQuery = pgQuery as jest.Mock
 
 function makeRequest(params: Record<string, string>) {
   const url = new URL('http://localhost/api/delay-stats')
@@ -35,7 +32,7 @@ const mockTrends = [
 ]
 
 describe('GET /api/delay-stats', () => {
-  beforeEach(() => mockQuery.mockReset())
+  beforeEach(() => mockPgQuery.mockReset())
 
   it('returns 400 when both params are missing', async () => {
     const res = await GET(makeRequest({}))
@@ -53,7 +50,7 @@ describe('GET /api/delay-stats', () => {
   })
 
   it('returns stats and trends for valid params', async () => {
-    mockQuery.mockResolvedValueOnce([mockStats]).mockResolvedValueOnce(mockTrends)
+    mockPgQuery.mockResolvedValueOnce([mockStats]).mockResolvedValueOnce(mockTrends)
     const res = await GET(makeRequest({ train: 'ICE 905', station: 'Berlin Hbf' }))
     expect(res.status).toBe(200)
     const data = await res.json()
@@ -62,7 +59,7 @@ describe('GET /api/delay-stats', () => {
   })
 
   it('returns null stats when db returns empty array', async () => {
-    mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+    mockPgQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([])
     const res = await GET(makeRequest({ train: 'ICE 905', station: 'Berlin Hbf' }))
     expect(res.status).toBe(200)
     const data = await res.json()
@@ -70,16 +67,16 @@ describe('GET /api/delay-stats', () => {
     expect(data.trends).toEqual([])
   })
 
-  it('escapes single quotes in train and station names', async () => {
-    mockQuery.mockResolvedValue([])
+  it('uses parameterized query with raw train and station names (SQL injection safe)', async () => {
+    mockPgQuery.mockResolvedValue([])
     await GET(makeRequest({ train: "O'Hare Express", station: "King's Cross" }))
-    const sql: string = mockQuery.mock.calls[0][0]
-    expect(sql).toContain("O''Hare Express")
-    expect(sql).toContain("King''s Cross")
+    const params = mockPgQuery.mock.calls[0][1]
+    expect(params).toContain("O'Hare Express")
+    expect(params).toContain("King's Cross")
   })
 
   it('returns 500 on db error', async () => {
-    mockQuery.mockRejectedValue(new Error('Timeout'))
+    mockPgQuery.mockRejectedValue(new Error('Timeout'))
     const res = await GET(makeRequest({ train: 'ICE 905', station: 'Berlin Hbf' }))
     expect(res.status).toBe(500)
     const data = await res.json()

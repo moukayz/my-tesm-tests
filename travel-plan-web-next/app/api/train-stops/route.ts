@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { query, STOPS_PARQUET } from '../../lib/db'
+import { pgQuery } from '../../lib/pgdb'
 import { findMatchingStation } from '../../lib/itinerary'
 import { formatTime } from '../../lib/trainTimetable'
 import logger from '../../lib/logger'
@@ -29,19 +29,19 @@ export async function GET(request: Request) {
   if (!from) return NextResponse.json({ error: 'from param required' }, { status: 400 })
   if (!to) return NextResponse.json({ error: 'to param required' }, { status: 400 })
 
-  const trainEsc = train.replace(/'/g, "''")
   const t0 = Date.now()
 
   try {
-    const rows = await query<TimetableRow>(`
-      SELECT station_name, station_num,
-        CAST(arrival_planned_time AS VARCHAR) AS arrival_planned_time,
-        CAST(departure_planned_time AS VARCHAR) AS departure_planned_time,
-        CAST(ride_date AS VARCHAR) AS ride_date
-      FROM ${STOPS_PARQUET}
-      WHERE train_name = '${trainEsc}'
-      ORDER BY station_num
-    `)
+    const rows = await pgQuery<TimetableRow>(
+      `SELECT station_name, station_num,
+        arrival_planned_time::TEXT AS arrival_planned_time,
+        departure_planned_time::TEXT AS departure_planned_time,
+        ride_date::TEXT AS ride_date
+      FROM de_db_train_latest_stops
+      WHERE train_name = $1
+      ORDER BY station_num`,
+      [train]
+    )
 
     if (rows.length === 0) {
       logger.info({ train, from, to, ms: Date.now() - t0 }, '/api/train-stops no rows')

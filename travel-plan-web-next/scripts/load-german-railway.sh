@@ -78,6 +78,7 @@ for file in "${files[@]}"; do
 	duckdb -c "
     INSTALL postgres;
     LOAD postgres;
+    SET TimeZone = 'UTC';
     ATTACH '$DB_URL' AS pg (TYPE POSTGRES);
 
     INSERT INTO pg.public.de_db_delay_events (
@@ -162,21 +163,23 @@ run_sql -c "
     train_line_ride_id,
     last_event_time
   )
-  WITH latest_ride AS (
+  WITH latest_run AS (
     SELECT
       train_name,
       train_line_ride_id,
+      service_date,
       MAX(event_time) AS latest_time
     FROM de_db_delay_events
     WHERE train_line_ride_id IS NOT NULL
-    GROUP BY train_name, train_line_ride_id
+    GROUP BY train_name, train_line_ride_id, service_date
   ),
-  picked_ride AS (
+  picked_run AS (
     SELECT DISTINCT ON (train_name)
       train_name,
       train_line_ride_id,
+      service_date,
       latest_time
-    FROM latest_ride
+    FROM latest_run
     ORDER BY train_name, latest_time DESC
   ),
   ranked_stops AS (
@@ -186,7 +189,7 @@ run_sql -c "
       d.train_line_station_num AS station_num,
       d.arrival_planned_time,
       d.departure_planned_time,
-      DATE_TRUNC('day', p.latest_time)::DATE AS ride_date,
+      p.service_date AS ride_date,
       d.train_line_ride_id,
       d.event_time AS last_event_time,
       ROW_NUMBER() OVER (
@@ -194,9 +197,10 @@ run_sql -c "
         ORDER BY d.event_time DESC
       ) AS rn
     FROM de_db_delay_events d
-    JOIN picked_ride p
+    JOIN picked_run p
       ON d.train_name = p.train_name
      AND d.train_line_ride_id = p.train_line_ride_id
+     AND d.service_date = p.service_date
   )
   SELECT
     train_name,

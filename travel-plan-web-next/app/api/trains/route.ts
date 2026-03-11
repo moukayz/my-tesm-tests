@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query, STOPS_PARQUET } from '../../lib/db'
 import { pgQuery } from '../../lib/pgdb'
 import logger from '../../lib/logger'
 
@@ -9,9 +8,9 @@ export async function GET(request: NextRequest) {
 
   try {
     if (railway === 'german') {
-      const result = await query<{ train_name: string; train_type: string }>(`
+      const result = await pgQuery<{ train_name: string; train_type: string }>(`
         SELECT DISTINCT train_name, split_part(train_name, ' ', 1) AS train_type
-        FROM ${STOPS_PARQUET}
+        FROM de_db_train_latest_stops
         ORDER BY train_name
       `)
       logger.info({ railway: 'german', rows: result.length, ms: Date.now() - t0 }, '/api/trains')
@@ -19,9 +18,9 @@ export async function GET(request: NextRequest) {
     }
 
     const [germanResult, frenchResult, eurostarResult] = await Promise.allSettled([
-      query<{ train_name: string; train_type: string }>(`
+      pgQuery<{ train_name: string; train_type: string }>(`
         SELECT DISTINCT train_name, split_part(train_name, ' ', 1) AS train_type
-        FROM ${STOPS_PARQUET}
+        FROM de_db_train_latest_stops
         ORDER BY train_name
       `),
       pgQuery<{ train_name: string; train_type: string }>(`

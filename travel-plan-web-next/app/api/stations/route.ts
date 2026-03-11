@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { query, DELAY_PARQUET } from '../../lib/db'
+import { pgQuery } from '../../lib/pgdb'
 import logger from '../../lib/logger'
 
 export async function GET(request: Request) {
@@ -10,13 +10,14 @@ export async function GET(request: Request) {
   const t0 = Date.now()
 
   try {
-    const rows = await query(`
-      SELECT station_name, MIN(train_line_station_num) AS station_num
-      FROM ${DELAY_PARQUET}
-      WHERE train_name = '${train.replace(/'/g, "''")}'
-      GROUP BY station_name
-      ORDER BY station_num
-    `)
+    const rows = await pgQuery(
+      `SELECT station_name, MIN(train_line_station_num) AS station_num
+       FROM de_db_delay_events
+       WHERE train_name = $1
+       GROUP BY station_name
+       ORDER BY station_num`,
+      [train]
+    )
     logger.info({ train, rows: rows.length, ms: Date.now() - t0 }, '/api/stations')
     return NextResponse.json(rows)
   } catch (e) {
