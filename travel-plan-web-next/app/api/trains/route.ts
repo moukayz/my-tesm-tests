@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query, PARQUET, EURO_GTFS } from '../../lib/db'
+import { query, STOPS_PARQUET } from '../../lib/db'
+import { pgQuery } from '../../lib/pgdb'
 
 export async function GET(request: NextRequest) {
   const railway = request.nextUrl.searchParams.get('railway')
@@ -7,8 +8,8 @@ export async function GET(request: NextRequest) {
   try {
     if (railway === 'german') {
       const result = await query<{ train_name: string; train_type: string }>(`
-        SELECT DISTINCT train_name, train_type
-        FROM ${PARQUET}
+        SELECT DISTINCT train_name, split_part(train_name, ' ', 1) AS train_type
+        FROM ${STOPS_PARQUET}
         ORDER BY train_name
       `)
       return NextResponse.json(result.map((r) => ({ ...r, railway: 'german' as const })))
@@ -16,22 +17,22 @@ export async function GET(request: NextRequest) {
 
     const [germanResult, frenchResult, eurostarResult] = await Promise.allSettled([
       query<{ train_name: string; train_type: string }>(`
-        SELECT DISTINCT train_name, train_type
-        FROM ${PARQUET}
+        SELECT DISTINCT train_name, split_part(train_name, ' ', 1) AS train_type
+        FROM ${STOPS_PARQUET}
         ORDER BY train_name
       `),
-      query<{ train_name: string; train_type: string }>(`
-        SELECT DISTINCT trip_headsign::VARCHAR AS train_name, 'SNCF' AS train_type
-        FROM read_csv('${EURO_GTFS}/trips.txt', header=true, auto_detect=true)
+      pgQuery<{ train_name: string; train_type: string }>(`
+        SELECT DISTINCT trip_headsign AS train_name, 'SNCF' AS train_type
+        FROM gtfs_trips
         WHERE split_part(trip_id, ':', 1) = 'fr'
-          AND NULLIF(trip_headsign::VARCHAR, '') IS NOT NULL
+          AND trip_headsign IS NOT NULL AND trip_headsign != ''
         ORDER BY train_name
       `),
-      query<{ train_name: string; train_type: string }>(`
-        SELECT DISTINCT trip_headsign::VARCHAR AS train_name, 'Eurostar' AS train_type
-        FROM read_csv('${EURO_GTFS}/trips.txt', header=true, auto_detect=true)
+      pgQuery<{ train_name: string; train_type: string }>(`
+        SELECT DISTINCT trip_headsign AS train_name, 'Eurostar' AS train_type
+        FROM gtfs_trips
         WHERE split_part(trip_id, ':', 1) = 'eu'
-          AND NULLIF(trip_headsign::VARCHAR, '') IS NOT NULL
+          AND trip_headsign IS NOT NULL AND trip_headsign != ''
         ORDER BY train_name
       `),
     ])

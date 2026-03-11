@@ -1,56 +1,51 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import AuthHeader from '../../components/AuthHeader'
+
+const mockSignOut = jest.fn()
+
+jest.mock('next-auth/react', () => ({
+  signOut: (...args: unknown[]) => mockSignOut(...args),
+}))
 
 describe('AuthHeader', () => {
   beforeEach(() => {
-    global.fetch = jest.fn()
+    mockSignOut.mockClear()
   })
 
-  afterEach(() => {
-    jest.restoreAllMocks()
-  })
-
-  it('shows login link when not logged in', () => {
-    render(<AuthHeader isLoggedIn={false} />)
+  it('shows login link when user is null', () => {
+    render(<AuthHeader user={null} />)
     expect(screen.getByRole('link', { name: /login/i })).toHaveAttribute('href', '/login')
   })
 
-  it('shows no login link when logged in', () => {
-    render(<AuthHeader isLoggedIn={true} username="testuser" />)
+  it('shows login link when user is undefined', () => {
+    render(<AuthHeader />)
+    expect(screen.getByRole('link', { name: /login/i })).toHaveAttribute('href', '/login')
+  })
+
+  it('shows no login link when user is provided', () => {
+    render(<AuthHeader user={{ name: 'Test User', email: 'test@gmail.com' }} />)
     expect(screen.queryByRole('link', { name: /login/i })).not.toBeInTheDocument()
   })
 
-  it('shows username when logged in', () => {
-    render(<AuthHeader isLoggedIn={true} username="testuser" />)
-    expect(screen.getByText('testuser')).toBeInTheDocument()
+  it('shows user name when logged in', () => {
+    render(<AuthHeader user={{ name: 'Test User', email: 'test@gmail.com' }} />)
+    expect(screen.getByText('Test User')).toBeInTheDocument()
+  })
+
+  it('shows user email when name is null', () => {
+    render(<AuthHeader user={{ name: null, email: 'test@gmail.com' }} />)
+    expect(screen.getByText('test@gmail.com')).toBeInTheDocument()
   })
 
   it('shows logout button when logged in', () => {
-    render(<AuthHeader isLoggedIn={true} username="testuser" />)
+    render(<AuthHeader user={{ name: 'Test User', email: 'test@gmail.com' }} />)
     expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
   })
 
-  it('calls POST /api/auth/logout on logout click', async () => {
-    const mockFetch = jest.fn().mockResolvedValue({ ok: true })
-    global.fetch = mockFetch
-
-    render(<AuthHeader isLoggedIn={true} username="testuser" />)
+  it('calls signOut on logout click', () => {
+    render(<AuthHeader user={{ name: 'Test User', email: 'test@gmail.com' }} />)
     fireEvent.click(screen.getByRole('button', { name: /logout/i }))
-
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' })
-    })
-  })
-
-  it('shows error message when logout fails', async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: false })
-
-    render(<AuthHeader isLoggedIn={true} username="testuser" />)
-    fireEvent.click(screen.getByRole('button', { name: /logout/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/logout failed/i)).toBeInTheDocument()
-    })
+    expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' })
   })
 })

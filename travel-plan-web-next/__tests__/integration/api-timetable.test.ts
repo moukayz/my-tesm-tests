@@ -3,7 +3,8 @@
  */
 jest.mock('../../app/lib/db', () => ({
   query: jest.fn(),
-  PARQUET: 'mock_parquet',
+  DELAY_PARQUET: 'mock_delay_parquet',
+  STOPS_PARQUET: 'mock_stops_parquet',
   EURO_GTFS: 'mock_euro',
   convertBigInt: jest.fn((x) => x),
 }))

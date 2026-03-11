@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { query, PARQUET, EURO_GTFS } from '../../lib/db'
+import { query, STOPS_PARQUET, EURO_GTFS } from '../../lib/db'
 
 type TimetableRow = {
   station_name: string
@@ -66,29 +66,12 @@ export async function GET(request: Request) {
       `)
     } else {
       rows = await query<TimetableRow>(`
-        WITH latest_ride AS (
-          SELECT train_line_ride_id, MAX(time) AS latest_time
-          FROM ${PARQUET}
-          WHERE train_name = '${trainEsc}' AND train_line_ride_id != ''
-          GROUP BY train_line_ride_id
-          ORDER BY MAX(time) DESC
-          LIMIT 1
-        ),
-        latest_occurrence AS (
-          SELECT
-            p.station_name,
-            p.train_line_station_num AS station_num,
-            CAST(p.arrival_planned_time AS VARCHAR) AS arrival_planned_time,
-            CAST(p.departure_planned_time AS VARCHAR) AS departure_planned_time,
-            CAST(DATE_TRUNC('day', lr.latest_time) AS VARCHAR) AS ride_date,
-            ROW_NUMBER() OVER (PARTITION BY p.train_line_station_num ORDER BY p.time DESC) AS rn
-          FROM ${PARQUET} p
-          JOIN latest_ride lr ON p.train_line_ride_id = lr.train_line_ride_id
-          WHERE p.train_name = '${trainEsc}'
-        )
-        SELECT station_name, station_num, arrival_planned_time, departure_planned_time, ride_date
-        FROM latest_occurrence
-        WHERE rn = 1
+        SELECT station_name, station_num,
+          CAST(arrival_planned_time AS VARCHAR) AS arrival_planned_time,
+          CAST(departure_planned_time AS VARCHAR) AS departure_planned_time,
+          CAST(ride_date AS VARCHAR) AS ride_date
+        FROM ${STOPS_PARQUET}
+        WHERE train_name = '${trainEsc}'
         ORDER BY station_num
       `)
     }

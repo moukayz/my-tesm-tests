@@ -1,0 +1,378 @@
+[
+  {
+    "date": "2026/9/25",
+    "weekDay": "星期五",
+    "dayNum": 1,
+    "overnight": "巴黎",
+    "plan": {
+      "morning": "e2e-morning",
+      "afternoon": "e2e-afternoon",
+      "evening": "e2e-evening"
+    },
+    "venueHours": [
+      {
+        "venue": "卢浮宫 (Musee du Louvre)",
+        "typicalHours": "09:00-18:00; late opening Wed/Fri to ~21:45",
+        "closedWeekday": [
+          "Tue"
+        ],
+        "notes": "Typical schedule; hours can change (season/holidays). Verify official site when booking."
+      }
+    ],
+    "train": []
+  },
+  {
+    "date": "2026/9/26",
+    "weekDay": "星期六",
+    "dayNum": 2,
+    "overnight": "巴黎",
+    "plan": {
+      "morning": "凡尔赛宫（7:48->8:48)",
+      "afternoon": "埃菲尔铁塔 (14:11 -> 14:58)",
+      "evening": "游船，可选巴黎歌剧院"
+    },
+    "venueHours": [
+      {
+        "venue": "凡尔赛宫 (Chateau de Versailles - Palace)",
+        "typicalHours": "09:00-18:30 (palace; varies by season)",
+        "closedWeekday": [
+          "Mon"
+        ],
+        "notes": "Typical schedule; gardens/estate can have different hours. Verify official site when booking."
+      },
+      {
+        "venue": "埃菲尔铁塔 (Eiffel Tower)",
+        "typicalHours": "Usually opens daily; closing time varies by season",
+        "closedWeekday": [],
+        "notes": "Hours vary by season and ticket type (stairs/elevator). Verify official site when booking."
+      }
+    ],
+    "train": [
+      {
+        "train_id": "Paris ↔ Versailles（往返）"
+      }
+    ]
+  },
+  {
+    "date": "2026/9/27",
+    "weekDay": "星期日",
+    "dayNum": 3,
+    "overnight": "巴黎",
+    "plan": {
+      "morning": "枫丹白露宫（7:47->9:18)",
+      "afternoon": "12:13->13:35\n- 橘园美术馆(13:30)\n- 奥赛博物馆(15:00)\n- 罗丹博物馆...",
+      "evening": "巴黎歌剧院（如果前一天没去）"
+    },
+    "venueHours": [
+      {
+        "venue": "橘园美术馆 (Musee de l'Orangerie)",
+        "typicalHours": "09:00-18:00",
+        "closedWeekday": [
+          "Tue"
+        ],
+        "notes": "Typical schedule; some days have extended hours. Verify official site when booking."
+      },
+      {
+        "venue": "奥赛博物馆 (Musee d'Orsay)",
+        "typicalHours": "09:30-18:00; late opening Thu to ~21:45",
+        "closedWeekday": [
+          "Mon"
+        ],
+        "notes": "Typical schedule; verify official site when booking."
+      },
+      {
+        "venue": "罗丹博物馆 (Musee Rodin - Paris)",
+        "typicalHours": "10:00-18:30",
+        "closedWeekday": [
+          "Mon"
+        ],
+        "notes": "Typical schedule; verify official site when booking."
+      },
+      {
+        "venue": "枫丹白露宫 (Chateau de Fontainebleau)",
+        "typicalHours": "09:30-18:00 (Apr-Sep); 09:30-17:00 (Oct-Mar)",
+        "closedWeekday": [
+          "Tue"
+        ],
+        "notes": "Typical schedule; some areas can close earlier. Verify official site when booking."
+      }
+    ],
+    "train": [
+      {
+        "train_id": "Paris ↔ Fontainebleau-Avon（往返）"
+      }
+    ]
+  },
+  {
+    "date": "2026/9/28",
+    "weekDay": "星期一",
+    "dayNum": 4,
+    "overnight": "巴黎",
+    "plan": {
+      "morning": "圣米歇尔山. TGV-8701  (6:27 -> 8:25 -> 10:00)",
+      "afternoon": "—",
+      "evening": "TGV-8088 (17:00->18:15->18:35->20:05)"
+    },
+    "venueHours": [
+      {
+        "venue": "圣米歇尔山修道院 (Mont Saint-Michel Abbey)",
+        "typicalHours": "Hours vary by season",
+        "closedWeekday": [],
+        "notes": "Opening hours can vary significantly by season and special events. Verify official site."
+      }
+    ],
+    "train": [
+      {
+        "train_id": "Paris ↔ Rennes（往返）"
+      }
+    ]
+  },
+  {
+    "date": "2026/9/29",
+    "weekDay": "星期二",
+    "dayNum": 5,
+    "overnight": "奥格斯堡",
+    "plan": {
+      "morning": "出发到科隆",
+      "afternoon": "科隆游玩约3小时",
+      "evening": "到奥格斯堡（具体时刻待确认）"
+    },
+    "venueHours": [],
+    "train": [
+      {
+        "train_id": "EST9423",
+        "start": "paris",
+        "end": "cologne"
+      },
+      {
+        "train_id": "ICE1011",
+        "start": "cologne",
+        "end": "augsburg"
+      }
+    ]
+  },
+  {
+    "date": "2026/9/30",
+    "weekDay": "星期三",
+    "dayNum": 6,
+    "overnight": "奥格斯堡",
+    "plan": {
+      "morning": "新天鹅堡周边",
+      "afternoon": "—",
+      "evening": "—"
+    },
+    "venueHours": [
+      {
+        "venue": "新天鹅堡 (Neuschwanstein Castle)",
+        "typicalHours": "Hours vary by season",
+        "closedWeekday": [],
+        "notes": "Tickets are timed; tours and access can sell out. Verify official site and book in advance."
+      }
+    ],
+    "train": [
+      {
+        "train_id": "Augsburg ↔ Füssen（往返）"
+      }
+    ]
+  },
+  {
+    "date": "2026/10/1",
+    "weekDay": "星期四",
+    "dayNum": 7,
+    "overnight": "奥格斯堡",
+    "plan": {
+      "morning": "慕尼黑市内",
+      "afternoon": "—",
+      "evening": "—"
+    },
+    "venueHours": [],
+    "train": [
+      {
+        "train_id": "Augsburg ↔ Munich（往返）"
+      }
+    ]
+  },
+  {
+    "date": "2026/10/2",
+    "weekDay": "星期五",
+    "dayNum": 8,
+    "overnight": "奥尔蒂塞伊",
+    "plan": {
+      "morning": "到多洛米蒂（Bolzano）",
+      "afternoon": "租车",
+      "evening": "开始游玩（具体时刻待确认）"
+    },
+    "venueHours": [],
+    "train": [
+      {
+        "train_id": "ICE905",
+        "start": "augsburg",
+        "end": "munich"
+      },
+      {
+        "train_id": "EC81",
+        "start": "munich",
+        "end": "bolzano"
+      }
+    ]
+  },
+  {
+    "date": "2026/10/3",
+    "weekDay": "星期六",
+    "dayNum": 9,
+    "overnight": "奥尔蒂塞伊",
+    "plan": {
+      "morning": "多洛米蒂（全天）",
+      "afternoon": "—",
+      "evening": "—"
+    },
+    "venueHours": [],
+    "train": []
+  },
+  {
+    "date": "2026/10/4",
+    "weekDay": "星期日",
+    "dayNum": 10,
+    "overnight": "佛罗伦萨",
+    "plan": {
+      "morning": "多洛米蒂",
+      "afternoon": "还车",
+      "evening": "火车到佛罗伦萨"
+    },
+    "venueHours": [],
+    "train": [
+      {
+        "train_id": "Bolzano→Florence"
+      }
+    ]
+  },
+  {
+    "date": "2026/10/5",
+    "weekDay": "星期一",
+    "dayNum": 11,
+    "overnight": "佛罗伦萨",
+    "plan": {
+      "morning": "比萨、市区",
+      "afternoon": "主教座堂（Duomo）",
+      "evening": "巴杰罗博物馆、梅第奇礼拜堂"
+    },
+    "venueHours": [
+      {
+        "venue": "巴杰罗博物馆 (Museo Nazionale del Bargello)",
+        "typicalHours": "08:15-18:50",
+        "closedWeekday": [
+          "Tue"
+        ],
+        "notes": "Typical schedule; occasional special closures. Verify official site when booking."
+      },
+      {
+        "venue": "梅第奇礼拜堂 (Medici Chapels)",
+        "typicalHours": "08:15-18:50",
+        "closedWeekday": [
+          "Tue"
+        ],
+        "notes": "Typical schedule; verify official site when booking."
+      }
+    ],
+    "train": [
+      {
+        "train_id": "Florence ↔ Pisa（往返）"
+      }
+    ]
+  },
+  {
+    "date": "2026/10/6",
+    "weekDay": "星期二",
+    "dayNum": 12,
+    "overnight": "佛罗伦萨",
+    "plan": {
+      "morning": "乌菲兹美术馆",
+      "afternoon": "佛罗伦萨学院美术馆",
+      "evening": "—"
+    },
+    "venueHours": [
+      {
+        "venue": "乌菲兹美术馆 (Galleria degli Uffizi)",
+        "typicalHours": "08:15-18:30",
+        "closedWeekday": [
+          "Mon"
+        ],
+        "notes": "Typical schedule; some dates have extended hours. Verify official site when booking."
+      },
+      {
+        "venue": "佛罗伦萨学院美术馆 (Galleria dell'Accademia)",
+        "typicalHours": "08:15-18:50",
+        "closedWeekday": [
+          "Mon"
+        ],
+        "notes": "Typical schedule; verify official site when booking."
+      }
+    ],
+    "train": []
+  },
+  {
+    "date": "2026/10/7",
+    "weekDay": "星期三",
+    "dayNum": 13,
+    "overnight": "罗马",
+    "plan": {
+      "morning": "—",
+      "afternoon": "佛罗伦萨 → 罗马",
+      "evening": "—"
+    },
+    "venueHours": [],
+    "train": [
+      {
+        "train_id": "Florence→Rome"
+      }
+    ]
+  },
+  {
+    "date": "2026/10/8",
+    "weekDay": "星期四",
+    "dayNum": 14,
+    "overnight": "罗马",
+    "plan": {
+      "morning": "梵蒂冈",
+      "afternoon": "—",
+      "evening": "—"
+    },
+    "venueHours": [
+      {
+        "venue": "梵蒂冈博物馆 (Vatican Museums)",
+        "typicalHours": "Mon-Sat 09:00-18:00 (last entry typically ~16:00)",
+        "closedWeekday": [
+          "Sun"
+        ],
+        "notes": "Some Sundays open (e.g., last Sunday of month) with special rules. Verify official site when booking."
+      }
+    ],
+    "train": []
+  },
+  {
+    "date": "2026/10/9",
+    "weekDay": "星期五",
+    "dayNum": 15,
+    "overnight": "罗马",
+    "plan": {
+      "morning": "古罗马专题",
+      "afternoon": "—",
+      "evening": "—"
+    },
+    "venueHours": [],
+    "train": []
+  },
+  {
+    "date": "2026/10/10",
+    "weekDay": "星期六",
+    "dayNum": 16,
+    "overnight": "—",
+    "plan": {
+      "morning": "罗马",
+      "afternoon": "离境",
+      "evening": "—"
+    },
+    "venueHours": [],
+    "train": []
+  }
+]

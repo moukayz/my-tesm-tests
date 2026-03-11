@@ -4,14 +4,16 @@ import { useState } from 'react'
 import ItineraryTab from './ItineraryTab'
 import TrainDelayTab from './TrainDelayTab'
 import TrainTimetableTab from './TrainTimetableTab'
+import type { RouteDay } from '../app/lib/itinerary'
 
 type Tab = 'itinerary' | 'delays' | 'timetable'
 
 interface TravelPlanProps {
   isLoggedIn?: boolean
+  initialRouteData?: RouteDay[]
 }
 
-export default function TravelPlan({ isLoggedIn = false }: TravelPlanProps) {
+export default function TravelPlan({ isLoggedIn = false, initialRouteData }: TravelPlanProps) {
   const allTabs: { id: Tab; label: string }[] = [
     { id: 'itinerary', label: 'Itinerary' },
     { id: 'delays', label: 'Train Delays' },
@@ -46,9 +48,9 @@ export default function TravelPlan({ isLoggedIn = false }: TravelPlanProps) {
         ))}
       </div>
 
-      {isLoggedIn && (
+      {isLoggedIn && initialRouteData && (
         <div className={tab === 'itinerary' ? '' : 'hidden'}>
-          <ItineraryTab />
+          <ItineraryTab initialData={initialRouteData} />
         </div>
       )}
       <div className={tab === 'delays' ? 'w-full' : 'hidden'}>

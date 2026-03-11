@@ -74,15 +74,25 @@ describe('TrainTimetableTab', () => {
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
   })
 
-  it('loads trains on mount and shows them in the dropdown on focus', async () => {
+  it('renders train format hint on the same line as the Train label', async () => {
+    setupFetch()
+    render(<TrainTimetableTab />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
+
+    const label = screen.getByText('Train')
+    const hint = screen.getByText(/e\.g\. ICE 905/)
+    expect(hint).toBeInTheDocument()
+    expect(label.parentElement).toBe(hint.parentElement)
+  })
+
+  it('loads trains on mount and shows matching options when user types', async () => {
     setupFetch()
     const user = userEvent.setup()
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE')
     expect(screen.getByText('ICE 905')).toBeInTheDocument()
-    expect(screen.getByText('TGV 6201')).toBeInTheDocument()
   })
 
   it('shows an error message when trains fail to load', async () => {
@@ -99,7 +109,7 @@ describe('TrainTimetableTab', () => {
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
     await user.click(screen.getByText('ICE 905'))
 
     await waitFor(() =>
@@ -122,7 +132,7 @@ describe('TrainTimetableTab', () => {
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
     await user.click(screen.getByText('ICE 905'))
 
     await waitFor(() => expect(screen.getByText('Planned Timetable')).toBeInTheDocument())
@@ -137,7 +147,7 @@ describe('TrainTimetableTab', () => {
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
     await user.click(screen.getByText('ICE 905'))
 
     await waitFor(() => expect(screen.getByText('Planned Timetable')).toBeInTheDocument())
@@ -151,7 +161,7 @@ describe('TrainTimetableTab', () => {
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
     await user.click(screen.getByText('ICE 905'))
 
     await waitFor(() => expect(screen.getByText(/latest run: 2026-02-08/i)).toBeInTheDocument())
@@ -163,7 +173,7 @@ describe('TrainTimetableTab', () => {
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
     await user.click(screen.getByText('ICE 905'))
 
     await waitFor(() =>
@@ -182,7 +192,7 @@ describe('TrainTimetableTab', () => {
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
     await user.click(screen.getByText('ICE 905'))
 
     await waitFor(() =>
@@ -196,7 +206,7 @@ describe('TrainTimetableTab', () => {
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'TGV')
     await user.click(screen.getByText('TGV 6201'))
 
     await waitFor(() =>
@@ -212,7 +222,7 @@ describe('TrainTimetableTab', () => {
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), '9002')
     await user.click(screen.getByText('9002'))
 
     await waitFor(() =>
@@ -228,7 +238,7 @@ describe('TrainTimetableTab', () => {
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'TGV')
     await user.click(screen.getByText('TGV 6201'))
 
     await waitFor(() => expect(screen.getByText('Planned Timetable')).toBeInTheDocument())
@@ -242,7 +252,7 @@ describe('TrainTimetableTab', () => {
     render(<TrainTimetableTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'TGV')
     await user.click(screen.getByText('TGV 6201'))
 
     await waitFor(() => expect(screen.getByText('Planned Timetable')).toBeInTheDocument())

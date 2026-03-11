@@ -16,6 +16,10 @@ This project strictly follows test-driven development (TDD). Always write tests 
 - **E2E tests**: Playwright (`__tests__/e2e/`, `playwright.config.ts`)
 - **Run tests**: `npm test` (Jest), `npm run test:e2e` (Playwright)
 
+## Test Runner Rule
+
+Always use npm scripts defined in `package.json` to run tests. Do **not** invoke `npx jest` or `npx playwright` directly unless it is necessary for debugging a specific failure. Check `package.json` for available test scripts when needed.
+
 ## Workflow
 
 1. Create test file in `__tests__/` matching the component/feature structure

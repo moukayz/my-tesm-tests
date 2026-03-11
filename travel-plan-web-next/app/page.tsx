@@ -1,13 +1,13 @@
-import { getIronSession } from 'iron-session'
-import { cookies } from 'next/headers'
-import { sessionOptions, SessionData } from './lib/session'
+import { auth } from '../auth'
+import { getRouteStore } from './lib/routeStore'
 import TravelPlan from '../components/TravelPlan'
 
 export default async function Home() {
-  const session = await getIronSession<SessionData>(await cookies(), sessionOptions)
+  const session = await auth()
+  const initialRouteData = session?.user ? await getRouteStore().getAll() : undefined
   return (
     <main className="max-w-6xl mx-auto px-8 py-8">
-      <TravelPlan isLoggedIn={session.isLoggedIn ?? false} />
+      <TravelPlan isLoggedIn={!!session?.user} initialRouteData={initialRouteData} />
     </main>
   )
 }

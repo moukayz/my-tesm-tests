@@ -56,16 +56,27 @@ describe('TrainDelayTab', () => {
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
   })
 
-  it('loads trains on mount and shows them in the dropdown on focus', async () => {
+  it('renders train format hint on the same line as the Train label', async () => {
+    setupFetch()
+    render(<TrainDelayTab />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
+
+    const label = screen.getByText('Train')
+    const hint = screen.getByText(/e\.g\. ICE 905/)
+    expect(hint).toBeInTheDocument()
+    // Both are in the same parent container
+    expect(label.parentElement).toBe(hint.parentElement)
+  })
+
+  it('loads trains on mount and shows matching options when user types', async () => {
     setupFetch()
     const user = userEvent.setup()
     render(<TrainDelayTab />)
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german')
     )
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE')
     expect(screen.getByText('ICE 905')).toBeInTheDocument()
-    expect(screen.getByText('TGV 6201')).toBeInTheDocument()
   })
 
   it('shows an error message when trains fail to load', async () => {
@@ -89,7 +100,7 @@ describe('TrainDelayTab', () => {
     render(<TrainDelayTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
     await user.click(screen.getByText('ICE 905'))
 
     await waitFor(() =>
@@ -100,7 +111,7 @@ describe('TrainDelayTab', () => {
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Type to search station')).not.toBeDisabled()
     )
-    await user.click(screen.getByPlaceholderText('Type to search station'))
+    await user.type(screen.getByPlaceholderText('Type to search station'), 'Berlin')
     expect(screen.getByText('Berlin Hbf')).toBeInTheDocument()
   })
 
@@ -110,12 +121,12 @@ describe('TrainDelayTab', () => {
     render(<TrainDelayTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
     await user.click(screen.getByText('ICE 905'))
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Type to search station')).not.toBeDisabled()
     )
-    await user.click(screen.getByPlaceholderText('Type to search station'))
+    await user.type(screen.getByPlaceholderText('Type to search station'), 'Berlin')
     await user.click(screen.getByText('Berlin Hbf'))
 
     await waitFor(() => expect(screen.getByText('Total Stops')).toBeInTheDocument())
@@ -129,12 +140,12 @@ describe('TrainDelayTab', () => {
     render(<TrainDelayTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
     await user.click(screen.getByText('ICE 905'))
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Type to search station')).not.toBeDisabled()
     )
-    await user.click(screen.getByPlaceholderText('Type to search station'))
+    await user.type(screen.getByPlaceholderText('Type to search station'), 'Berlin')
     await user.click(screen.getByText('Berlin Hbf'))
 
     await waitFor(() =>
@@ -150,7 +161,7 @@ describe('TrainDelayTab', () => {
     render(<TrainDelayTab />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
 
-    await user.click(screen.getByPlaceholderText(/ICE 905/i))
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
     await user.click(screen.getByText('ICE 905'))
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Type to search station')).not.toBeDisabled()
@@ -160,5 +171,26 @@ describe('TrainDelayTab', () => {
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Type to search station')).toBeDisabled()
     )
+  })
+
+  it('shows all stations in dropdown when station input is focused without typing', async () => {
+    setupFetch()
+    const user = userEvent.setup()
+    render(<TrainDelayTab />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/trains?railway=german'))
+
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE 905')
+    await user.click(screen.getByText('ICE 905'))
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Type to search station')).not.toBeDisabled()
+    )
+
+    // Click on the station input to focus it
+    await user.click(screen.getByPlaceholderText('Type to search station'))
+    // Without typing, all stations should be visible
+    await waitFor(() => {
+      expect(screen.getByText('Berlin Hbf')).toBeInTheDocument()
+      expect(screen.getByText('Frankfurt Hbf')).toBeInTheDocument()
+    })
   })
 })

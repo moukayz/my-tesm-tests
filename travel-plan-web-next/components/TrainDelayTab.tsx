@@ -107,12 +107,15 @@ export default function TrainDelayTab() {
       {/* Controls */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 flex gap-8 p-5 items-end flex-wrap">
         <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-          <label
-            htmlFor="train-input"
-            className="text-xs font-semibold uppercase tracking-wider text-gray-700"
-          >
-            Train
-          </label>
+          <div className="flex items-baseline gap-2">
+            <label
+              htmlFor="train-input"
+              className="text-xs font-semibold uppercase tracking-wider text-gray-700"
+            >
+              Train
+            </label>
+            <span className="text-xs text-gray-400">e.g. ICE 905, TGV 8088, EST 9423</span>
+          </div>
           <AutocompleteInput
             id="train-input"
             value={trainInput}
@@ -138,6 +141,7 @@ export default function TrainDelayTab() {
             options={stations.map((s) => s.station_name)}
             placeholder="Type to search station"
             disabled={!selectedTrain || stations.length === 0}
+            showAllWhenEmpty
           />
         </div>
       </div>

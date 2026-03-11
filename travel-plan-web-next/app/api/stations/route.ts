@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { query, PARQUET } from '../../lib/db'
+import { query, DELAY_PARQUET } from '../../lib/db'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   try {
     const rows = await query(`
       SELECT station_name, MIN(train_line_station_num) AS station_num
-      FROM ${PARQUET}
+      FROM ${DELAY_PARQUET}
       WHERE train_name = '${train.replace(/'/g, "''")}'
       GROUP BY station_name
       ORDER BY station_num

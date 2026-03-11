@@ -4,6 +4,7 @@ import nextJest from 'next/jest.js'
 const createJestConfig = nextJest({ dir: './' })
 
 const config: Config = {
+  // reporters: [['jest-silent-reporter', { usedots: false, showWarnings: true }]],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',

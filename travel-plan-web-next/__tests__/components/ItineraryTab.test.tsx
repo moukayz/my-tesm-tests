@@ -2,6 +2,34 @@ import React from 'react'
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ItineraryTab from '../../components/ItineraryTab'
+import type { RouteDay } from '../../app/lib/itinerary'
+
+const mockRouteData: RouteDay[] = [
+  {
+    date: '2026/9/25',
+    weekDay: '星期五',
+    dayNum: 1,
+    overnight: '巴黎',
+    plan: { morning: 'e2e-morning', afternoon: 'e2e-afternoon', evening: 'e2e-evening' },
+    train: [],
+  },
+  {
+    date: '2026/9/26',
+    weekDay: '星期六',
+    dayNum: 2,
+    overnight: '巴黎',
+    plan: { morning: 'Day 2 morning', afternoon: 'Day 2 afternoon', evening: 'Day 2 evening' },
+    train: [{ train_id: 'TGV 456' }],
+  },
+  {
+    date: '2026/9/27',
+    weekDay: '星期日',
+    dayNum: 3,
+    overnight: '科隆',
+    plan: { morning: 'Day 3 morning', afternoon: 'Day 3 afternoon', evening: 'Day 3 evening' },
+    train: [{ train_id: 'ICE 123', start: 'augsburg', end: 'munich' }],
+  },
+]
 
 function getDbTrainCount(routeData: Array<{ train: Array<Record<string, unknown>> }>) {
   return routeData.flatMap((day) => day.train).filter((train) => train.start && train.end).length
@@ -23,9 +51,8 @@ describe('ItineraryTab', () => {
 
   it('renders all table header columns', async () => {
     setupFetch()
-    const routeData = (await import('../../data/route.json')).default
-    const dbTrainCount = getDbTrainCount(routeData)
-    render(<ItineraryTab />)
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    render(<ItineraryTab initialData={mockRouteData} />)
     expect(screen.getByText('Date')).toBeInTheDocument()
     expect(screen.getByText('Weekday')).toBeInTheDocument()
     expect(screen.getByText('Day')).toBeInTheDocument()
@@ -37,14 +64,12 @@ describe('ItineraryTab', () => {
     })
   })
 
-  it('renders a row for every entry in route.json', async () => {
+  it('renders a row for every entry in initialData', async () => {
     setupFetch()
-    const routeData = (await import('../../data/route.json')).default
-    const dbTrainCount = getDbTrainCount(routeData)
-    render(<ItineraryTab />)
-    // Each row has a date cell — count them
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    render(<ItineraryTab initialData={mockRouteData} />)
     const dateCells = screen.getAllByText(/^\d{4}\/\d+\/\d+$/)
-    expect(dateCells).toHaveLength(routeData.length)
+    expect(dateCells).toHaveLength(mockRouteData.length)
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
     })
@@ -52,19 +77,18 @@ describe('ItineraryTab', () => {
 
   it('renders the first day date and plan sections', async () => {
     setupFetch()
-    const routeData = (await import('../../data/route.json')).default
-    const dbTrainCount = getDbTrainCount(routeData)
-    render(<ItineraryTab />)
-    const firstDateCell = screen.getByText(routeData[0].date)
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    render(<ItineraryTab initialData={mockRouteData} />)
+    const firstDateCell = screen.getByText(mockRouteData[0].date)
     const firstRow = firstDateCell.closest('tr')
     expect(firstRow).not.toBeNull()
     const withinRow = within(firstRow as HTMLElement)
     expect(withinRow.getByTitle('Morning')).toBeInTheDocument()
     expect(withinRow.getByTitle('Afternoon')).toBeInTheDocument()
     expect(withinRow.getByTitle('Evening')).toBeInTheDocument()
-    expect(withinRow.getByText(routeData[0].plan.morning)).toBeInTheDocument()
-    expect(withinRow.getByText(routeData[0].plan.afternoon)).toBeInTheDocument()
-    expect(withinRow.getByText(routeData[0].plan.evening)).toBeInTheDocument()
+    expect(withinRow.getByText(mockRouteData[0].plan.morning)).toBeInTheDocument()
+    expect(withinRow.getByText(mockRouteData[0].plan.afternoon)).toBeInTheDocument()
+    expect(withinRow.getByText(mockRouteData[0].plan.evening)).toBeInTheDocument()
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
     })
@@ -72,11 +96,10 @@ describe('ItineraryTab', () => {
 
   it('renders 2 delimiters between the 3 plan sections', async () => {
     setupFetch()
-    const routeData = (await import('../../data/route.json')).default
-    const dbTrainCount = getDbTrainCount(routeData)
-    render(<ItineraryTab />)
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    render(<ItineraryTab initialData={mockRouteData} />)
 
-    const firstDateCell = screen.getByText(routeData[0].date)
+    const firstDateCell = screen.getByText(mockRouteData[0].date)
     const firstRow = firstDateCell.closest('tr') as HTMLElement
     const separators = within(firstRow).getAllByRole('separator')
     expect(separators).toHaveLength(2)
@@ -87,10 +110,8 @@ describe('ItineraryTab', () => {
 
   it('renders a dash for days with no train schedule', async () => {
     setupFetch()
-    const routeData = (await import('../../data/route.json')).default
-    const dbTrainCount = getDbTrainCount(routeData)
-    render(<ItineraryTab />)
-    // Days with empty train array render an em-dash placeholder
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    render(<ItineraryTab initialData={mockRouteData} />)
     const dashes = screen.getAllByText('—')
     expect(dashes.length).toBeGreaterThan(0)
     await waitFor(() => {
@@ -117,13 +138,10 @@ describe('ItineraryTab', () => {
         },
       ],
     })
-    const routeData = (await import('../../data/route.json')).default
-    const dbTrainCount = getDbTrainCount(routeData)
-    render(<ItineraryTab />)
-    const dayWithTrain = routeData.find((d) => d.train.length > 0)!
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    render(<ItineraryTab initialData={mockRouteData} />)
+    const dayWithTrain = mockRouteData.find((d) => d.train.length > 0)!
     await waitFor(() => {
-      // For non-DB trains (no start/end), should display as-is
-      // For DB trains (has start/end), should show in list
       const trainEntry = dayWithTrain.train[0]
       expect(screen.getByText(trainEntry.train_id)).toBeInTheDocument()
     })
@@ -134,12 +152,9 @@ describe('ItineraryTab', () => {
 
   it('renders overnight location cells with merged rowspans', async () => {
     setupFetch()
-    const routeData = (await import('../../data/route.json')).default
-    const dbTrainCount = getDbTrainCount(routeData)
-    render(<ItineraryTab />)
-    // Each unique overnight location should appear in the DOM.
-    // Skip '—' since it also appears as the train-schedule placeholder spans.
-    const uniqueLocations = [...new Set(routeData.map((d) => d.overnight))].filter(
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    render(<ItineraryTab initialData={mockRouteData} />)
+    const uniqueLocations = [...new Set(mockRouteData.map((d) => d.overnight))].filter(
       (l) => l !== '—'
     )
     for (const location of uniqueLocations) {
@@ -169,10 +184,8 @@ describe('ItineraryTab', () => {
         },
       ],
     })
-    const routeData = (await import('../../data/route.json')).default
-    const dbTrainCount = getDbTrainCount(routeData)
-    render(<ItineraryTab />)
-    // Verify fetch was called for DB trains
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    render(<ItineraryTab initialData={mockRouteData} />)
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/timetable'))
     })
@@ -183,16 +196,14 @@ describe('ItineraryTab', () => {
 
   it('displays non-DB trains as-is without fetching', async () => {
     setupFetch()
-    render(<ItineraryTab />)
-    const routeData = (await import('../../data/route.json')).default
-    const dbTrainCount = getDbTrainCount(routeData)
-    const allTrains = routeData.flatMap((day) => day.train) as Array<Record<string, unknown>>
+    render(<ItineraryTab initialData={mockRouteData} />)
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    const allTrains = mockRouteData.flatMap((day) => day.train) as Array<Record<string, unknown>>
     const nonDbTrain = allTrains.find((train) => !train.start || !train.end)
     if (!nonDbTrain) {
       expect(allTrains.every((train) => train.start && train.end)).toBe(true)
       return
     }
-    // Non-DB trains should be displayed as-is
     await waitFor(() => {
       expect(screen.getByText(nonDbTrain.train_id as string)).toBeInTheDocument()
     })
@@ -201,16 +212,6 @@ describe('ItineraryTab', () => {
     })
   })
 })
-
-async function renderAndAwaitSchedules() {
-  const { default: routeData } = await import('../../data/route.json')
-  const dbTrainCount = getDbTrainCount(routeData)
-  render(<ItineraryTab />)
-  if (dbTrainCount > 0) {
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount))
-  }
-  return routeData
-}
 
 function setupFetchWithPlanUpdate(overrides: Record<string, unknown> = {}) {
   const responses: Record<string, unknown> = {
@@ -226,6 +227,15 @@ function setupFetchWithPlanUpdate(overrides: Record<string, unknown> = {}) {
       status: 200,
     } as Response)
   })
+}
+
+async function renderAndAwaitSchedules() {
+  const dbTrainCount = getDbTrainCount(mockRouteData)
+  render(<ItineraryTab initialData={mockRouteData} />)
+  if (dbTrainCount > 0) {
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount))
+  }
+  return mockRouteData
 }
 
 describe('ItineraryTab - Edit Plan Functionality', () => {
@@ -256,7 +266,6 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
     await waitFor(() => {
       expect(screen.getByDisplayValue(routeData[0].plan.morning)).toBeInTheDocument()
-      // afternoon and evening rows stay as display spans
       expect(screen.queryByDisplayValue(routeData[0].plan.afternoon)).not.toBeInTheDocument()
       expect(screen.queryByDisplayValue(routeData[0].plan.evening)).not.toBeInTheDocument()
     })
@@ -396,7 +405,6 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
 
     fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
 
-    // Still in edit mode — textarea should still be present
     expect(screen.getByRole('textbox')).toBeInTheDocument()
   })
 
@@ -433,14 +441,12 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
     setupFetchWithPlanUpdate()
     const routeData = await renderAndAwaitSchedules()
 
-    // Edit morning of day 0
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
     const morningInput = await screen.findByDisplayValue(routeData[0].plan.morning)
     fireEvent.blur(morningInput)
 
     await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
 
-    // Edit evening of day 1
     await userEvent.dblClick(screen.getByTestId('plan-row-1-evening'))
     await waitFor(() => {
       expect(screen.getByDisplayValue(routeData[1].plan.evening)).toBeInTheDocument()
@@ -514,7 +520,6 @@ describe('ItineraryTab - Drag and Drop', () => {
 
   const mockDragEvent = { dataTransfer: { setData: jest.fn(), getData: jest.fn(), effectAllowed: '' } }
 
-  // Test 1: drag handles rendered in display mode
   it('renders a drag handle for each of the 3 plan sections in display mode', async () => {
     setupFetchWithPlanUpdate()
     const routeData = await renderAndAwaitSchedules()
@@ -525,7 +530,6 @@ describe('ItineraryTab - Drag and Drop', () => {
     expect(handles).toHaveLength(3)
   })
 
-  // Test 2: drag handle NOT rendered for the row being edited
   it('does not render a drag handle for the row being edited', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
@@ -533,14 +537,11 @@ describe('ItineraryTab - Drag and Drop', () => {
     await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
 
     await waitFor(() => {
-      // morning row is now an input — its drag handle is gone
       expect(screen.queryByTestId('plan-row-0-morning')).not.toBeInTheDocument()
     })
-    // afternoon and evening rows still have handles
     expect(screen.getByTestId('plan-row-0-afternoon')).toBeInTheDocument()
   })
 
-  // Test 3: plan section rows have draggable attribute in display mode
   it('plan section rows are draggable in display mode', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
@@ -549,7 +550,6 @@ describe('ItineraryTab - Drag and Drop', () => {
     expect(morningRow).toHaveAttribute('draggable', 'true')
   })
 
-  // Test 4: source row gets opacity-40 on dragStart
   it('source row gets muted appearance on dragStart', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
@@ -560,7 +560,6 @@ describe('ItineraryTab - Drag and Drop', () => {
     expect(morningRow.className).toContain('opacity-40')
   })
 
-  // Test 5: target row highlights on dragOver same day
   it('target row shows highlight on dragOver of same-day section', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
@@ -574,7 +573,6 @@ describe('ItineraryTab - Drag and Drop', () => {
     expect(eveningRow.className).toContain('ring-2')
   })
 
-  // Test 6: dragOver on different-day section does NOT highlight
   it('dragOver on a different-day section does NOT show highlight', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
@@ -588,7 +586,6 @@ describe('ItineraryTab - Drag and Drop', () => {
     expect(morningRow1.className).not.toContain('ring-2')
   })
 
-  // Test 7: dropping swaps values and calls POST /api/plan-update
   it('dropping swaps activity values and calls POST /api/plan-update with swapped plan', async () => {
     setupFetchWithPlanUpdate()
     const routeData = await renderAndAwaitSchedules()
@@ -603,13 +600,11 @@ describe('ItineraryTab - Drag and Drop', () => {
     fireEvent.dragOver(eveningRow, mockDragEvent)
     fireEvent.drop(eveningRow, mockDragEvent)
 
-    // Values should be swapped in display
     await waitFor(() => {
       expect(eveningRow.textContent).toContain(originalMorning)
       expect(morningRow.textContent).toContain(originalEvening)
     })
 
-    // API should be called with swapped plan
     await waitFor(() => {
       const calls = (global.fetch as jest.Mock).mock.calls
       const planUpdateCall = calls.find(
@@ -622,7 +617,6 @@ describe('ItineraryTab - Drag and Drop', () => {
     })
   })
 
-  // Test 8: dropping on same slot does not swap or call API
   it('dropping on the same slot does not swap or call the API', async () => {
     setupFetchWithPlanUpdate()
     const routeData = await renderAndAwaitSchedules()
@@ -644,7 +638,6 @@ describe('ItineraryTab - Drag and Drop', () => {
     expect(planUpdateCalls).toHaveLength(0)
   })
 
-  // Test 9: on API failure values revert and error appears
   it('on API failure: values revert and error message appears', async () => {
     global.fetch = jest.fn((url: RequestInfo | URL, options?: RequestInit) => {
       const path = url.toString().split('?')[0].replace('http://localhost', '')
@@ -669,19 +662,16 @@ describe('ItineraryTab - Drag and Drop', () => {
     fireEvent.dragOver(eveningRow, mockDragEvent)
     fireEvent.drop(eveningRow, mockDragEvent)
 
-    // Values should revert after API failure
     await waitFor(() => {
       expect(morningRow.textContent).toContain(originalMorning)
       expect(eveningRow.textContent).toContain(originalEvening)
     })
 
-    // Error message should appear
     await waitFor(() => {
       expect(screen.getByText(/Server error|Failed to save/i)).toBeInTheDocument()
     })
   })
 
-  // Test 10: dragEnd without drop clears all drag visual state
   it('dragEnd without drop clears all drag visual state', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()

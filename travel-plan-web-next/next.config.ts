@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['duckdb'],
+  serverExternalPackages: ['duckdb', 'pg'],
 }
 
 export default nextConfig

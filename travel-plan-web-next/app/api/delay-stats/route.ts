@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { query, PARQUET } from '../../lib/db'
+import { query, DELAY_PARQUET } from '../../lib/db'
 
-const CUTOFF = `(SELECT MAX(time) - INTERVAL 3 MONTHS FROM ${PARQUET})`
+const CUTOFF = `(SELECT MAX(time) - INTERVAL 3 MONTHS FROM ${DELAY_PARQUET})`
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
           ROUND(PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY delay_in_min), 1) AS p90,
           ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY delay_in_min), 1) AS p95,
           MAX(delay_in_min) AS max_delay
-        FROM ${PARQUET}
+        FROM ${DELAY_PARQUET}
         ${where}
       `),
       query(`
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
           CAST(DATE_TRUNC('day', time) AS VARCHAR) AS day,
           ROUND(AVG(delay_in_min), 2) AS avg_delay,
           COUNT(*) AS stops
-        FROM ${PARQUET}
+        FROM ${DELAY_PARQUET}
         ${where}
         GROUP BY DATE_TRUNC('day', time)
         ORDER BY day

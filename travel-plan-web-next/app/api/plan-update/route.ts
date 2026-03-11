@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
-import { getIronSession } from 'iron-session'
-import { cookies } from 'next/headers'
-import { sessionOptions, SessionData } from '../../lib/session'
+import { auth } from '../../../auth'
+import { getRouteStore } from '../../lib/routeStore'
 
 interface UpdatePlanRequest {
   dayIndex: number
@@ -15,15 +12,19 @@ interface UpdatePlanRequest {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getIronSession<SessionData>(await cookies(), sessionOptions)
-  if (!session.isLoggedIn) {
+  const session = await auth()
+  if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  let body: UpdatePlanRequest
   try {
-    const body: UpdatePlanRequest = await request.json()
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON in request' }, { status: 400 })
+  }
 
-    // Validate request body
+  try {
     if (
       typeof body.dayIndex !== 'number' ||
       !body.plan ||
@@ -37,38 +38,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Read route.json
-    const routeJsonPath = path.join(process.cwd(), 'data', 'route.json')
-    const fileContent = fs.readFileSync(routeJsonPath, 'utf-8')
-    const routeData = JSON.parse(fileContent)
+    const store = getRouteStore()
+    const allData = await store.getAll()
 
-    // Validate dayIndex
-    if (body.dayIndex < 0 || body.dayIndex >= routeData.length) {
+    if (body.dayIndex < 0 || body.dayIndex >= allData.length) {
       return NextResponse.json(
-        { error: `Invalid dayIndex: must be between 0 and ${routeData.length - 1}` },
+        { error: `Invalid dayIndex: must be between 0 and ${allData.length - 1}` },
         { status: 400 }
       )
     }
 
-    // Update the plan for the specified day
-    routeData[body.dayIndex].plan = {
-      morning: body.plan.morning,
-      afternoon: body.plan.afternoon,
-      evening: body.plan.evening,
-    }
-
-    // Write updated data back to file
-    fs.writeFileSync(routeJsonPath, JSON.stringify(routeData, null, 2))
-
-    // Return the updated day object
-    return NextResponse.json(routeData[body.dayIndex], { status: 200 })
+    const updatedDay = await store.updatePlan(body.dayIndex, body.plan)
+    return NextResponse.json(updatedDay, { status: 200 })
   } catch (error) {
     console.error('Error updating plan:', error)
-
-    if (error instanceof SyntaxError) {
-      return NextResponse.json({ error: 'Invalid JSON in request' }, { status: 400 })
-    }
-
     return NextResponse.json(
       { error: 'Internal server error while updating plan' },
       { status: 500 }

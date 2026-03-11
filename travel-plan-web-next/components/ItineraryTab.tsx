@@ -2,12 +2,12 @@
 
 import React, { useMemo, useState, useEffect } from 'react'
 import { Sunrise, Sun, Moon, GripVertical } from 'lucide-react'
-import routeData from '../data/route.json'
 import {
   getOvernightColor,
   processItinerary,
   findMatchingStation,
   normalizeTrainId,
+  type RouteDay,
   type PlanSections,
 } from '../app/lib/itinerary'
 import { formatTime } from '../app/lib/trainTimetable'
@@ -28,8 +28,12 @@ interface TimetableRow {
   ride_date: string | null
 }
 
-export default function ItineraryTab() {
-  const processedData = useMemo(() => processItinerary(routeData), [])
+interface ItineraryTabProps {
+  initialData: RouteDay[]
+}
+
+export default function ItineraryTab({ initialData }: ItineraryTabProps) {
+  const processedData = useMemo(() => processItinerary(initialData), [initialData])
   const [trainSchedules, setTrainSchedules] = useState<Record<string, TrainStopsResult | null>>({})
   const [planOverrides, setPlanOverrides] = useState<Record<number, PlanSections>>({})
   const [editingRowId, setEditingRowId] = useState<string | null>(null)
@@ -162,7 +166,7 @@ export default function ItineraryTab() {
     const fetchSchedules = async () => {
       const schedules: Record<string, TrainStopsResult | null> = {}
 
-      for (const day of routeData) {
+      for (const day of initialData) {
         for (const trainEntry of day.train) {
           if (!('start' in trainEntry) || !trainEntry.start || !trainEntry.end) continue
 
@@ -205,7 +209,7 @@ export default function ItineraryTab() {
     }
 
     fetchSchedules()
-  }, [])
+  }, [initialData])
 
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden w-full border border-gray-200">

@@ -10,6 +10,7 @@ interface AutocompleteInputProps {
   options: string[]
   placeholder?: string
   disabled?: boolean
+  showAllWhenEmpty?: boolean
 }
 
 export default function AutocompleteInput({
@@ -20,13 +21,16 @@ export default function AutocompleteInput({
   options,
   placeholder,
   disabled,
+  showAllWhenEmpty,
 }: AutocompleteInputProps) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const filtered = value
-    ? options.filter((opt) => opt.toLowerCase().includes(value.toLowerCase()))
-    : options
+    ? options.filter((opt) => opt.toLowerCase().includes(value.toLowerCase())).slice(0, 50)
+    : showAllWhenEmpty
+      ? options.slice(0, 50)
+      : []
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

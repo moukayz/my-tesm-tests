@@ -1,7 +1,15 @@
 /**
  * @jest-environment node
  */
-import { convertBigInt } from '../../app/lib/db'
+
+// Mock duckdb to prevent real DB connections during unit tests
+// (eager init would otherwise open MotherDuck background threads)
+jest.mock('duckdb', () => ({
+  default: { Database: jest.fn().mockImplementation(() => ({ connect: jest.fn() })) },
+  Database: jest.fn().mockImplementation(() => ({ connect: jest.fn() })),
+}))
+
+import { convertBigInt, DELAY_PARQUET, STOPS_PARQUET } from '../../app/lib/db'
 
 describe('convertBigInt', () => {
   it('converts bigint values to numbers', () => {
@@ -38,5 +46,73 @@ describe('convertBigInt', () => {
     expect(result[0].id).toBe(1)
     expect(result[0].name).toBe('test')
     expect(result[0].delay).toBe(5.5)
+  })
+})
+
+describe('Parquet path exports', () => {
+  it('DELAY_PARQUET contains local slim path when MOTHERDUCK_TOKEN is unset', () => {
+    // Verify that without MOTHERDUCK_TOKEN, we get a local file path
+    expect(DELAY_PARQUET).toContain('db_railway_stats_slim')
+    expect(DELAY_PARQUET).toContain('delay_events_slim.parquet')
+  })
+
+  it('STOPS_PARQUET contains local slim path when MOTHERDUCK_TOKEN is unset', () => {
+    // Verify that without MOTHERDUCK_TOKEN, we get a local file path
+    expect(STOPS_PARQUET).toContain('db_railway_stats_slim')
+    expect(STOPS_PARQUET).toContain('train_latest_stops.parquet')
+  })
+
+  it('DELAY_PARQUET returns MotherDuck table ref when MOTHERDUCK_TOKEN is set', () => {
+    // Save original env
+    const originalToken = process.env.MOTHERDUCK_TOKEN
+    const originalDb = process.env.MOTHERDUCK_DB
+    const originalTable = process.env.MOTHERDUCK_DELAY_TABLE
+
+    try {
+      // Set MotherDuck env vars and re-import the module
+      process.env.MOTHERDUCK_TOKEN = 'test-token'
+      process.env.MOTHERDUCK_DB = 'test_db'
+      process.env.MOTHERDUCK_DELAY_TABLE = 'delay_events_slim'
+
+      // Clear the module cache to force re-evaluation
+      jest.resetModules()
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { DELAY_PARQUET: delayRef } = require('../../app/lib/db')
+
+      expect(delayRef).toBe('test_db.delay_events_slim')
+    } finally {
+      // Restore original env and reset modules again
+      process.env.MOTHERDUCK_TOKEN = originalToken
+      process.env.MOTHERDUCK_DB = originalDb
+      process.env.MOTHERDUCK_DELAY_TABLE = originalTable
+      jest.resetModules()
+    }
+  })
+
+  it('STOPS_PARQUET returns MotherDuck table ref when MOTHERDUCK_TOKEN is set', () => {
+    // Save original env
+    const originalToken = process.env.MOTHERDUCK_TOKEN
+    const originalDb = process.env.MOTHERDUCK_DB
+    const originalTable = process.env.MOTHERDUCK_STOPS_TABLE
+
+    try {
+      // Set MotherDuck env vars and re-import the module
+      process.env.MOTHERDUCK_TOKEN = 'test-token'
+      process.env.MOTHERDUCK_DB = 'test_db'
+      process.env.MOTHERDUCK_STOPS_TABLE = 'train_latest_stops'
+
+      // Clear the module cache to force re-evaluation
+      jest.resetModules()
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { STOPS_PARQUET: stopsRef } = require('../../app/lib/db')
+
+      expect(stopsRef).toBe('test_db.train_latest_stops')
+    } finally {
+      // Restore original env and reset modules again
+      process.env.MOTHERDUCK_TOKEN = originalToken
+      process.env.MOTHERDUCK_DB = originalDb
+      process.env.MOTHERDUCK_STOPS_TABLE = originalTable
+      jest.resetModules()
+    }
   })
 })

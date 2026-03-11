@@ -1,6 +1,18 @@
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import TravelPlan from '../../components/TravelPlan'
+import type { RouteDay } from '../../app/lib/itinerary'
+
+const mockRouteData: RouteDay[] = [
+  {
+    date: '2026/9/25',
+    weekDay: '星期五',
+    dayNum: 1,
+    overnight: '巴黎',
+    plan: { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' },
+    train: [],
+  },
+]
 
 // Keep component tests fast and focused — stub heavy child components
 jest.mock('../../components/ItineraryTab', () => ({
@@ -20,12 +32,12 @@ jest.mock('../../components/TrainTimetableTab', () => ({
 
 describe('TravelPlan', () => {
   it('renders the page heading', () => {
-    render(<TravelPlan isLoggedIn={true} />)
+    render(<TravelPlan isLoggedIn={true} initialRouteData={mockRouteData} />)
     expect(screen.getByText('Travel Plan Itinerary')).toBeInTheDocument()
   })
 
   it('shows ItineraryTab by default when logged in', () => {
-    render(<TravelPlan isLoggedIn={true} />)
+    render(<TravelPlan isLoggedIn={true} initialRouteData={mockRouteData} />)
     const itinerary = screen.getByTestId('itinerary-tab')
     const delays = screen.getByTestId('train-delay-tab')
     const timetable = screen.getByTestId('train-timetable-tab')
@@ -35,7 +47,7 @@ describe('TravelPlan', () => {
   })
 
   it('switches to TrainDelayTab when Delays tab is clicked', () => {
-    render(<TravelPlan isLoggedIn={true} />)
+    render(<TravelPlan isLoggedIn={true} initialRouteData={mockRouteData} />)
     fireEvent.click(screen.getByRole('button', { name: /train delays/i }))
     const itinerary = screen.getByTestId('itinerary-tab')
     const delays = screen.getByTestId('train-delay-tab')
@@ -44,7 +56,7 @@ describe('TravelPlan', () => {
   })
 
   it('switches to TrainTimetableTab when Timetable tab is clicked', () => {
-    render(<TravelPlan isLoggedIn={true} />)
+    render(<TravelPlan isLoggedIn={true} initialRouteData={mockRouteData} />)
     fireEvent.click(screen.getByRole('button', { name: /^timetable$/i }))
     const itinerary = screen.getByTestId('itinerary-tab')
     const delays = screen.getByTestId('train-delay-tab')
@@ -55,7 +67,7 @@ describe('TravelPlan', () => {
   })
 
   it('switches back to ItineraryTab when Itinerary tab is clicked', () => {
-    render(<TravelPlan isLoggedIn={true} />)
+    render(<TravelPlan isLoggedIn={true} initialRouteData={mockRouteData} />)
     fireEvent.click(screen.getByRole('button', { name: /train delays/i }))
     fireEvent.click(screen.getByRole('button', { name: /^itinerary$/i }))
     const itinerary = screen.getByTestId('itinerary-tab')
@@ -63,7 +75,7 @@ describe('TravelPlan', () => {
   })
 
   it('renders all three tab buttons when logged in', () => {
-    render(<TravelPlan isLoggedIn={true} />)
+    render(<TravelPlan isLoggedIn={true} initialRouteData={mockRouteData} />)
     expect(screen.getByRole('button', { name: /^itinerary$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /train delays/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^timetable$/i })).toBeInTheDocument()
