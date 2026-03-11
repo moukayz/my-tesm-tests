@@ -9,7 +9,7 @@ jest.mock('pg', () => ({ Pool: MockPool }))
 
 // ─── @neondatabase/serverless mock ────────────────────────────────────────────
 const mockNeonQuery = jest.fn()
-const mockNeon = jest.fn(() => mockNeonQuery)
+const mockNeon = jest.fn(() => ({ query: mockNeonQuery }))
 
 jest.mock('@neondatabase/serverless', () => ({ neon: mockNeon }))
 
@@ -73,7 +73,7 @@ describe('pgQuery — Vercel path (VERCEL=1)', () => {
     process.env = OLD_ENV
   })
 
-  it('calls neon() with DATABASE_URL and returns rows directly', async () => {
+  it('calls neon() with DATABASE_URL and queries via db.query', async () => {
     const { pgQuery } = await import('../../app/lib/pgdb')
     const rows = [{ trip_id: 'eu:9002' }]
     mockNeonQuery.mockResolvedValueOnce(rows)
