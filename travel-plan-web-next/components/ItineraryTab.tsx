@@ -35,6 +35,7 @@ interface ItineraryTabProps {
 export default function ItineraryTab({ initialData }: ItineraryTabProps) {
   const processedData = useMemo(() => processItinerary(initialData), [initialData])
   const [trainSchedules, setTrainSchedules] = useState<Record<string, TrainStopsResult | null>>({})
+  const [schedulesLoading, setSchedulesLoading] = useState(false)
   const [planOverrides, setPlanOverrides] = useState<Record<number, PlanSections>>({})
   const [editingRowId, setEditingRowId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
@@ -164,6 +165,7 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
   // Fetch train schedules for DB trains
   useEffect(() => {
     const fetchSchedules = async () => {
+      setSchedulesLoading(true)
       const schedules: Record<string, TrainStopsResult | null> = {}
 
       for (const day of initialData) {
@@ -206,6 +208,7 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
       }
 
       setTrainSchedules(schedules)
+      setSchedulesLoading(false)
     }
 
     fetchSchedules()
@@ -326,7 +329,13 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
 
                       return (
                         <li key={i} className="mb-1 last:mb-0">
-                          {schedule ? (
+                          {scheduleKey && schedulesLoading && !(scheduleKey in trainSchedules) ? (
+                            <span
+                              role="status"
+                              aria-label="Loading"
+                              className="inline-block w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin align-middle"
+                            />
+                          ) : schedule ? (
                             <span>
                               {trainId}: {schedule.fromStation} {schedule.depTime} →{' '}
                               {schedule.toStation} {schedule.arrTime}

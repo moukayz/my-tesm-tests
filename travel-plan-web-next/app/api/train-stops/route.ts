@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { query, STOPS_PARQUET } from '../../lib/db'
 import { findMatchingStation } from '../../lib/itinerary'
 import { formatTime } from '../../lib/trainTimetable'
+import logger from '../../lib/logger'
 
 interface TimetableRow {
   station_name: string
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
   if (!to) return NextResponse.json({ error: 'to param required' }, { status: 400 })
 
   const trainEsc = train.replace(/'/g, "''")
+  const t0 = Date.now()
 
   try {
     const rows = await query<TimetableRow>(`
@@ -41,13 +43,19 @@ export async function GET(request: Request) {
       ORDER BY station_num
     `)
 
-    if (rows.length === 0) return NextResponse.json(null)
+    if (rows.length === 0) {
+      logger.info({ train, from, to, ms: Date.now() - t0 }, '/api/train-stops no rows')
+      return NextResponse.json(null)
+    }
 
     // Find matching stations for departure and arrival cities
     const fromStation = findMatchingStation(rows as unknown as Array<{ station_name: string; [key: string]: unknown }>, from, 'from') as TimetableRow | null
     const toStation = findMatchingStation(rows as unknown as Array<{ station_name: string; [key: string]: unknown }>, to, 'to') as TimetableRow | null
 
-    if (!fromStation || !toStation) return NextResponse.json(null)
+    if (!fromStation || !toStation) {
+      logger.info({ train, from, to, ms: Date.now() - t0 }, '/api/train-stops no station match')
+      return NextResponse.json(null)
+    }
 
     // Use departure time from 'from' station and arrival time from 'to' station
     const depTime = formatTime(fromStation.departure_planned_time)
@@ -60,9 +68,10 @@ export async function GET(request: Request) {
       arrTime,
     }
 
+    logger.info({ train, fromStation: result.fromStation, toStation: result.toStation, ms: Date.now() - t0 }, '/api/train-stops')
     return NextResponse.json(result)
   } catch (e) {
-    const err = e as Error
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    logger.error({ err: e, train, from, to, ms: Date.now() - t0 }, '/api/train-stops error')
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 }

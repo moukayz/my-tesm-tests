@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query, DELAY_PARQUET } from '../../lib/db'
+import logger from '../../lib/logger'
 
 const CUTOFF = `(SELECT MAX(time) - INTERVAL 3 MONTHS FROM ${DELAY_PARQUET})`
 
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
       AND station_name = '${stationEsc}'
       AND time >= ${CUTOFF}
   `
+  const t0 = Date.now()
 
   try {
     const [stats, trends] = await Promise.all([
@@ -45,9 +47,10 @@ export async function GET(request: Request) {
       `),
     ])
 
+    logger.info({ train, station, trend_days: trends.length, ms: Date.now() - t0 }, '/api/delay-stats')
     return NextResponse.json({ stats: stats[0] ?? null, trends })
   } catch (e) {
-    const err = e as Error
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    logger.error({ err: e, train, station, ms: Date.now() - t0 }, '/api/delay-stats error')
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 }

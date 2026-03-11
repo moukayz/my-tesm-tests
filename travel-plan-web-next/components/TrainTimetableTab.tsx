@@ -11,6 +11,7 @@ export default function TrainTimetableTab() {
   const [selectedTrain, setSelectedTrain] = useState('')
   const [selectedRailway, setSelectedRailway] = useState('')
   const [timetable, setTimetable] = useState<TimetableRow[]>([])
+  const [trainsLoading, setTrainsLoading] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -19,6 +20,7 @@ export default function TrainTimetableTab() {
       .then((r) => r.json())
       .then((data) => setTrains(Array.isArray(data) ? data : []))
       .catch(() => setError('Failed to load train list'))
+      .finally(() => setTrainsLoading(false))
   }, [])
 
   useEffect(() => {
@@ -83,7 +85,16 @@ export default function TrainTimetableTab() {
       </div>
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
-      {loading && <p className="text-gray-500 text-sm">Loading...</p>}
+      {(trainsLoading || loading) && (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <span
+            role="status"
+            aria-label="Loading"
+            className="inline-block w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"
+          />
+          <span>{trainsLoading ? 'Loading trains…' : 'Loading timetable…'}</span>
+        </div>
+      )}
 
       {!loading && timetable.length > 0 && (
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
