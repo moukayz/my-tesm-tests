@@ -29,34 +29,36 @@ class FileRouteStore implements RouteStore {
 }
 
 /**
- * Vercel KV implementation — used in production when KV_REST_API_URL is set.
- * Self-seeds from the bundled route.json on the first read if KV is empty.
+ * Upstash Redis implementation — used in production when Upstash env vars are set.
+ * Self-seeds from the bundled route.json on the first read if Redis is empty.
  */
-class KvRouteStore implements RouteStore {
+class UpstashRouteStore implements RouteStore {
   async getAll(): Promise<RouteDay[]> {
-    const { kv } = await import('@vercel/kv')
-    const data = await kv.get<RouteDay[]>('route')
+    const { Redis } = await import('@upstash/redis')
+    const redis = Redis.fromEnv()
+    const data = await redis.get<RouteDay[]>('route')
     if (!data) {
       const seed = routeJson as RouteDay[]
-      await kv.set('route', seed)
+      await redis.set('route', seed)
       return seed
     }
     return data
   }
 
   async updatePlan(dayIndex: number, plan: PlanSections): Promise<RouteDay> {
-    const { kv } = await import('@vercel/kv')
+    const { Redis } = await import('@upstash/redis')
+    const redis = Redis.fromEnv()
     const data = await this.getAll()
     data[dayIndex].plan = plan
-    await kv.set('route', data)
+    await redis.set('route', data)
     return data[dayIndex]
   }
 }
 
 /** Returns the appropriate store based on the runtime environment. */
 export function getRouteStore(): RouteStore {
-  if (process.env.KV_REST_API_URL) {
-    return new KvRouteStore()
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    return new UpstashRouteStore()
   }
   return new FileRouteStore()
 }

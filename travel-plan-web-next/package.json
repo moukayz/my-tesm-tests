@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
-    "@vercel/kv": "^3.0.0",
+    "@upstash/redis": "^1.35.6",
     "duckdb": "^1.4.4",
     "lucide-react": "^0.577.0",
     "next": "^15.0.0",

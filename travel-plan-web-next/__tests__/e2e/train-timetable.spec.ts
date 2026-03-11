@@ -1,11 +1,11 @@
 /**
  * E2E tests for the Timetable tab — queries real parquet files via the running Next.js server.
  *
- * Anchored to known real data:
+ * Anchored to known real data (timestamps stored as UTC in Neon/local Postgres):
  *   train: ICE 905
  *   latest ride date: 2026-02-09
- *   route: Berlin Hauptbahnhof (dep 23:10) → ... → München Hbf (arr 07:14)
- *   total stops: 16
+ *   route: Bitterfeld (arr 00:37 / dep 00:39 UTC) → ... → München Hbf (arr 07:14 UTC)
+ *   total stops: 15
  */
 import { test, expect, type Page } from '@playwright/test'
 
@@ -70,16 +70,17 @@ test.describe('Timetable tab — real parquet queries', () => {
 
     const timetable = await getTimetableContainer(page)
 
-    // First station: Berlin Hauptbahnhof — no arrival, departs 23:10
-    await expect(timetable.getByRole('cell', { name: 'Berlin Hauptbahnhof' })).toBeVisible()
-    await expect(timetable.getByRole('cell', { name: '23:10' })).toBeVisible()
+    // First station: Bitterfeld — arr 00:37 UTC, dep 00:39 UTC
+    await expect(timetable.getByRole('cell', { name: 'Bitterfeld' })).toBeVisible()
+    await expect(timetable.getByRole('cell', { name: '00:37' })).toBeVisible()
+    await expect(timetable.getByRole('cell', { name: '00:39' })).toBeVisible()
 
-    // Last station: München Hbf — arrives 07:14, no departure
+    // Last station: München Hbf — arrives 07:14 UTC, no departure
     await expect(timetable.getByRole('cell', { name: 'München Hbf' })).toBeVisible()
     await expect(timetable.getByRole('cell', { name: '07:14' })).toBeVisible()
   })
 
-  test('timetable shows all 16 stops for ICE 905', async ({ page }) => {
+  test('timetable shows all 15 stops for ICE 905', async ({ page }) => {
     await openTimetableTab(page)
     await selectTrain(page, 'ICE 905')
 
@@ -87,7 +88,7 @@ test.describe('Timetable tab — real parquet queries', () => {
 
     // Filter to visible rows only — rows in hidden tabs have display:none
     const rows = page.locator('table tbody tr').filter({ visible: true })
-    await expect(rows).toHaveCount(16)
+    await expect(rows).toHaveCount(15)
   })
 
   test('timetable shows the latest ride date in the header', async ({ page }) => {
@@ -104,7 +105,7 @@ test.describe('Timetable tab — real parquet queries', () => {
 
     await expect(page.getByText('Planned Timetable')).toBeVisible({ timeout: 15_000 })
 
-    // Leipzig Hbf: arr 00:55, dep 01:03
+    // Leipzig Hbf: arr 00:55 UTC, dep 01:03 UTC
     await expect(page.getByText('Leipzig Hbf')).toBeVisible()
     await expect(page.getByText('00:55')).toBeVisible()
     await expect(page.getByText('01:03')).toBeVisible()
@@ -121,7 +122,7 @@ test.describe('Timetable tab — real parquet queries', () => {
 
     // Table should still be visible (hidden via CSS, not unmounted)
     await expect(page.getByText('Planned Timetable')).toBeVisible()
-    await expect(timetable.getByRole('cell', { name: 'Berlin Hauptbahnhof' })).toBeVisible()
+    await expect(timetable.getByRole('cell', { name: 'Bitterfeld' })).toBeVisible()
   })
 })
 
@@ -246,18 +247,18 @@ test.describe('GET /api/timetable — real parquet queries', () => {
     const rows = await res.json()
 
     expect(Array.isArray(rows)).toBeTruthy()
-    expect(rows).toHaveLength(16)
+    expect(rows).toHaveLength(15)
 
     // Rows are ordered by station_num
     for (let i = 0; i < rows.length - 1; i++) {
       expect(rows[i].station_num).toBeLessThan(rows[i + 1].station_num)
     }
 
-    // First stop: Berlin Hauptbahnhof, no arrival
-    expect(rows[0].station_name).toBe('Berlin Hauptbahnhof')
-    expect(rows[0].station_num).toBe(1)
-    expect(rows[0].arrival_planned_time).toBeNull()
-    expect(rows[0].departure_planned_time).toContain('23:10')
+    // First stop: Bitterfeld
+    expect(rows[0].station_name).toBe('Bitterfeld')
+    expect(rows[0].station_num).toBe(2)
+    expect(rows[0].arrival_planned_time).toContain('00:37')
+    expect(rows[0].departure_planned_time).toContain('00:39')
 
     // Last stop: München Hbf, no departure
     const last = rows[rows.length - 1]

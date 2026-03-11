@@ -1,17 +1,14 @@
 /**
  * @jest-environment node
  */
-jest.mock('../../app/lib/db', () => ({
-  query: jest.fn(),
-  DELAY_PARQUET: 'mock_delay_parquet',
-  STOPS_PARQUET: 'mock_stops_parquet',
-  convertBigInt: jest.fn((x) => x),
+jest.mock('../../app/lib/pgdb', () => ({
+  pgQuery: jest.fn(),
 }))
 
 import { GET } from '../../app/api/train-stops/route'
-import { query } from '../../app/lib/db'
+import { pgQuery } from '../../app/lib/pgdb'
 
-const mockQuery = query as jest.Mock
+const mockPgQuery = pgQuery as jest.Mock
 
 function makeRequest(params: Record<string, string>) {
   const url = new URL('http://localhost/api/train-stops')
@@ -51,7 +48,7 @@ const mockTimetable = [
 ]
 
 describe('GET /api/train-stops', () => {
-  beforeEach(() => mockQuery.mockReset())
+  beforeEach(() => mockPgQuery.mockReset())
 
   it('returns 400 when train param is missing', async () => {
     const res = await GET(makeRequest({ from: 'Augsburg', to: 'Munich' }))
@@ -75,7 +72,7 @@ describe('GET /api/train-stops', () => {
   })
 
   it('returns null when train not found in timetable', async () => {
-    mockQuery.mockResolvedValue([])
+    mockPgQuery.mockResolvedValue([])
     const res = await GET(makeRequest({ train: 'ICE 905', from: 'Augsburg', to: 'Munich' }))
     expect(res.status).toBe(200)
     const data = await res.json()
@@ -83,7 +80,7 @@ describe('GET /api/train-stops', () => {
   })
 
   it('returns departure and arrival times for matching cities', async () => {
-    mockQuery.mockResolvedValue(mockTimetable)
+    mockPgQuery.mockResolvedValue(mockTimetable)
     const res = await GET(makeRequest({ train: 'ICE 905', from: 'Augsburg', to: 'Munich' }))
     expect(res.status).toBe(200)
     const data = await res.json()
@@ -96,7 +93,7 @@ describe('GET /api/train-stops', () => {
   })
 
   it('handles case-insensitive city matching', async () => {
-    mockQuery.mockResolvedValue(mockTimetable)
+    mockPgQuery.mockResolvedValue(mockTimetable)
     const res = await GET(makeRequest({ train: 'ICE 905', from: 'augsburg', to: 'munich' }))
     expect(res.status).toBe(200)
     const data = await res.json()
@@ -109,7 +106,7 @@ describe('GET /api/train-stops', () => {
   })
 
   it('applies city aliases (Cologne → Köln, Munich → München)', async () => {
-    mockQuery.mockResolvedValue(mockTimetable)
+    mockPgQuery.mockResolvedValue(mockTimetable)
     const res = await GET(makeRequest({ train: 'ICE 905', from: 'Augsburg', to: 'Munich' }))
     expect(res.status).toBe(200)
     const data = await res.json()
@@ -118,7 +115,7 @@ describe('GET /api/train-stops', () => {
   })
 
   it('returns null when from city cannot be found', async () => {
-    mockQuery.mockResolvedValue(mockTimetable)
+    mockPgQuery.mockResolvedValue(mockTimetable)
     const res = await GET(makeRequest({ train: 'ICE 905', from: 'Paris', to: 'Munich' }))
     expect(res.status).toBe(200)
     const data = await res.json()
@@ -126,22 +123,22 @@ describe('GET /api/train-stops', () => {
   })
 
   it('returns null when to city cannot be found', async () => {
-    mockQuery.mockResolvedValue(mockTimetable)
+    mockPgQuery.mockResolvedValue(mockTimetable)
     const res = await GET(makeRequest({ train: 'ICE 905', from: 'Augsburg', to: 'Paris' }))
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data).toBeNull()
   })
 
-  it('escapes single quotes in train name', async () => {
-    mockQuery.mockResolvedValue([])
+  it('uses parameterized query with raw train name (SQL injection safe)', async () => {
+    mockPgQuery.mockResolvedValue([])
     await GET(makeRequest({ train: "O'Hare Express", from: 'City1', to: 'City2' }))
-    const sql: string = mockQuery.mock.calls[0][0]
-    expect(sql).toContain("O''Hare Express")
+    const params = mockPgQuery.mock.calls[0][1]
+    expect(params).toContain("O'Hare Express")
   })
 
   it('returns 500 on db error', async () => {
-    mockQuery.mockRejectedValue(new Error('Connection timeout'))
+    mockPgQuery.mockRejectedValue(new Error('Connection timeout'))
     const res = await GET(makeRequest({ train: 'ICE 905', from: 'Augsburg', to: 'Munich' }))
     expect(res.status).toBe(500)
     const data = await res.json()
@@ -149,7 +146,7 @@ describe('GET /api/train-stops', () => {
   })
 
   it('formats times as HH:MM', async () => {
-    mockQuery.mockResolvedValue(mockTimetable)
+    mockPgQuery.mockResolvedValue(mockTimetable)
     const res = await GET(makeRequest({ train: 'ICE 905', from: 'Augsburg', to: 'Munich' }))
     const data = await res.json()
     expect(data.depTime).toMatch(/^\d{2}:\d{2}$/)

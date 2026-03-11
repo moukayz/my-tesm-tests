@@ -9,7 +9,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 - **Itinerary tab** — full trip schedule rendered as a table with merged overnight-location cells and pastel color-coding per destination
   - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away
   - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
-  - Changes persist via `POST /api/plan-update` → `RouteStore` (file locally, Vercel KV in production)
+- Changes persist via `POST /api/plan-update` → `RouteStore` (file locally, Upstash Redis in production)
 - **Train Timetable tab** — unified search across German (DB), French (SNCF), and Eurostar trains; type any train ID and the correct data source is queried automatically — no railway selector needed
 - **Train Delays tab** — search any train and station to see delay statistics (avg, median, p75/p90/p95, max) and a daily trend chart over the last 3 months
 - Autocomplete inputs for both train and station with filtered dropdowns and scroll
@@ -28,7 +28,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 | Charts | Recharts |
 | Data (static) | `data/route.json` (seed / local fallback) |
 | Data (dynamic) | DuckDB (parquet) + PostgreSQL/Neon (GTFS) via Node.js API routes |
-| Route persistence | `app/lib/routeStore.ts` — `FileRouteStore` locally, `KvRouteStore` on Vercel |
+| Route persistence | `app/lib/routeStore.ts` — `FileRouteStore` locally, `UpstashRouteStore` in production |
 | Runtime | Node.js 18+ |
 | Auth | NextAuth.js v5 (Auth.js) — Google OAuth |
 | Testing | Jest 30 + React Testing Library |
@@ -50,7 +50,7 @@ travel-plan-web-next/
 │   │   ├── db.ts                # DuckDB singleton + query helper + convertBigInt
 │   │   ├── pgdb.ts              # pgQuery: pg.Pool locally, @neondatabase/serverless on Vercel
 │   │   ├── itinerary.ts         # RouteDay/ProcessedDay types, getOvernightColor, processItinerary
-│   │   ├── routeStore.ts        # RouteStore interface + FileRouteStore + KvRouteStore + getRouteStore()
+│   │   ├── routeStore.ts        # RouteStore interface + FileRouteStore + UpstashRouteStore + getRouteStore()
 │   │   └── trainDelay.ts        # DelayStats/TrendPoint types, formatDay, buildStatItems
 │   └── api/
 │       ├── auth/[...nextauth]/route.ts  # NextAuth.js catch-all handler (GET + POST)
@@ -70,7 +70,7 @@ travel-plan-web-next/
 │   │   ├── itinerary.test.ts    # getOvernightColor, processItinerary
 │   │   ├── db.test.ts           # convertBigInt
 │   │   ├── trainDelay.test.ts   # formatDay, buildStatItems
-│   │   ├── routeStore.test.ts   # FileRouteStore + KvRouteStore
+│   │   ├── routeStore.test.ts   # FileRouteStore + UpstashRouteStore
 │   │   └── pgdb.test.ts         # pgQuery local (pg.Pool) + Vercel (neon) paths
 │   ├── middleware/
 │   │   └── login-rate-limit.test.ts  # Edge middleware 429 behaviour
@@ -195,15 +195,15 @@ MOTHERDUCK_DB=my_db
 
 **MotherDuck mode** — set `MOTHERDUCK_TOKEN` and `MOTHERDUCK_DB` to query slim parquets stored in MotherDuck cloud. Get a token from [app.motherduck.com/settings/tokens](https://app.motherduck.com/settings/tokens).
 
-**Vercel production** — add the Vercel KV integration to your project, then set:
+**Vercel production** — add an Upstash Redis integration to your project, then set:
 
 ```bash
-KV_REST_API_URL=...   # set automatically by Vercel KV integration
-KV_REST_API_TOKEN=... # set automatically by Vercel KV integration
+KV_REST_API_URL=...   # set automatically by Upstash Redis integration
+KV_REST_API_TOKEN=... # set automatically by Upstash Redis integration
 DATABASE_URL=postgresql://user:pass@ep-xxx.pooler.neon.tech/neondb  # Neon pooled connection string
 ```
 
-`data/route.json` is used as the seed value on the first request if KV is empty.
+`data/route.json` is used as the seed value on the first request if Redis is empty.
 
 **Neon PostgreSQL (Vercel)** — On Vercel, `pgdb.ts` automatically uses `@neondatabase/serverless` (HTTP-based, ideal for serverless) instead of `pg.Pool`. The switch is driven by the `VERCEL=1` environment variable that Vercel sets automatically.
 
@@ -397,7 +397,7 @@ Trip data is managed exclusively through `app/lib/routeStore.ts`. All reads and 
 
 `data/route.json` serves two purposes only:
 1. **Local dev** — `FileRouteStore` reads and writes it directly (no setup needed)
-2. **KV seed** — `KvRouteStore` uses it to populate Vercel KV on the first request if KV is empty
+2. **Redis seed** — `UpstashRouteStore` uses it to populate Upstash Redis on the first request if Redis is empty
 
 Each entry has the following shape:
 
@@ -413,7 +413,7 @@ Each entry has the following shape:
 ```
 
 To update data **locally**: edit `data/route.json` directly (FileRouteStore picks it up immediately).
-To update data **in production**: use the in-app edit UI, or update the `route` key directly in the Vercel KV dashboard.
+To update data **in production**: use the in-app edit UI, or update the `route` key directly in the Upstash Redis dashboard.
 
 The overnight column cells are automatically merged (rowspan) for consecutive days in the same location, and each location gets a deterministic pastel background color.
 
@@ -455,7 +455,7 @@ Returns all stations for a given train, ordered by their position on the line. Q
 
 ### `POST /api/plan-update`
 
-Persists an updated plan object for a single day via `RouteStore` (file locally, Vercel KV in production).
+Persists an updated plan object for a single day via `RouteStore` (file locally, Upstash Redis in production).
 
 **Body:** `{ "dayIndex": 0, "plan": { "morning": "...", "afternoon": "...", "evening": "..." } }`
 

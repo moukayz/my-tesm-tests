@@ -24,16 +24,23 @@ const mockData: RouteDay[] = [
   },
 ]
 
-const mockKv = { get: jest.fn(), set: jest.fn() }
-jest.mock('@vercel/kv', () => ({ kv: mockKv }))
+const mockRedis = { get: jest.fn(), set: jest.fn() }
+const mockFromEnv = jest.fn(() => mockRedis)
+jest.mock('@upstash/redis', () => ({ Redis: { fromEnv: mockFromEnv } }))
 
 // env helpers
-const setFileStore = () => { delete process.env.KV_REST_API_URL }
-const setKvStore = () => { process.env.KV_REST_API_URL = 'https://example.kv.vercel-storage.com' }
+const setFileStore = () => {
+  delete process.env.KV_REST_API_URL
+  delete process.env.KV_REST_API_TOKEN
+}
+const setUpstashStore = () => {
+  process.env.KV_REST_API_URL = 'https://example.upstash.io'
+  process.env.KV_REST_API_TOKEN = 'example-token'
+}
 const setRoutePath = (p: string) => { process.env.ROUTE_DATA_PATH = p }
 const clearRoutePath = () => { delete process.env.ROUTE_DATA_PATH }
 
-describe('FileRouteStore (via getRouteStore, no KV_REST_API_URL)', () => {
+describe('FileRouteStore (via getRouteStore, no Upstash env)', () => {
   beforeEach(() => {
     setFileStore()
     clearRoutePath()
@@ -90,37 +97,39 @@ describe('FileRouteStore (via getRouteStore, no KV_REST_API_URL)', () => {
   })
 })
 
-describe('KvRouteStore (via getRouteStore, with KV_REST_API_URL)', () => {
+describe('UpstashRouteStore (via getRouteStore, with Upstash env)', () => {
   beforeEach(() => {
-    setKvStore()
-    mockKv.get.mockReset()
-    mockKv.set.mockReset()
+    setUpstashStore()
+    mockFromEnv.mockClear()
+    mockRedis.get.mockReset()
+    mockRedis.set.mockReset()
   })
 
   afterEach(() => setFileStore())
 
-  it('getAll() reads from KV and returns data', async () => {
-    mockKv.get.mockResolvedValue(mockData)
+  it('getAll() reads from Upstash Redis and returns data', async () => {
+    mockRedis.get.mockResolvedValue(mockData)
     const result = await getRouteStore().getAll()
-    expect(mockKv.get).toHaveBeenCalledWith('route')
+    expect(mockFromEnv).toHaveBeenCalledTimes(1)
+    expect(mockRedis.get).toHaveBeenCalledWith('route')
     expect(result).toEqual(mockData)
   })
 
-  it('getAll() seeds KV from route.json when KV is empty', async () => {
-    mockKv.get.mockResolvedValue(null)
-    mockKv.set.mockResolvedValue('OK')
+  it('getAll() seeds Redis from route.json when Redis is empty', async () => {
+    mockRedis.get.mockResolvedValue(null)
+    mockRedis.set.mockResolvedValue('OK')
     const result = await getRouteStore().getAll()
-    expect(mockKv.set).toHaveBeenCalledWith('route', expect.any(Array))
+    expect(mockRedis.set).toHaveBeenCalledWith('route', expect.any(Array))
     expect(Array.isArray(result)).toBe(true)
     expect(result.length).toBeGreaterThan(0)
   })
 
-  it('updatePlan() saves updated data to KV and returns the updated day', async () => {
-    mockKv.get.mockResolvedValue(JSON.parse(JSON.stringify(mockData)))
-    mockKv.set.mockResolvedValue('OK')
+  it('updatePlan() saves updated data to Redis and returns the updated day', async () => {
+    mockRedis.get.mockResolvedValue(JSON.parse(JSON.stringify(mockData)))
+    mockRedis.set.mockResolvedValue('OK')
     const newPlan: PlanSections = { morning: 'KV A', afternoon: 'KV B', evening: 'KV C' }
     const result = await getRouteStore().updatePlan(0, newPlan)
-    expect(mockKv.set).toHaveBeenCalledWith(
+    expect(mockRedis.set).toHaveBeenCalledWith(
       'route',
       expect.arrayContaining([expect.objectContaining({ plan: newPlan })])
     )
@@ -131,27 +140,30 @@ describe('KvRouteStore (via getRouteStore, with KV_REST_API_URL)', () => {
 describe('getRouteStore() factory', () => {
   beforeEach(() => {
     setFileStore()
-    mockKv.get.mockReset()
-    mockKv.set.mockReset()
+    mockFromEnv.mockClear()
+    mockRedis.get.mockReset()
+    mockRedis.set.mockReset()
   })
 
   afterEach(() => {
     setFileStore()
   })
 
-  it('uses FileRouteStore when KV_REST_API_URL is not set — kv is never called', async () => {
+  it('uses FileRouteStore when Upstash env is not set — redis is never called', async () => {
     setFileStore()
-    // FileRouteStore reads the real route.json — no mock needed, just verify kv is untouched
+    // FileRouteStore reads the real route.json — no mock needed, just verify redis is untouched
     await getRouteStore().getAll()
-    expect(mockKv.get).not.toHaveBeenCalled()
+    expect(mockFromEnv).not.toHaveBeenCalled()
+    expect(mockRedis.get).not.toHaveBeenCalled()
   })
 
-  it('uses KvRouteStore when KV_REST_API_URL is set — kv.get is called, not fs', async () => {
-    setKvStore()
-    mockKv.get.mockResolvedValue(mockData)
+  it('uses UpstashRouteStore when Upstash env is set — redis.get is called, not fs', async () => {
+    setUpstashStore()
+    mockRedis.get.mockResolvedValue(mockData)
     jest.spyOn(fs, 'readFileSync')
     await getRouteStore().getAll()
-    expect(mockKv.get).toHaveBeenCalledWith('route')
+    expect(mockFromEnv).toHaveBeenCalledTimes(1)
+    expect(mockRedis.get).toHaveBeenCalledWith('route')
     expect(fs.readFileSync).not.toHaveBeenCalled()
     jest.restoreAllMocks()
   })
