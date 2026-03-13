@@ -2,8 +2,21 @@
  * @jest-environment node
  */
 import fs from 'fs'
+
+jest.mock('../../app/lib/logger', () => ({
+  __esModule: true,
+  default: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}))
+
 import { getRouteStore } from '../../app/lib/routeStore'
 import type { RouteDay, PlanSections } from '../../app/lib/itinerary'
+import logger from '../../app/lib/logger'
+
+const mockedLogger = logger as unknown as { info: jest.Mock; warn: jest.Mock }
 
 const mockData: RouteDay[] = [
   {
@@ -39,6 +52,11 @@ const setUpstashStore = () => {
 }
 const setRoutePath = (p: string) => { process.env.ROUTE_DATA_PATH = p }
 const clearRoutePath = () => { delete process.env.ROUTE_DATA_PATH }
+
+beforeEach(() => {
+  mockedLogger.info.mockClear()
+  mockedLogger.warn.mockClear()
+})
 
 describe('FileRouteStore (via getRouteStore, no Upstash env)', () => {
   beforeEach(() => {
@@ -166,5 +184,39 @@ describe('getRouteStore() factory', () => {
     expect(mockRedis.get).toHaveBeenCalledWith('route')
     expect(fs.readFileSync).not.toHaveBeenCalled()
     jest.restoreAllMocks()
+  })
+
+  it('logs local-file backend selection when Upstash env is missing', () => {
+    setFileStore()
+    getRouteStore()
+    expect(mockedLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ backend: 'local-file' }),
+      'RouteStore backend selected'
+    )
+  })
+
+  it('logs upstash-redis backend selection when Upstash env is set', () => {
+    setUpstashStore()
+    getRouteStore()
+    expect(mockedLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ backend: 'upstash-redis' }),
+      'RouteStore backend selected'
+    )
+  })
+
+  it('warns and falls back to file store when only one KV env var is set', () => {
+    process.env.KV_REST_API_URL = 'https://example.upstash.io'
+    delete process.env.KV_REST_API_TOKEN
+
+    getRouteStore()
+
+    expect(mockedLogger.warn).toHaveBeenCalledWith(
+      { hasKvRestApiUrl: true, hasKvRestApiToken: false },
+      'KV env is incomplete, falling back to FileRouteStore'
+    )
+    expect(mockedLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ backend: 'local-file' }),
+      'RouteStore backend selected'
+    )
   })
 })

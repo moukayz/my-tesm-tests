@@ -2,17 +2,22 @@ import fs from 'fs'
 import path from 'path'
 import type { RouteDay, PlanSections } from './itinerary'
 import routeJson from '../../data/route.json'
+import logger from './logger'
 
 export interface RouteStore {
   getAll(): Promise<RouteDay[]>
   updatePlan(dayIndex: number, plan: PlanSections): Promise<RouteDay>
 }
 
+function resolveRouteFilePath(): string {
+  return path.join(process.cwd(), process.env.ROUTE_DATA_PATH ?? 'data/route.json')
+}
+
 /** Local filesystem implementation — used in development and test environments. */
 class FileRouteStore implements RouteStore {
   private readonly filePath: string
 
-  constructor(filePath = path.join(process.cwd(), process.env.ROUTE_DATA_PATH ?? 'data/route.json')) {
+  constructor(filePath = resolveRouteFilePath()) {
     this.filePath = filePath
   }
 
@@ -57,8 +62,25 @@ class UpstashRouteStore implements RouteStore {
 
 /** Returns the appropriate store based on the runtime environment. */
 export function getRouteStore(): RouteStore {
-  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+  const hasKvRestApiUrl = Boolean(process.env.KV_REST_API_URL)
+  const hasKvRestApiToken = Boolean(process.env.KV_REST_API_TOKEN)
+
+  if (hasKvRestApiUrl && hasKvRestApiToken) {
+    logger.info(
+      { backend: 'upstash-redis', hasKvRestApiUrl, hasKvRestApiToken },
+      'RouteStore backend selected'
+    )
     return new UpstashRouteStore()
   }
-  return new FileRouteStore()
+
+  if (hasKvRestApiUrl || hasKvRestApiToken) {
+    logger.warn(
+      { hasKvRestApiUrl, hasKvRestApiToken },
+      'KV env is incomplete, falling back to FileRouteStore'
+    )
+  }
+
+  const routeFilePath = resolveRouteFilePath()
+  logger.info({ backend: 'local-file', routeFilePath }, 'RouteStore backend selected')
+  return new FileRouteStore(routeFilePath)
 }

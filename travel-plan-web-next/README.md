@@ -10,6 +10,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
   - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away
   - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
 - Changes persist via `POST /api/plan-update` → `RouteStore` (file locally, Upstash Redis in production)
+- Server-side backend-selection logs show which persistence services are active (FileRouteStore vs Upstash Redis, local `pg` pool vs Neon serverless)
 - **Train Timetable tab** — unified search across German (DB), French (SNCF), and Eurostar trains; type any train ID and the correct data source is queried automatically — no railway selector needed
 - **Train Delays tab** — search any train and station to see delay statistics (avg, median, p75/p90/p95, max) and a daily trend chart over the last 3 months
 - Autocomplete inputs for both train and station with filtered dropdowns and scroll

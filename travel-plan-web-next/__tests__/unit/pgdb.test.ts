@@ -13,6 +13,16 @@ const mockNeon = jest.fn(() => ({ query: mockNeonQuery }))
 
 jest.mock('@neondatabase/serverless', () => ({ neon: mockNeon }))
 
+const mockLoggerInfo = jest.fn()
+jest.mock('../../app/lib/logger', () => ({
+  __esModule: true,
+  default: {
+    info: mockLoggerInfo,
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}))
+
 describe('pgQuery — local path (VERCEL unset)', () => {
   const OLD_ENV = process.env
 
@@ -23,6 +33,7 @@ describe('pgQuery — local path (VERCEL unset)', () => {
     process.env.DATABASE_URL = 'postgresql://localhost/test'
     MockPool.mockClear()
     mockQuery.mockClear()
+    mockLoggerInfo.mockClear()
   })
 
   afterAll(() => {
@@ -55,6 +66,20 @@ describe('pgQuery — local path (VERCEL unset)', () => {
     await pgQuery('SELECT 2')
     expect(MockPool).toHaveBeenCalledTimes(1)
   })
+
+  it('logs local-postgres-pool backend selection once', async () => {
+    const { pgQuery } = await import('../../app/lib/pgdb')
+    mockQuery.mockResolvedValue({ rows: [] })
+
+    await pgQuery('SELECT 1')
+    await pgQuery('SELECT 2')
+
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      expect.objectContaining({ backend: 'local-postgres-pool' }),
+      'Postgres backend selected'
+    )
+    expect(mockLoggerInfo).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('pgQuery — Vercel path (VERCEL=1)', () => {
@@ -67,6 +92,7 @@ describe('pgQuery — Vercel path (VERCEL=1)', () => {
     process.env.DATABASE_URL = 'postgresql://neon-host/neondb'
     mockNeon.mockClear()
     mockNeonQuery.mockClear()
+    mockLoggerInfo.mockClear()
   })
 
   afterAll(() => {
@@ -92,5 +118,17 @@ describe('pgQuery — Vercel path (VERCEL=1)', () => {
     mockNeonQuery.mockResolvedValueOnce([])
     await pgQuery('SELECT 1', [])
     expect(MockPool).not.toHaveBeenCalled()
+  })
+
+  it('logs neon-serverless backend selection on Vercel path', async () => {
+    const { pgQuery } = await import('../../app/lib/pgdb')
+    mockNeonQuery.mockResolvedValueOnce([])
+
+    await pgQuery('SELECT 1')
+
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      expect.objectContaining({ backend: 'neon-serverless' }),
+      'Postgres backend selected'
+    )
   })
 })
