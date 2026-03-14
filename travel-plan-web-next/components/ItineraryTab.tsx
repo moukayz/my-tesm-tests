@@ -7,6 +7,7 @@ import {
   processItinerary,
   findMatchingStation,
   normalizeTrainId,
+  getRailwayFromTrainId,
   type RouteDay,
   type PlanSections,
 } from '../app/lib/itinerary'
@@ -177,7 +178,9 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
           if (key in schedules) continue
 
           try {
-            const res = await fetch(`/api/timetable?train=${encodeURIComponent(trainId)}`)
+            const railway = getRailwayFromTrainId(trainEntry.train_id)
+            const url = `/api/timetable?train=${encodeURIComponent(trainId)}${railway ? `&railway=${railway}` : ''}`
+            const res = await fetch(url)
             const rows = (await res.json()) as TimetableRow[]
             if (!rows || rows.length === 0) {
               schedules[key] = null
@@ -319,34 +322,54 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
               </td>
               <td className="px-6 py-4 border-b border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0">
                 {day.train && day.train.length > 0 ? (
-                  <ol className="m-0 pl-5 text-gray-700 list-decimal">
+                  <div className="space-y-2">
                     {day.train.map((item, i) => {
                       const trainId = normalizeTrainId(item.train_id)
-                      const scheduleKey = item.start && item.end
+                      const isDbTrain = !!(item.start && item.end)
+                      const scheduleKey = isDbTrain
                         ? buildScheduleKey(trainId, item.start, item.end)
                         : null
                       const schedule = scheduleKey ? trainSchedules[scheduleKey] : null
+                      const isLoading = scheduleKey && schedulesLoading && !(scheduleKey in trainSchedules)
 
                       return (
-                        <li key={i} className="mb-1 last:mb-0">
-                          {scheduleKey && schedulesLoading && !(scheduleKey in trainSchedules) ? (
+                        <div key={i} className="flex flex-col gap-0.5">
+                          {/* Train number: badge for DB trains, plain text for informal entries */}
+                          {isDbTrain ? (
+                            <div>
+                              <span
+                                data-testid="train-tag"
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200"
+                              >
+                                {trainId}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-700">{trainId}</span>
+                          )}
+
+                          {/* Schedule details */}
+                          {isLoading ? (
                             <span
                               role="status"
                               aria-label="Loading"
                               className="inline-block w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin align-middle"
                             />
                           ) : schedule ? (
-                            <span>
-                              {trainId}: {schedule.fromStation} {schedule.depTime} →{' '}
-                              {schedule.toStation} {schedule.arrTime}
-                            </span>
-                          ) : (
-                            trainId
-                          )}
-                        </li>
+                            <div
+                              data-testid="schedule-grid"
+                              className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 text-xs text-gray-500 pl-1 items-baseline"
+                            >
+                              <span className="truncate">{schedule.fromStation}</span>
+                              <span className="tabular-nums text-right">{schedule.depTime}</span>
+                              <span className="truncate">{schedule.toStation}</span>
+                              <span className="tabular-nums text-right">{schedule.arrTime}</span>
+                            </div>
+                          ) : null}
+                        </div>
                       )
                     })}
-                  </ol>
+                  </div>
                 ) : (
                   <span className="text-gray-400 italic">—</span>
                 )}

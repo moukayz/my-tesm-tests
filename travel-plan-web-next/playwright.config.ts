@@ -51,7 +51,7 @@ export default defineConfig({
   retries: 0,
   // MotherDuck queries on the 584MB delay parquet take 10-30s per call.
   timeout: hasMotherduck ? 120_000 : 30_000,
-  reporter: [['list'], ['html', { open: 'never' }]],
+  reporter: [['list'], ['html', { open: 'never' }],    ['json', { outputFile: 'test-results.json' }]],
   use: {
     baseURL: 'http://localhost:3001',
     trace: 'on-first-retry',

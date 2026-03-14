@@ -470,6 +470,304 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
   })
 })
 
+describe('ItineraryTab - TGV/EST Railway Fetching', () => {
+  afterEach(() => jest.restoreAllMocks())
+
+  it('fetches TGV trains with railway=french query param', async () => {
+    const tgvData: RouteDay[] = [
+      {
+        date: '2026/9/28',
+        weekDay: '星期一',
+        dayNum: 4,
+        overnight: '里昂',
+        plan: { morning: 'morning', afternoon: 'afternoon', evening: 'evening' },
+        train: [{ train_id: 'TGV9242', start: 'paris', end: 'lyon' }],
+      },
+    ]
+    setupFetch({
+      '/api/timetable': [
+        {
+          station_name: 'Paris Gare de Lyon',
+          station_num: 1,
+          arrival_planned_time: null,
+          departure_planned_time: '08:00:00',
+          ride_date: null,
+        },
+        {
+          station_name: 'Lyon Part-Dieu',
+          station_num: 2,
+          arrival_planned_time: '10:00:00',
+          departure_planned_time: null,
+          ride_date: null,
+        },
+      ],
+    })
+    render(<ItineraryTab initialData={tgvData} />)
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('railway=french')
+      )
+    })
+  })
+
+  it('fetches EST trains with railway=eurostar query param', async () => {
+    const estData: RouteDay[] = [
+      {
+        date: '2026/9/29',
+        weekDay: '星期二',
+        dayNum: 5,
+        overnight: '伦敦',
+        plan: { morning: 'morning', afternoon: 'afternoon', evening: 'evening' },
+        train: [{ train_id: 'EST9023', start: 'paris', end: 'london' }],
+      },
+    ]
+    setupFetch({
+      '/api/timetable': [
+        {
+          station_name: 'Paris Nord',
+          station_num: 1,
+          arrival_planned_time: null,
+          departure_planned_time: '07:00:00',
+          ride_date: null,
+        },
+        {
+          station_name: 'London St Pancras',
+          station_num: 2,
+          arrival_planned_time: '08:30:00',
+          departure_planned_time: null,
+          ride_date: null,
+        },
+      ],
+    })
+    render(<ItineraryTab initialData={estData} />)
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('railway=eurostar')
+      )
+    })
+  })
+
+  it('fetches German ICE trains without a railway param', async () => {
+    const iceData: RouteDay[] = [
+      {
+        date: '2026/9/27',
+        weekDay: '星期日',
+        dayNum: 3,
+        overnight: '科隆',
+        plan: { morning: 'morning', afternoon: 'afternoon', evening: 'evening' },
+        train: [{ train_id: 'ICE 123', start: 'augsburg', end: 'munich' }],
+      },
+    ]
+    setupFetch({
+      '/api/timetable': [
+        {
+          station_name: 'Augsburg Hbf',
+          station_num: 1,
+          arrival_planned_time: null,
+          departure_planned_time: '2026-02-09 07:14:00',
+          ride_date: '2026-02-09',
+        },
+        {
+          station_name: 'Munich Hbf',
+          station_num: 2,
+          arrival_planned_time: '2026-02-09 08:04:00',
+          departure_planned_time: null,
+          ride_date: '2026-02-09',
+        },
+      ],
+    })
+    render(<ItineraryTab initialData={iceData} />)
+    await waitFor(() => {
+      const calls = (global.fetch as jest.Mock).mock.calls
+      const timetableCalls = calls.filter((c: unknown[]) =>
+        (c[0] as string).includes('/api/timetable')
+      )
+      expect(timetableCalls.length).toBe(1)
+      expect(timetableCalls[0][0]).not.toContain('railway=')
+    })
+  })
+
+  it('fetches both TGV and ICE trains in the same itinerary with correct railway params', async () => {
+    const mixedData: RouteDay[] = [
+      {
+        date: '2026/9/28',
+        weekDay: '星期一',
+        dayNum: 4,
+        overnight: '里昂',
+        plan: { morning: 'morning', afternoon: 'afternoon', evening: 'evening' },
+        train: [
+          { train_id: 'TGV9242', start: 'paris', end: 'lyon' },
+          { train_id: 'ICE 905', start: 'cologne', end: 'munich' },
+        ],
+      },
+    ]
+    setupFetch({ '/api/timetable': [] })
+    render(<ItineraryTab initialData={mixedData} />)
+    await waitFor(() => {
+      const calls = (global.fetch as jest.Mock).mock.calls
+      const timetableCalls = calls.filter((c: unknown[]) =>
+        (c[0] as string).includes('/api/timetable')
+      )
+      expect(timetableCalls.length).toBe(2)
+      const tgvCall = timetableCalls.find((c: unknown[]) =>
+        (c[0] as string).includes('TGV')
+      )
+      const iceCall = timetableCalls.find((c: unknown[]) =>
+        (c[0] as string).includes('ICE')
+      )
+      expect(tgvCall).toBeDefined()
+      expect((tgvCall as unknown[])[0]).toContain('railway=french')
+      expect(iceCall).toBeDefined()
+      expect((iceCall as unknown[])[0]).not.toContain('railway=')
+    })
+  })
+})
+
+describe('ItineraryTab - Train Schedule Tag Presentation', () => {
+  afterEach(() => jest.restoreAllMocks())
+
+  // ── Tag vs plain-text rules ──────────────────────────────────────────────
+
+  it('renders DB train number (with start/end) as a tag/badge', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    await waitFor(() => {
+      const tags = screen.getAllByTestId('train-tag')
+      const tagTexts = tags.map((t) => t.textContent)
+      // ICE 123 has start/end → should be a tag
+      expect(tagTexts).toContain('ICE 123')
+    })
+  })
+
+  it('renders non-DB train number (no start/end) as plain text, NOT as a tag', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount))
+
+    const tags = screen.queryAllByTestId('train-tag')
+    const tagTexts = tags.map((t) => t.textContent)
+    // TGV 456 has no start/end → must NOT be a tag
+    expect(tagTexts).not.toContain('TGV 456')
+    // But it must still appear in the document as plain text
+    expect(screen.getByText('TGV 456')).toBeInTheDocument()
+  })
+
+  it('renders multiple DB trains as tags and non-DB trains as plain text', async () => {
+    const mixedData: RouteDay[] = [
+      {
+        date: '2026/9/28',
+        weekDay: '星期一',
+        dayNum: 4,
+        overnight: '里昂',
+        plan: { morning: 'morning', afternoon: 'afternoon', evening: 'evening' },
+        train: [
+          { train_id: 'TGV 8088', start: 'paris', end: 'lyon' },
+          { train_id: 'ICE 505' },
+        ],
+      },
+    ]
+    setupFetch({ '/api/timetable': [] })
+    render(<ItineraryTab initialData={mixedData} />)
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1))
+
+    const tags = screen.getAllByTestId('train-tag')
+    const tagTexts = tags.map((t) => t.textContent)
+    expect(tagTexts).toContain('TGV 8088')
+    expect(tagTexts).not.toContain('ICE 505')
+    expect(screen.getByText('ICE 505')).toBeInTheDocument()
+    expect(document.querySelector('ol')).toBeNull()
+  })
+
+  // ── Schedule content: station names + times ──────────────────────────────
+
+  it('does NOT render "Start:" or "End:" labels in schedule rows', async () => {
+    setupFetch({
+      '/api/timetable': [
+        {
+          station_name: 'Augsburg Hbf',
+          station_num: 1,
+          arrival_planned_time: null,
+          departure_planned_time: '2026-02-09 07:14:00',
+          ride_date: '2026-02-09',
+        },
+        {
+          station_name: 'Munich Hbf',
+          station_num: 2,
+          arrival_planned_time: '2026-02-09 08:04:00',
+          departure_planned_time: null,
+          ride_date: '2026-02-09',
+        },
+      ],
+    })
+    render(<ItineraryTab initialData={mockRouteData} />)
+    // Wait until schedule has fully loaded (station names must be present)
+    await waitFor(() => {
+      expect(screen.getByText('Augsburg Hbf')).toBeInTheDocument()
+      expect(screen.getByText('Munich Hbf')).toBeInTheDocument()
+    })
+    // Now assert labels are absent
+    expect(screen.queryByText(/^Start:$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^End:$/)).not.toBeInTheDocument()
+  })
+
+  it('renders departure time next to the Start station name', async () => {
+    setupFetch({
+      '/api/timetable': [
+        {
+          station_name: 'Augsburg Hbf',
+          station_num: 1,
+          arrival_planned_time: null,
+          departure_planned_time: '2026-02-09 07:14:00',
+          ride_date: '2026-02-09',
+        },
+        {
+          station_name: 'Munich Hbf',
+          station_num: 2,
+          arrival_planned_time: '2026-02-09 08:04:00',
+          departure_planned_time: null,
+          ride_date: '2026-02-09',
+        },
+      ],
+    })
+    render(<ItineraryTab initialData={mockRouteData} />)
+    await waitFor(() => {
+      expect(screen.getByText('Augsburg Hbf')).toBeInTheDocument()
+      expect(screen.getByText('07:14')).toBeInTheDocument()
+      expect(screen.getByText('Munich Hbf')).toBeInTheDocument()
+      expect(screen.getByText('08:04')).toBeInTheDocument()
+    })
+  })
+
+  // ── Time alignment: label / station / time in separate grid cells ────────
+
+  it('renders schedule rows inside a grid container for alignment', async () => {
+    setupFetch({
+      '/api/timetable': [
+        {
+          station_name: 'Augsburg Hbf',
+          station_num: 1,
+          arrival_planned_time: null,
+          departure_planned_time: '2026-02-09 07:14:00',
+          ride_date: '2026-02-09',
+        },
+        {
+          station_name: 'Munich Hbf',
+          station_num: 2,
+          arrival_planned_time: '2026-02-09 08:04:00',
+          departure_planned_time: null,
+          ride_date: '2026-02-09',
+        },
+      ],
+    })
+    render(<ItineraryTab initialData={mockRouteData} />)
+    await waitFor(() => {
+      const grid = document.querySelector('[data-testid="schedule-grid"]')
+      expect(grid).not.toBeNull()
+    })
+  })
+})
+
 describe('ItineraryTab - Markdown Rendering', () => {
   afterEach(() => jest.restoreAllMocks())
 

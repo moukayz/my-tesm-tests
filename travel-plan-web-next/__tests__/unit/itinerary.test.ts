@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { getOvernightColor, processItinerary, type RouteDay } from '../../app/lib/itinerary'
+import { getOvernightColor, processItinerary, getRailwayFromTrainId, type RouteDay } from '../../app/lib/itinerary'
 
 describe('getOvernightColor', () => {
   it('returns #f5f5f5 for em-dash location', () => {
@@ -119,5 +119,49 @@ describe('normalizeTrainId', () => {
   it('returns the input for non-train labels', () => {
     const { normalizeTrainId } = require('../../app/lib/itinerary')
     expect(normalizeTrainId('Paris ↔ Versailles（往返）')).toBe('Paris ↔ Versailles（往返）')
+  })
+})
+
+describe('getRailwayFromTrainId', () => {
+  it('returns "french" for a TGV train id (already normalised)', () => {
+    expect(getRailwayFromTrainId('TGV 9242')).toBe('french')
+  })
+
+  it('returns "french" for a TGV train id (unnormalised, no space)', () => {
+    expect(getRailwayFromTrainId('TGV9242')).toBe('french')
+  })
+
+  it('returns "french" for lowercase tgv train id', () => {
+    expect(getRailwayFromTrainId('tgv456')).toBe('french')
+  })
+
+  it('returns "eurostar" for an EST train id (already normalised)', () => {
+    expect(getRailwayFromTrainId('EST 9023')).toBe('eurostar')
+  })
+
+  it('returns "eurostar" for an EST train id (unnormalised, no space)', () => {
+    expect(getRailwayFromTrainId('EST9423')).toBe('eurostar')
+  })
+
+  it('returns "eurostar" for lowercase est train id', () => {
+    expect(getRailwayFromTrainId('est9002')).toBe('eurostar')
+  })
+
+  it('returns empty string for a German ICE train id', () => {
+    expect(getRailwayFromTrainId('ICE 905')).toBe('')
+  })
+
+  it('returns empty string for a German EC train id', () => {
+    expect(getRailwayFromTrainId('EC81')).toBe('')
+  })
+
+  it('returns empty string for non-train labels', () => {
+    expect(getRailwayFromTrainId('Paris ↔ Versailles（往返）')).toBe('')
+  })
+
+  it('handles whitespace-padded train ids', () => {
+    expect(getRailwayFromTrainId('  TGV 1234  ')).toBe('french')
+    expect(getRailwayFromTrainId('  EST 9002  ')).toBe('eurostar')
+    expect(getRailwayFromTrainId('  ICE 905  ')).toBe('')
   })
 })

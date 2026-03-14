@@ -9,6 +9,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 - **Itinerary tab** — full trip schedule rendered as a table with merged overnight-location cells and pastel color-coding per destination
   - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away
   - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
+  - **Multi-railway timetable** — Train Schedule column auto-detects TGV (French) and EST (Eurostar) trains from the train ID prefix and fetches from the correct railway data source; German trains remain the default
 - Changes persist via `POST /api/plan-update` → `RouteStore` (file locally, Upstash Redis in production)
 - Server-side backend-selection logs show which persistence services are active (FileRouteStore vs Upstash Redis, local `pg` pool vs Neon serverless)
 - **Train Timetable tab** — unified search across German (DB), French (SNCF), and Eurostar trains; type any train ID and the correct data source is queried automatically — no railway selector needed
@@ -50,7 +51,7 @@ travel-plan-web-next/
 │   ├── lib/
 │   │   ├── db.ts                # DuckDB singleton + query helper + convertBigInt
 │   │   ├── pgdb.ts              # pgQuery: pg.Pool locally, @neondatabase/serverless on Vercel
-│   │   ├── itinerary.ts         # RouteDay/ProcessedDay types, getOvernightColor, processItinerary
+│   │   ├── itinerary.ts         # RouteDay/ProcessedDay types, getOvernightColor, processItinerary, getRailwayFromTrainId
 │   │   ├── routeStore.ts        # RouteStore interface + FileRouteStore + UpstashRouteStore + getRouteStore()
 │   │   └── trainDelay.ts        # DelayStats/TrendPoint types, formatDay, buildStatItems
 │   └── api/
@@ -68,7 +69,7 @@ travel-plan-web-next/
 │   └── AutocompleteInput.tsx    # Reusable text input with filtered dropdown
 ├── __tests__/
 │   ├── unit/
-│   │   ├── itinerary.test.ts    # getOvernightColor, processItinerary
+│   │   ├── itinerary.test.ts    # getOvernightColor, processItinerary, getRailwayFromTrainId
 │   │   ├── db.test.ts           # convertBigInt
 │   │   ├── trainDelay.test.ts   # formatDay, buildStatItems
 │   │   ├── routeStore.test.ts   # FileRouteStore + UpstashRouteStore
@@ -345,7 +346,7 @@ npm run test:e2e:verbose  # full per-test output
 npm run test:e2e:ui       # interactive Playwright UI
 ```
 
-211 Jest tests across 21 suites + 45 Playwright E2E tests covering unit logic, API route integration, component behaviour, and Google OAuth auth (including session injection for authenticated flows).
+222 Jest tests across 20 suites + 70 Playwright E2E tests covering unit logic, API route integration, component behaviour, and Google OAuth auth (including session injection for authenticated flows).
 
 ### Merge GTFS timetables
 

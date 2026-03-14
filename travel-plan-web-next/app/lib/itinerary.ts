@@ -68,6 +68,13 @@ export function normalizeTrainId(trainId: string): string {
   return `${match[1].toUpperCase()} ${match[2]}`
 }
 
+export function getRailwayFromTrainId(trainId: string): string {
+  const normalised = normalizeTrainId(trainId)
+  if (normalised.startsWith('TGV')) return 'french'
+  if (normalised.startsWith('EST')) return 'eurostar'
+  return ''
+}
+
 // Map city names to their possible station name variations
 const CITY_ALIASES: Record<string, string[]> = {
   cologne: ['köln', 'koeln', 'cologne'],
