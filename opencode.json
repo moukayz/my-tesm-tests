@@ -5,6 +5,29 @@
     "edit": true,
     "bash": true
   },
+  "mcp": {
+    "flights-mcp": {
+      "type": "local",
+      "command": [
+        "pnpm",
+        "--dir",
+        "./flights-mcp",
+        "start"
+      ],
+      "enabled": true,
+      "environment": {
+        "DUFFEL_ACCESS_TOKEN": "{env:DUFFEL_ACCESS_TOKEN}"
+      }
+    },
+    "google-flights-mcp": {
+      "type": "remote",
+      "url": "http://127.0.0.1:3000/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer 8f3275b443423d97c1bcc5fd8453f3e3b260bf73cdd2c3282c74da4d8c4e06a2"
+      }
+    }
+  },
   "permission": {
     "edit": "allow",
     "bash": "allow",

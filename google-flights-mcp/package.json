@@ -1,0 +1,26 @@
+{
+	"name": "google-flights-mcp",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "tsx src/index.ts",
+		"start:stdio": "tsx src/stdio.ts",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:unit": "vitest run tests/*.unit.test.ts",
+		"test:e2e": "vitest run tests/*.e2e.test.ts"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.27.1",
+		"express": "^4.21.0",
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@types/express": "^5.0.0",
+		"@types/node": "^25.5.0",
+		"@vitest/coverage-v8": "^3.2.4",
+		"tsx": "^4.21.0",
+		"typescript": "^5.9.3",
+		"vitest": "^3.2.4"
+	}
+}
