@@ -205,7 +205,7 @@ KV_REST_API_TOKEN=... # set automatically by Upstash Redis integration
 DATABASE_URL=postgresql://user:pass@ep-xxx.pooler.neon.tech/neondb  # Neon pooled connection string
 ```
 
-`data/route.json` is used as the seed value on the first request if Redis is empty.
+`data/route.json` (or the file at `ROUTE_DATA_PATH`) is used as the seed value on the first request if Redis is empty. The Redis key defaults to `"route"` but can be overridden with `ROUTE_REDIS_KEY` (e.g. `route:e2e` for E2E test isolation).
 
 **Neon PostgreSQL (Vercel)** — On Vercel, `pgdb.ts` automatically uses `@neondatabase/serverless` (HTTP-based, ideal for serverless) instead of `pg.Pool`. The switch is driven by the `VERCEL=1` environment variable that Vercel sets automatically.
 
@@ -346,7 +346,7 @@ npm run test:e2e:verbose  # full per-test output
 npm run test:e2e:ui       # interactive Playwright UI
 ```
 
-222 Jest tests across 20 suites + 70 Playwright E2E tests covering unit logic, API route integration, component behaviour, and Google OAuth auth (including session injection for authenticated flows).
+272 Jest tests across 21 suites + 70 Playwright E2E tests covering unit logic, API route integration, component behaviour, and Google OAuth auth (including session injection for authenticated flows).
 
 ### Merge GTFS timetables
 

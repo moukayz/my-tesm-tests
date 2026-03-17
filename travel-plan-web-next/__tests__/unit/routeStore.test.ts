@@ -2,6 +2,7 @@
  * @jest-environment node
  */
 import fs from 'fs'
+import path from 'path'
 
 jest.mock('../../app/lib/logger', () => ({
   __esModule: true,
@@ -118,12 +119,16 @@ describe('FileRouteStore (via getRouteStore, no Upstash env)', () => {
 describe('UpstashRouteStore (via getRouteStore, with Upstash env)', () => {
   beforeEach(() => {
     setUpstashStore()
+    delete process.env.ROUTE_REDIS_KEY
     mockFromEnv.mockClear()
     mockRedis.get.mockReset()
     mockRedis.set.mockReset()
   })
 
-  afterEach(() => setFileStore())
+  afterEach(() => {
+    setFileStore()
+    delete process.env.ROUTE_REDIS_KEY
+  })
 
   it('getAll() reads from Upstash Redis and returns data', async () => {
     mockRedis.get.mockResolvedValue(mockData)
@@ -136,10 +141,12 @@ describe('UpstashRouteStore (via getRouteStore, with Upstash env)', () => {
   it('getAll() seeds Redis from route.json when Redis is empty', async () => {
     mockRedis.get.mockResolvedValue(null)
     mockRedis.set.mockResolvedValue('OK')
+    jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
     const result = await getRouteStore().getAll()
     expect(mockRedis.set).toHaveBeenCalledWith('route', expect.any(Array))
     expect(Array.isArray(result)).toBe(true)
     expect(result.length).toBeGreaterThan(0)
+    jest.restoreAllMocks()
   })
 
   it('updatePlan() saves updated data to Redis and returns the updated day', async () => {
@@ -155,9 +162,9 @@ describe('UpstashRouteStore (via getRouteStore, with Upstash env)', () => {
   })
 })
 
-describe('getRouteStore() factory', () => {
+describe('UpstashRouteStore ROUTE_REDIS_KEY configuration', () => {
   beforeEach(() => {
-    setFileStore()
+    setUpstashStore()
     mockFromEnv.mockClear()
     mockRedis.get.mockReset()
     mockRedis.set.mockReset()
@@ -165,6 +172,121 @@ describe('getRouteStore() factory', () => {
 
   afterEach(() => {
     setFileStore()
+    delete process.env.ROUTE_REDIS_KEY
+    delete process.env.ROUTE_DATA_PATH
+    jest.restoreAllMocks()
+  })
+
+  it('getAll() uses ROUTE_REDIS_KEY as the Redis key when set', async () => {
+    process.env.ROUTE_REDIS_KEY = 'route:e2e'
+    mockRedis.get.mockResolvedValue(mockData)
+    await getRouteStore().getAll()
+    expect(mockRedis.get).toHaveBeenCalledWith('route:e2e')
+  })
+
+  it('getAll() falls back to "route" when ROUTE_REDIS_KEY is not set', async () => {
+    delete process.env.ROUTE_REDIS_KEY
+    mockRedis.get.mockResolvedValue(mockData)
+    await getRouteStore().getAll()
+    expect(mockRedis.get).toHaveBeenCalledWith('route')
+  })
+
+  it('getAll() seeding uses ROUTE_REDIS_KEY for the redis.set call', async () => {
+    process.env.ROUTE_REDIS_KEY = 'route:e2e'
+    mockRedis.get.mockResolvedValue(null)
+    mockRedis.set.mockResolvedValue('OK')
+    jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
+    await getRouteStore().getAll()
+    expect(mockRedis.set).toHaveBeenCalledWith('route:e2e', expect.any(Array))
+  })
+
+  it('updatePlan() uses ROUTE_REDIS_KEY for the redis.set call', async () => {
+    process.env.ROUTE_REDIS_KEY = 'route:e2e'
+    mockRedis.get.mockResolvedValue(JSON.parse(JSON.stringify(mockData)))
+    mockRedis.set.mockResolvedValue('OK')
+    const newPlan: PlanSections = { morning: 'A', afternoon: 'B', evening: 'C' }
+    await getRouteStore().updatePlan(0, newPlan)
+    expect(mockRedis.set).toHaveBeenCalledWith(
+      'route:e2e',
+      expect.arrayContaining([expect.objectContaining({ plan: newPlan })])
+    )
+  })
+
+  it('updateTrain() uses ROUTE_REDIS_KEY for the redis.set call', async () => {
+    process.env.ROUTE_REDIS_KEY = 'route:e2e'
+    mockRedis.get.mockResolvedValue(JSON.parse(JSON.stringify(mockData)))
+    mockRedis.set.mockResolvedValue('OK')
+    const newTrain = [{ train_id: 'ICE100', start: 'berlin', end: 'munich' }]
+    await getRouteStore().updateTrain(0, newTrain)
+    expect(mockRedis.set).toHaveBeenCalledWith(
+      'route:e2e',
+      expect.arrayContaining([expect.objectContaining({ train: newTrain })])
+    )
+  })
+})
+
+describe('UpstashRouteStore seeding uses ROUTE_DATA_PATH', () => {
+  beforeEach(() => {
+    setUpstashStore()
+    mockFromEnv.mockClear()
+    mockRedis.get.mockReset()
+    mockRedis.set.mockReset()
+  })
+
+  afterEach(() => {
+    setFileStore()
+    delete process.env.ROUTE_REDIS_KEY
+    delete process.env.ROUTE_DATA_PATH
+    jest.restoreAllMocks()
+  })
+
+  it('seeds from ROUTE_DATA_PATH file when Redis is empty and env is set', async () => {
+    process.env.ROUTE_DATA_PATH = 'data/route.e2e.json'
+    mockRedis.get.mockResolvedValue(null)
+    mockRedis.set.mockResolvedValue('OK')
+    const readSpy = jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
+    await getRouteStore().getAll()
+    expect(readSpy).toHaveBeenCalledWith(
+      expect.stringContaining('route.e2e.json'),
+      'utf-8'
+    )
+    expect(mockRedis.set).toHaveBeenCalledWith('route', mockData)
+  })
+
+  it('seeds from data/route.json when Redis is empty and ROUTE_DATA_PATH is not set', async () => {
+    delete process.env.ROUTE_DATA_PATH
+    mockRedis.get.mockResolvedValue(null)
+    mockRedis.set.mockResolvedValue('OK')
+    const readSpy = jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
+    await getRouteStore().getAll()
+    expect(readSpy).toHaveBeenCalledWith(
+      expect.stringContaining(path.join('data', 'route.json')),
+      'utf-8'
+    )
+    expect(mockRedis.set).toHaveBeenCalledWith('route', mockData)
+  })
+
+  it('does not read filesystem when Redis already has data', async () => {
+    process.env.ROUTE_DATA_PATH = 'data/route.e2e.json'
+    mockRedis.get.mockResolvedValue(mockData)
+    const readSpy = jest.spyOn(fs, 'readFileSync')
+    await getRouteStore().getAll()
+    expect(readSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('getRouteStore() factory', () => {
+  beforeEach(() => {
+    setFileStore()
+    delete process.env.ROUTE_REDIS_KEY
+    mockFromEnv.mockClear()
+    mockRedis.get.mockReset()
+    mockRedis.set.mockReset()
+  })
+
+  afterEach(() => {
+    setFileStore()
+    delete process.env.ROUTE_REDIS_KEY
   })
 
   it('uses FileRouteStore when Upstash env is not set — redis is never called', async () => {

@@ -13,18 +13,25 @@
       "*": "allow"
     },
     "skill": {
-      "*":"allow",
+      "*": "allow",
       "*-timetable": "deny",
       "euro-railway-timetable": "allow"
     }
   },
   "agent": {
+    "planner": {
+      "model": "anthropic/claude-opus-4-6",
+      "description": "",
+      "mode": "primary",
+      "prompt": "{file:./.prompts/planner.md}",
+      "permission": {}
+    },
     "product-manager": {
       "model": "anthropic/claude-sonnet-4-6",
       "description": "Turns external requirements into a feature brief with scope, flows, and acceptance criteria, and coordinates the cross-role workflow to completion.",
       "mode": "all",
       "prompt": "{file:./.prompts/product-manager.md}",
-      "permission":{
+      "permission": {
         "skill": {
           "product-brief-bp": "allow"
         }
@@ -55,7 +62,7 @@
       }
     },
     "frontend-developer": {
-      "model": "anthropic/claude-opus-4-6",
+      "model": "anthropic/claude-sonnet-4-6",
       "description": "Implements frontend features from approved LLD and contracts, adds FE tests, updates runbook docs, and updates design docs before deviating from LLD.",
       "mode": "subagent",
       "prompt": "{file:./.prompts/frontend-developer.md}",
@@ -79,7 +86,7 @@
       }
     },
     "backend-developer": {
-      "model": "anthropic/claude-opus-4-6",
+      "model": "anthropic/claude-sonnet-4-6",
       "description": "Implements backend APIs and domain logic from approved LLD and contracts, adds BE tests, updates runbook docs, and updates design docs before deviating from LLD.",
       "mode": "subagent",
       "prompt": "{file:./.prompts/backend-developer.md}",
@@ -92,7 +99,7 @@
       }
     },
     "qa": {
-      "model": "anthropic/claude-opus-4-6",
+      "model": "anthropic/claude-sonnet-4-6",
       "description": "Owns cross-end E2E and regression testing, validates critical user journeys against contracts, and feeds failures back with minimal repro steps.",
       "mode": "subagent",
       "prompt": "{file:./.prompts/qa.md}",

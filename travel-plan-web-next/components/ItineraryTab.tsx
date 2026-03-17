@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useMemo, useState, useEffect } from 'react'
-import { Sunrise, Sun, Moon, GripVertical } from 'lucide-react'
+import { Sunrise, Sun, Moon, GripVertical, Pencil } from 'lucide-react'
 import {
   getOvernightColor,
   processItinerary,
@@ -44,6 +44,11 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [savingDndDayIndex, setSavingDndDayIndex] = useState<number | null>(null)
   const [dndError, setDndError] = useState<Record<number, string>>({})
+  const [trainJsonModal, setTrainJsonModal] = useState<{ dayIndex: number; json: string } | null>(null)
+  const [trainJsonEditValue, setTrainJsonEditValue] = useState('')
+  const [trainJsonSaving, setTrainJsonSaving] = useState(false)
+  const [trainJsonError, setTrainJsonError] = useState<string | null>(null)
+  const [trainOverrides, setTrainOverrides] = useState<Record<number, RouteDay['train']>>({})
 
   const buildScheduleKey = (trainId: string, start?: string, end?: string) =>
     `${trainId}|${start ?? ''}|${end ?? ''}`
@@ -162,6 +167,48 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
       setSavingDndDayIndex(null)
     }
   }
+
+  const handleTrainJsonSave = async () => {
+    if (!trainJsonModal) return
+    setTrainJsonSaving(true)
+    setTrainJsonError(null)
+    try {
+      const res = await fetch('/api/train-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dayIndex: trainJsonModal.dayIndex, trainJson: trainJsonEditValue }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setTrainJsonError(data.error || 'Failed to save')
+      } else {
+        const updatedDay = await res.json()
+        setTrainOverrides((prev) => ({ ...prev, [trainJsonModal.dayIndex]: updatedDay.train }))
+        setTrainJsonModal(null)
+      }
+    } catch {
+      setTrainJsonError('Network error. Please try again.')
+    } finally {
+      setTrainJsonSaving(false)
+    }
+  }
+
+  const openTrainJsonModal = (index: number, trainData: RouteDay['train']) => {
+    const json = JSON.stringify(trainOverrides[index] ?? trainData, null, 2)
+    setTrainJsonModal({ dayIndex: index, json })
+    setTrainJsonEditValue(json)
+    setTrainJsonError(null)
+  }
+
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!trainJsonModal) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTrainJsonModal(null)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [trainJsonModal])
 
   // Fetch train schedules for DB trains
   useEffect(() => {
@@ -320,10 +367,20 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
                   })}
                 </div>
               </td>
-              <td className="px-6 py-4 border-b border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0">
-                {day.train && day.train.length > 0 ? (
+              <td className="px-6 py-4 border-b border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0 relative">
+                <button
+                  data-testid={`train-json-edit-btn-${index}`}
+                  onClick={() => openTrainJsonModal(index, day.train)}
+                  className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+                  aria-label="View train JSON"
+                >
+                  <Pencil size={14} />
+                </button>
+                {(() => {
+                  const effectiveTrain = trainOverrides[index] ?? day.train
+                  return effectiveTrain && effectiveTrain.length > 0 ? (
                   <div className="space-y-2">
-                    {day.train.map((item, i) => {
+                    {effectiveTrain.map((item, i) => {
                       const trainId = normalizeTrainId(item.train_id)
                       const isDbTrain = !!(item.start && item.end)
                       const scheduleKey = isDbTrain
@@ -345,7 +402,20 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
                               </span>
                             </div>
                           ) : (
-                            <span className="text-sm text-gray-700">{trainId}</span>
+                            <>
+                              <span
+                                data-testid="invalid-train-dash"
+                                className="text-gray-400 italic"
+                              >
+                                —
+                              </span>
+                              <span
+                                data-testid="invalid-train-comment"
+                                className="text-xs text-gray-400 italic"
+                              >
+                                ({trainId})
+                              </span>
+                            </>
                           )}
 
                           {/* Schedule details */}
@@ -372,12 +442,56 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
                   </div>
                 ) : (
                   <span className="text-gray-400 italic">—</span>
-                )}
+                )
+                })()}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {trainJsonModal !== null && (
+        <div
+          data-testid="train-json-modal"
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+        >
+          <div
+            role="dialog"
+            aria-label="Train schedule JSON"
+            className="bg-white rounded-xl shadow-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-auto"
+          >
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Train Schedule JSON</h2>
+            <textarea
+              data-testid="train-json-content"
+              value={trainJsonEditValue}
+              onChange={(e) => { setTrainJsonEditValue(e.target.value); setTrainJsonError(null) }}
+              rows={10}
+              className="w-full text-xs font-mono bg-gray-50 rounded p-3 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 resize-y"
+            />
+            {trainJsonError && (
+              <p data-testid="train-json-error" className="text-red-600 text-xs mt-1">{trainJsonError}</p>
+            )}
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                data-testid="train-json-close"
+                onClick={() => setTrainJsonModal(null)}
+                disabled={trainJsonSaving}
+                className="px-4 py-2 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                data-testid="train-json-save"
+                onClick={handleTrainJsonSave}
+                disabled={trainJsonSaving}
+                className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {trainJsonSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

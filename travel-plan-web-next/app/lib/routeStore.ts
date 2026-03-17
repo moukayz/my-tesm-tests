@@ -1,12 +1,12 @@
 import fs from 'fs'
 import path from 'path'
-import type { RouteDay, PlanSections } from './itinerary'
-import routeJson from '../../data/route.json'
+import type { RouteDay, PlanSections, TrainRoute } from './itinerary'
 import logger from './logger'
 
 export interface RouteStore {
   getAll(): Promise<RouteDay[]>
   updatePlan(dayIndex: number, plan: PlanSections): Promise<RouteDay>
+  updateTrain(dayIndex: number, train: TrainRoute[]): Promise<RouteDay>
 }
 
 function resolveRouteFilePath(): string {
@@ -31,20 +31,34 @@ class FileRouteStore implements RouteStore {
     fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2))
     return data[dayIndex]
   }
+
+  async updateTrain(dayIndex: number, train: TrainRoute[]): Promise<RouteDay> {
+    const data = await this.getAll()
+    data[dayIndex].train = train
+    fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2))
+    return data[dayIndex]
+  }
 }
 
 /**
  * Upstash Redis implementation — used in production when Upstash env vars are set.
- * Self-seeds from the bundled route.json on the first read if Redis is empty.
+ * Self-seeds from the route data file on the first read if Redis is empty.
+ * The Redis key is configurable via ROUTE_REDIS_KEY (defaults to "route").
+ * The seed file is configurable via ROUTE_DATA_PATH (defaults to "data/route.json").
  */
 class UpstashRouteStore implements RouteStore {
+  private get redisKey(): string {
+    return process.env.ROUTE_REDIS_KEY ?? 'route'
+  }
+
   async getAll(): Promise<RouteDay[]> {
     const { Redis } = await import('@upstash/redis')
     const redis = Redis.fromEnv()
-    const data = await redis.get<RouteDay[]>('route')
+    const data = await redis.get<RouteDay[]>(this.redisKey)
     if (!data) {
-      const seed = routeJson as RouteDay[]
-      await redis.set('route', seed)
+      const routeFilePath = path.join(process.cwd(), process.env.ROUTE_DATA_PATH ?? 'data/route.json')
+      const seed = JSON.parse(fs.readFileSync(routeFilePath, 'utf-8')) as RouteDay[]
+      await redis.set(this.redisKey, seed)
       return seed
     }
     return data
@@ -55,7 +69,16 @@ class UpstashRouteStore implements RouteStore {
     const redis = Redis.fromEnv()
     const data = await this.getAll()
     data[dayIndex].plan = plan
-    await redis.set('route', data)
+    await redis.set(this.redisKey, data)
+    return data[dayIndex]
+  }
+
+  async updateTrain(dayIndex: number, train: TrainRoute[]): Promise<RouteDay> {
+    const { Redis } = await import('@upstash/redis')
+    const redis = Redis.fromEnv()
+    const data = await this.getAll()
+    data[dayIndex].train = train
+    await redis.set(this.redisKey, data)
     return data[dayIndex]
   }
 }
