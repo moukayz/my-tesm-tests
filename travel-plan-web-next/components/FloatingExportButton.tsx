@@ -16,7 +16,7 @@ export interface FloatingExportButtonProps {
 
 /**
  * Floating action button (FAB) rendered at the vertical mid-point of the viewport,
- * anchored to the right edge. Rendered via ReactDOM.createPortal in ItineraryTab.
+ * anchored to the right edge inside the active itinerary panel subtree.
  *
  * Slice 3 — F-03: Floating Export Icon
  */

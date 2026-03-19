@@ -32,28 +32,33 @@ test.describe('Train Schedule JSON Editor', () => {
   test.beforeEach(async ({ page }) => {
     await injectSession(page)
     await page.goto('/')
-    // Ensure the itinerary table is visible (Itinerary tab is default when logged in)
-    await expect(page.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+    // Ensure the primary itinerary panel is visible (Itinerary tab is default when logged in)
+    // NOTE: Both ItineraryTab instances are mounted; scope to primary panel to avoid strict-mode violations.
+    const primaryPanel = page.getByTestId('itinerary-tab')
+    await expect(primaryPanel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
   })
 
   test('pencil button is visible for a day that has train data', async ({ page }) => {
-    const editBtn = page.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`)
+    const primaryPanel = page.getByTestId('itinerary-tab')
+    const editBtn = primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`)
     await expect(editBtn).toBeVisible()
   })
 
   test('modal opens on pencil button click', async ({ page }) => {
+    const primaryPanel = page.getByTestId('itinerary-tab')
     // Modal should not be visible initially
     await expect(page.locator('[data-testid="train-json-modal"]')).not.toBeVisible()
 
-    // Click pencil button
-    await page.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
+    // Click pencil button (scoped to primary panel to avoid strict-mode violation)
+    await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
 
     // Modal should now be visible
     await expect(page.locator('[data-testid="train-json-modal"]')).toBeVisible()
   })
 
   test('modal textarea contains valid JSON of train data', async ({ page }) => {
-    await page.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
+    const primaryPanel = page.getByTestId('itinerary-tab')
+    await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
 
     const textarea = page.locator('[data-testid="train-json-content"]')
     await expect(textarea).toBeVisible()
@@ -70,7 +75,8 @@ test.describe('Train Schedule JSON Editor', () => {
   })
 
   test('textarea is editable — user can clear and type new content', async ({ page }) => {
-    await page.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
+    const primaryPanel = page.getByTestId('itinerary-tab')
+    await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
 
     const textarea = page.locator('[data-testid="train-json-content"]')
     await expect(textarea).toBeVisible()
@@ -81,7 +87,8 @@ test.describe('Train Schedule JSON Editor', () => {
   })
 
   test('cancel button closes modal without saving', async ({ page }) => {
-    await page.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
+    const primaryPanel = page.getByTestId('itinerary-tab')
+    await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
     await expect(page.locator('[data-testid="train-json-modal"]')).toBeVisible()
 
     // Click Cancel
@@ -92,7 +99,8 @@ test.describe('Train Schedule JSON Editor', () => {
   })
 
   test('escape key closes modal', async ({ page }) => {
-    await page.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
+    const primaryPanel = page.getByTestId('itinerary-tab')
+    await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
     await expect(page.locator('[data-testid="train-json-modal"]')).toBeVisible()
 
     // Press Escape
@@ -103,7 +111,8 @@ test.describe('Train Schedule JSON Editor', () => {
   })
 
   test('valid edit saves and closes modal — no error shown', async ({ page }) => {
-    await page.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
+    const primaryPanel = page.getByTestId('itinerary-tab')
+    await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
     await expect(page.locator('[data-testid="train-json-modal"]')).toBeVisible()
 
     const textarea = page.locator('[data-testid="train-json-content"]')
@@ -122,7 +131,8 @@ test.describe('Train Schedule JSON Editor', () => {
   })
 
   test('invalid JSON shows error message on save', async ({ page }) => {
-    await page.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
+    const primaryPanel = page.getByTestId('itinerary-tab')
+    await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
     await expect(page.locator('[data-testid="train-json-modal"]')).toBeVisible()
 
     const textarea = page.locator('[data-testid="train-json-content"]')

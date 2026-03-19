@@ -1,7 +1,7 @@
 # Frontend Runbook — Travel Plan Web (Next.js)
 
 **Last updated:** 2026-03-19  
-**Feature coverage:** core itinerary UI + `itinerary-export` feature + `itinerary-export-ux-pdf-fixes`
+**Feature coverage:** core itinerary UI + `itinerary-export` feature + `itinerary-export-ux-pdf-fixes` + `editable-itinerary-stays`
 
 ---
 
@@ -53,7 +53,7 @@ npm run test:watch
 npm run test:coverage
 ```
 
-**Expected output:** 355 tests, 25 suites, 0 failures.
+**Expected output:** 539 tests, 33 suites, 0 failures.
 
 ### Run only export-feature tests
 
@@ -197,6 +197,92 @@ cd travel-plan-web-next && npm run test:e2e -- --project=chromium --grep="itiner
 
 ---
 
+## 8. Editable Itinerary Stays (`editable-itinerary-stays`)
+
+### How it works
+
+Two `ItineraryTab` instances are mounted simultaneously (keep-alive pattern). Each is isolated by its `tabKey` prop (`"route"` / `"route-test"`). Stay editing is an inline action on overnight merged cells.
+
+**User flow:**
+1. Authenticated user sees both **Itinerary** and **Itinerary (Test)** tabs.
+2. On any non-last overnight cell, a pencil icon appears.
+3. Clicking the pencil opens an inline number input pre-filled with current nights.
+4. User edits the value → **Enter** or ✓ to confirm, **Escape** or ✕ to cancel.
+5. On confirm: optimistic update is applied immediately; `POST /api/stay-update` is called.
+6. On success: server `updatedDays` replaces local state.
+7. On failure: local state reverts to pre-edit snapshot; error toast appears.
+
+### Key components
+
+| Component / module | Responsibility |
+|---|---|
+| `components/TravelPlan.tsx` | Mounts both `ItineraryTab` instances; manages tab switching; `itinerary-test` tab |
+| `components/ItineraryTab.tsx` | Owns `days` state; optimistic update + snapshot-revert logic; `tabKey` forwarding |
+| `components/StayEditControl.tsx` | Inline edit widget inside overnight cell; client-side validation; keyboard a11y |
+| `app/lib/stayUtils.ts` | Pure functions: `getStays`, `getStaysWithMeta`, `applyStayEdit`, `applyStayEditOptimistic` |
+
+### API contracts
+
+```
+POST /api/stay-update
+{ tabKey: 'route' | 'route-test', stayIndex: number, newNights: number }
+→ 200: { updatedDays: RouteDay[] }
+→ 4xx/5xx: { error: string }
+
+POST /api/plan-update (extended)
+{ dayIndex: number, plan: PlanSections, tabKey: 'route' | 'route-test' }
+```
+
+### Running stay-edit-specific tests (copy-paste ready)
+
+```bash
+# StayEditControl unit tests
+cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="StayEditControl"
+
+# ItineraryTab stay edit integration tests
+cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="ItineraryTab"
+
+# TravelPlan dual-tab tests
+cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="TravelPlan"
+
+# stayUtils pure function tests
+cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="stayUtils"
+
+# stay-update API integration tests
+cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="api-stay-update"
+
+# All feature-related tests at once
+cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="TravelPlan|StayEditControl|ItineraryTab|stayUtils|api-stay-update"
+
+# TypeScript gate
+cd travel-plan-web-next && npx tsc --noEmit
+```
+
+### Troubleshooting stay edits
+
+#### Error toast appears after edit
+- The error toast (`data-testid="stay-edit-error-toast"`) is shown when `POST /api/stay-update` returns a non-2xx or network error.
+- The edit reverts to the pre-edit snapshot automatically.
+- Dismiss the toast with the ✕ button; it clears `stayEditError` state.
+
+#### Pencil button absent on overnight cell
+- The pencil is hidden for the **last stay** by design — `StayEditControl` returns `null` when `isLast=true`.
+- Verify the overnight cell is not the last distinct city in the itinerary.
+
+#### `Itinerary (Test)` tab not visible
+- Tab is only rendered for authenticated users (`isLoggedIn=true`).
+- Check that `auth()` returns a valid session in `app/page.tsx`.
+
+#### `tabKey` not forwarded in plan-update body
+- The `handleEditBlur` and `autoSavePlan` functions both include `tabKey` in the request body (confirmed by test `"plan-update calls include tabKey in the request body"`).
+- If this is missing in production, check that the `ItineraryTab` instance received its `tabKey` prop from `TravelPlan`.
+
+#### Double edit prevention
+- While `stayEditSaving=true`, the pencil button for all stays is disabled.
+- This prevents concurrent overlapping edits.
+
+---
+
 ## 7. Troubleshooting — `itinerary-export-ux-pdf-fixes`
 
 ### CJK font (PDF): `export-pdf-error` shows "could not load font"
@@ -207,8 +293,8 @@ cd travel-plan-web-next && npm run test:e2e -- --project=chromium --grep="itiner
 
 ### Floating export button (FAB): not visible
 - The FAB uses `position: fixed; top: 50%; right: 1rem; z-index: 40` via Tailwind CSS.
-- It is rendered into `document.body` via `ReactDOM.createPortal`. If a CSS `transform`, `filter`, or `perspective` is applied to any ancestor above `document.body`, this will not cause issues (portal bypasses ancestor stacking contexts).
-- If the FAB is missing, check that `ItineraryTab` is mounted (requires authenticated user) and that the SSR guard (`typeof document !== 'undefined'`) is not blocking render in a non-SSR context.
+- It is rendered inside each `ItineraryTab` subtree so panel-scoped selectors can find the correct button instance (`route` vs `route-test`).
+- If the FAB is missing, check that the expected itinerary panel is active and visible (`data-testid="itinerary-tab"` or `data-testid="itinerary-test-tab"`).
 
 ### Success toast: not appearing after export
 - The toast is rendered conditionally when `exportSuccess === true` in `ItineraryTab`.

@@ -14,7 +14,8 @@ Single-tenant Next.js 15 App Router app deployed on Vercel. No separate backend 
 Browser
   RootLayout (RSC) -> AuthHeader (Client)
   page.tsx (RSC) -> TravelPlan (Client)
-    |- ItineraryTab      — inline edit, drag-and-drop; POST /api/plan-update
+    |- ItineraryTab (tabKey="route")       — inline edit, drag-and-drop, stay edit; POST /api/plan-update, /api/stay-update
+    |- ItineraryTab (tabKey="route-test")  — "(Test)" label; identical UX, isolated persistence
     |- TrainDelayTab     — two-step autocomplete; delay stats + Recharts chart
     `- TrainTimetableTab — single-step autocomplete; stop sequence table
 
@@ -24,7 +25,8 @@ Next.js API Routes (serverless)
   GET  /api/stations       — stations for a German train
   GET  /api/delay-stats    — delay percentiles + 90-day trend
   GET  /api/train-stops    — dep/arr times between two stops
-  POST /api/plan-update    — persist itinerary (auth required)
+  POST /api/plan-update    — persist itinerary (auth required); accepts optional tabKey
+  POST /api/stay-update    — mutate stay boundary between adjacent city blocks (auth required)
   GET|POST /api/auth/[...nextauth] — Google OAuth handler
   GET  /api/warmup         — DB readiness probe
 
@@ -56,7 +58,7 @@ Shared Server Libs (app/lib/)
 
 ## Data Storage
 
-**Itinerary:** Single Redis key `route` stores `RouteDay[]` JSON. Seeds from `data/route.json` on first read.
+**Itinerary:** Redis key `route` stores `RouteDay[]` JSON for the primary Itinerary tab. Redis key `route-test` (env: `ROUTE_TEST_REDIS_KEY`) stores an independent copy for the Itinerary (Test) tab. Both seed from `data/route.json` on first read (test tab seeds independently). Local dev uses `data/route.json` and `data/route-test.json` respectively.
 
 **GTFS (PostgreSQL/Neon):** `gtfs_trips`, `gtfs_stops`, `gtfs_stop_times`, `gtfs_calendar_dates`, `gtfs_routes`, `gtfs_agency`. Covers DB, SNCF, Eurostar (trip_id prefixes: `de:`, `fr:`, `eu:`).
 
@@ -75,7 +77,8 @@ All routes return `application/json`. Errors: `{ "error": "<message>" }`.
 | `GET /api/stations` | None | `train` | German trains only |
 | `GET /api/delay-stats` | None | `train`, `station` | Last 3 months; excludes cancellations |
 | `GET /api/train-stops` | None | `train`, `from`, `to` | Returns null if no match |
-| `POST /api/plan-update` | Session | `{ dayIndex, plan }` | 401 if unauthenticated |
+| `POST /api/plan-update` | Session | `{ dayIndex, plan, tabKey? }` | 401 if unauthenticated; `tabKey` defaults to `"route"` |
+| `POST /api/stay-update` | Session | `{ tabKey, stayIndex, newNights }` | Enforces day-conservation; 401 if unauthenticated |
 | `GET /api/warmup` | None | — | `{ ok: true }` |
 
 **HTTP statuses:** 200 OK, 400 Bad Request (missing/invalid params), 401 Unauthorized (write without session), 500 Internal Server Error (DB/unexpected).
@@ -127,5 +130,5 @@ pino structured logs per request: route, key params, response time (ms), row cou
 | R-02 | GTFS data goes stale when carrier schedules change; requires manual re-run of `merge_gtfs.py` | Medium / manual |
 | R-03 | MotherDuck cold-start ~80s; mitigated by `/api/warmup` in E2E; production risk accepted | Medium |
 | R-04 | `pg.Pool` unsafe on Vercel — mitigated by `@neondatabase/serverless` when `VERCEL=1` | High / mitigated |
-| R-05 | No mechanism to reset Redis itinerary to a new `route.json` without direct key edit | Low / open |
+| R-05 | No mechanism to reset Redis itinerary to a new `route.json` without direct key edit | Low / open (test tab adds `route-test` key; reset still out of scope) |
 | R-06 | Login rate-limit tested but no deployed Edge middleware rate limiter | Medium / open |

@@ -7,6 +7,8 @@ const mockAuth = jest.fn()
 const mockStore = {
   getAll: jest.fn().mockResolvedValue([{ date: '2026/9/25', dayNum: 1, plan: {} }]),
   updatePlan: jest.fn().mockResolvedValue({ date: '2026/9/25', dayNum: 1, plan: {} }),
+  updateTrain: jest.fn(),
+  updateDays: jest.fn(),
 }
 
 jest.mock('../../auth', () => ({ auth: mockAuth }))

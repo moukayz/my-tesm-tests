@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '../../../auth'
-import { getRouteStore } from '../../lib/routeStore'
+import { getRouteStore, VALID_TAB_KEYS } from '../../lib/routeStore'
+import type { TabKey } from '../../lib/routeStore'
 import logger from '../../lib/logger'
 
 interface UpdatePlanRequest {
+  tabKey?: TabKey
   dayIndex: number
   plan: {
     morning: string
@@ -26,6 +28,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON in request' }, { status: 400 })
   }
 
+  // Validate tabKey if present
+  if (body.tabKey !== undefined && !VALID_TAB_KEYS.includes(body.tabKey as TabKey)) {
+    return NextResponse.json({ error: 'invalid_tab_key' }, { status: 400 })
+  }
+
   try {
     if (
       typeof body.dayIndex !== 'number' ||
@@ -40,7 +47,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const store = getRouteStore()
+    const tabKey: TabKey = (body.tabKey as TabKey) ?? 'route'
+    const store = getRouteStore(tabKey)
     const allData = await store.getAll()
 
     if (body.dayIndex < 0 || body.dayIndex >= allData.length) {
@@ -51,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const updatedDay = await store.updatePlan(body.dayIndex, body.plan)
-    logger.info({ user: session.user.email, dayIndex: body.dayIndex }, '/api/plan-update ok')
+    logger.info({ user: session.user.email, tabKey, dayIndex: body.dayIndex }, '/api/plan-update ok')
     return NextResponse.json(updatedDay, { status: 200 })
   } catch (error) {
     logger.error({ err: error, user: session.user.email, dayIndex: body?.dayIndex }, '/api/plan-update error')

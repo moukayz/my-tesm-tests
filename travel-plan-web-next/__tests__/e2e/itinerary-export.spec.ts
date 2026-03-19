@@ -90,12 +90,23 @@ const INJECT_SAVE_FILE_PICKER_MOCK = `
 /**
  * Navigates to the home page as an authenticated user.
  * The Itinerary tab is the default tab for authenticated users.
+ *
+ * NOTE: Both ItineraryTab instances (tabKey='route' and tabKey='route-test') are always
+ * mounted in the DOM (keep-alive pattern). Selectors that could match both panels (e.g.
+ * 'export-fab', 'train-json-edit-btn-N') MUST be scoped to `primaryPanel` to avoid
+ * Playwright strict-mode violations. Use `primaryPanel(page)` helper in tests.
  */
 async function gotoItineraryAsAuth(page: Page) {
   await injectSession(page)
   await page.goto('/')
-  // Wait for the itinerary table to be present (table header "Date" column)
-  await expect(page.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+  // Wait for the PRIMARY itinerary panel to be present
+  const panel = page.getByTestId('itinerary-tab')
+  await expect(panel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+}
+
+/** Returns the primary (route) itinerary panel locator. Scope all per-instance selectors here. */
+function primaryPanel(page: Page) {
+  return page.getByTestId('itinerary-tab')
 }
 
 // ─── Test suite ───────────────────────────────────────────────────────────────
@@ -105,7 +116,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
 
   test('export FAB (export-fab) is visible on Itinerary tab when data exists (authenticated)', async ({ page }) => {
     await gotoItineraryAsAuth(page)
-    const exportFab = page.getByTestId('export-fab')
+    const exportFab = primaryPanel(page).getByTestId('export-fab')
     await expect(exportFab).toBeVisible()
     await expect(exportFab).toBeEnabled()
   })
@@ -113,7 +124,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
   test('export FAB is NOT visible when user is not authenticated', async ({ page }) => {
     // No session injected — unauthenticated user sees Train Delays tab, not Itinerary
     await page.goto('/')
-    await expect(page.getByTestId('export-fab')).not.toBeVisible()
+    await expect(primaryPanel(page).getByTestId('export-fab')).not.toBeVisible()
   })
 
   // E2E-S3-03: inline export-button is gone
@@ -127,7 +138,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
   test('clicking export FAB opens the format picker with Markdown option; PDF option is present but disabled (temporarily unavailable)', async ({ page }) => {
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
 
     const picker = page.getByTestId('export-format-picker')
     await expect(picker).toBeVisible()
@@ -144,7 +155,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
     await page.getByTestId('export-md').click()
 
@@ -166,7 +177,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
 
     const pdfButton = page.getByTestId('export-pdf')
@@ -181,7 +192,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
 
     // Force-click the disabled button to confirm no download occurs
@@ -203,7 +214,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
 
     await page.keyboard.press('Escape')
@@ -220,7 +231,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
 
     // Click somewhere outside the picker — e.g. the page heading
@@ -237,7 +248,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
 
     await page.getByTestId('export-close').click()
@@ -279,7 +290,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     // Snapshot the API request count after page has settled
     const countBeforeExport = allApiRequests.length
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
     await page.getByTestId('export-md').click()
     await expect(page.getByTestId('export-format-picker')).not.toBeVisible({ timeout: 10_000 })
@@ -309,7 +320,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
 
     const countBeforeExport = allApiRequests.length
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
     // Force-click the disabled PDF button
     await page.getByTestId('export-pdf').click({ force: true })
@@ -325,7 +336,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
     await page.getByTestId('export-md').click()
     await expect(page.getByTestId('export-format-picker')).not.toBeVisible({ timeout: 10_000 })
@@ -373,9 +384,9 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     expect(res.status()).toBe(200)
 
     await page.goto('/')
-    await expect(page.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+    await expect(primaryPanel(page).getByRole('columnheader', { name: /^date$/i })).toBeVisible()
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await page.getByTestId('export-md').click()
     await expect(page.getByTestId('export-format-picker')).not.toBeVisible({ timeout: 10_000 })
 
@@ -403,7 +414,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await page.getByTestId('export-md').click()
     await expect(page.getByTestId('export-format-picker')).not.toBeVisible({ timeout: 10_000 })
 
@@ -478,7 +489,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
 
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
     await page.getByTestId('export-md').click()
 
@@ -500,7 +511,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
   test('export FAB has correct aria attributes (haspopup + expanded state)', async ({ page }) => {
     await gotoItineraryAsAuth(page)
 
-    const btn = page.getByTestId('export-fab')
+    const btn = primaryPanel(page).getByTestId('export-fab')
     await expect(btn).toHaveAttribute('aria-haspopup', 'true')
     await expect(btn).toHaveAttribute('aria-expanded', 'false')
 
@@ -520,7 +531,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await page.getByTestId('export-md').click()
 
     await expect(page.getByTestId('export-success-toast')).toBeVisible({ timeout: 5_000 })
@@ -531,7 +542,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await page.getByTestId('export-md').click()
 
     await expect(page.getByTestId('export-success-toast')).toBeVisible({ timeout: 5_000 })
@@ -543,7 +554,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     // Force-click the disabled PDF button
     await page.getByTestId('export-pdf').click({ force: true })
 
@@ -556,7 +567,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await page.getByTestId('export-md').click()
 
     await expect(page.getByTestId('export-success-toast')).toBeVisible({ timeout: 5_000 })
@@ -576,7 +587,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     `)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
     await page.getByTestId('export-md').click()
 
@@ -618,7 +629,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
 
     expect(fontRequests).toHaveLength(0)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     // Force-click the disabled PDF button
     await page.getByTestId('export-pdf').click({ force: true })
     await page.waitForTimeout(1000)
@@ -638,7 +649,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.waitForTimeout(300)
 
     // FAB must still be visible (fixed positioning)
-    await expect(page.getByTestId('export-fab')).toBeVisible()
+    await expect(primaryPanel(page).getByTestId('export-fab')).toBeVisible()
   })
 
   // E2E-S3-02: Clicking FAB opens picker; clicking md triggers download; toast appears
@@ -646,7 +657,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
-    await page.getByTestId('export-fab').click()
+    await primaryPanel(page).getByTestId('export-fab').click()
     await expect(page.getByTestId('export-format-picker')).toBeVisible()
     await page.getByTestId('export-md').click()
 
@@ -666,7 +677,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
   // Note: This test relies on the server having zero itinerary data. Skip if not testable in current env.
   test('E2E-S3-04: export-fab has correct aria-label when data exists', async ({ page }) => {
     await gotoItineraryAsAuth(page)
-    const fab = page.getByTestId('export-fab')
+    const fab = primaryPanel(page).getByTestId('export-fab')
     await expect(fab).toHaveAttribute('aria-label', 'Export itinerary')
   })
 
@@ -674,6 +685,6 @@ test.describe('Itinerary Export — "Export to files…"', () => {
   test('E2E-S3-05: export-fab is not present when user is unauthenticated', async ({ page }) => {
     await page.goto('/')
     // Unauthenticated user should not see the FAB
-    await expect(page.getByTestId('export-fab')).not.toBeVisible()
+    await expect(primaryPanel(page).getByTestId('export-fab')).not.toBeVisible()
   })
 })

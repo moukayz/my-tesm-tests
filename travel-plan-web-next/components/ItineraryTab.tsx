@@ -12,6 +12,7 @@ import {
   type RouteDay,
   type PlanSections,
 } from '../app/lib/itinerary'
+import { getStaysWithMeta, applyStayEditOptimistic } from '../app/lib/stayUtils'
 import { formatTime } from '../app/lib/trainTimetable'
 import { renderMarkdown } from '../app/lib/markdown'
 import { buildMarkdownTable /*, buildPdfBlob — temporarily disabled */ } from '../app/lib/itineraryExport'
@@ -19,6 +20,7 @@ import { saveFile } from '../app/lib/fileSave'
 import FloatingExportButton from './FloatingExportButton'
 import ExportFormatPicker from './ExportFormatPicker'
 import ExportSuccessToast from './ExportSuccessToast'
+import StayEditControl from './StayEditControl'
 
 interface TrainStopsResult {
   fromStation: string
@@ -37,10 +39,20 @@ interface TimetableRow {
 
 interface ItineraryTabProps {
   initialData: RouteDay[]
+  tabKey: 'route' | 'route-test'
 }
 
-export default function ItineraryTab({ initialData }: ItineraryTabProps) {
-  const processedData = useMemo(() => processItinerary(initialData), [initialData])
+export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps) {
+  // ── Days state (mutable copy for stay edits) ─────────────────────────────
+  const [days, setDays] = useState<RouteDay[]>(() => initialData)
+  const processedData = useMemo(() => processItinerary(days), [days])
+
+  // ── Stay edit state ───────────────────────────────────────────────────────
+  const [stayEditingIndex, setStayEditingIndex] = useState<number | null>(null)
+  const [stayEditSnapshot, setStayEditSnapshot] = useState<RouteDay[] | null>(null)
+  const [stayEditError, setStayEditError] = useState<string | null>(null)
+  const [stayEditSaving, setStayEditSaving] = useState(false)
+
   const [trainSchedules, setTrainSchedules] = useState<Record<string, TrainStopsResult | null>>({})
   const [schedulesLoading, setSchedulesLoading] = useState(false)
   const [planOverrides, setPlanOverrides] = useState<Record<number, PlanSections>>({})
@@ -57,16 +69,63 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
   const [trainOverrides, setTrainOverrides] = useState<Record<number, RouteDay['train']>>({})
 
   // ── Export state ────────────────────────────────────────────────────────────
-  const [floatingPickerOpen, setFloatingPickerOpen] = useState(false)  // renamed from exportPickerOpen
+  const [floatingPickerOpen, setFloatingPickerOpen] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [isPdfGenerating, setIsPdfGenerating] = useState(false)
-  const [exportSuccess, setExportSuccess] = useState(false)            // NEW — Slice 1
-  const floatingButtonRef = useRef<HTMLButtonElement>(null)             // renamed from exportButtonRef
+  const [exportSuccess, setExportSuccess] = useState(false)
+  const floatingButtonRef = useRef<HTMLButtonElement>(null)
+
+  // ── Derived stays (for stay edit controls) ────────────────────────────────
+  const stays = useMemo(() => getStaysWithMeta(days), [days])
+
+  // ── Stay edit handlers ────────────────────────────────────────────────────
+
+  const handleStayConfirm = async (stayIndex: number, newNights: number) => {
+    // Take snapshot before optimistic update
+    const snapshot = [...days]
+    setStayEditSnapshot(snapshot)
+
+    // Optimistic update
+    const optimisticDays = applyStayEditOptimistic(days, stayIndex, newNights)
+    setDays(optimisticDays)
+    setStayEditingIndex(null)
+    setStayEditSaving(true)
+
+    try {
+      const response = await fetch('/api/stay-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({ tabKey, stayIndex, newNights }),
+      })
+
+      if (!response.ok) {
+        // Revert optimistic update
+        setDays(snapshot)
+        setStayEditError('Could not save changes. Your edit has been reverted.')
+      } else {
+        const data = await response.json()
+        // Replace state with authoritative server response
+        setDays(data.updatedDays)
+        setStayEditSnapshot(null)
+      }
+    } catch {
+      // Network error — revert
+      setDays(snapshot)
+      setStayEditError('Could not save changes. Your edit has been reverted.')
+    } finally {
+      setStayEditSaving(false)
+    }
+  }
+
+  const handleStayCancel = () => {
+    setStayEditingIndex(null)
+  }
 
   // ── Export helpers ──────────────────────────────────────────────────────────
 
   function getEffectiveData(): RouteDay[] {
-    return initialData.map((day, i) => ({
+    return days.map((day, i) => ({
       ...day,
       plan: planOverrides[i] ?? day.plan,
       train: trainOverrides[i] ?? day.train,
@@ -82,7 +141,6 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
     setFloatingPickerOpen(false)
     setExportError(null)
     setIsPdfGenerating(false)
-    // Return focus to the floating button (accessibility)
     setTimeout(() => floatingButtonRef.current?.focus(), 0)
   }
 
@@ -90,37 +148,15 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
     try {
       const content = buildMarkdownTable(getEffectiveData())
       await saveFile({ content, filename: 'itinerary.md', mimeType: 'text/markdown' })
-      // Only reaches here on clean success
       closeFloatingPicker()
       setExportSuccess(true)
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        // silent — user cancelled native dialog; no toast
         closeFloatingPicker()
       }
-      // other errors from Markdown path are not expected; swallow silently
     }
   }
 
-  // PDF export is temporarily disabled — restore the implementation below to re-enable.
-  // async function handleExportPdf() {
-  //   setIsPdfGenerating(true)
-  //   try {
-  //     const blob = await buildPdfBlob(getEffectiveData())
-  //     setIsPdfGenerating(false)
-  //     await saveFile({ content: blob, filename: 'itinerary.pdf', mimeType: 'application/pdf' })
-  //     // Only reaches here on clean success
-  //     closeFloatingPicker()
-  //     setExportSuccess(true)
-  //   } catch (err) {
-  //     setIsPdfGenerating(false)
-  //     if (err instanceof DOMException && err.name === 'AbortError') {
-  //       closeFloatingPicker()
-  //       return
-  //     }
-  //     setExportError(err instanceof Error ? err.message : 'PDF generation failed. Please try again.')
-  //   }
-  // }
   function handleExportPdf() {
     // PDF export is temporarily disabled — this is a no-op stub.
   }
@@ -153,7 +189,7 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
       const response = await fetch('/api/plan-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dayIndex, plan: newPlan }),
+        body: JSON.stringify({ dayIndex, plan: newPlan, tabKey }),
       })
 
       if (!response.ok) {
@@ -202,7 +238,6 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
       [targetKey]: currentPlan[sourceKey as keyof PlanSections],
     }
 
-    // Optimistic update
     setPlanOverrides((prev) => ({ ...prev, [dayIndex]: newPlan }))
     setDragSourceId(null)
     setDragOverId(null)
@@ -227,7 +262,7 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
       const response = await fetch('/api/plan-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dayIndex, plan: newPlan }),
+        body: JSON.stringify({ dayIndex, plan: newPlan, tabKey }),
       })
 
       if (!response.ok) {
@@ -340,7 +375,10 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
   }, [initialData])
 
   return (
-    <div className="bg-white rounded-xl shadow-lg overflow-hidden w-full border border-gray-200">
+    <div
+      data-testid={tabKey === 'route-test' ? 'itinerary-test-tab' : 'itinerary-tab'}
+      className="bg-white rounded-xl shadow-lg overflow-hidden w-full border border-gray-200"
+    >
       <table className="w-full border-collapse text-left">
         <thead className="bg-gray-50 border-b-2 border-gray-200">
           <tr>
@@ -355,173 +393,193 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
           </tr>
         </thead>
         <tbody>
-          {processedData.map((day, index) => (
-            <tr key={index} className="group hover:bg-gray-50">
-              <td className="px-6 py-4 border-b border-gray-200 align-middle whitespace-nowrap tabular-nums text-gray-600 group-last:border-b-0">
-                {day.date}
-              </td>
-              <td className="px-6 py-4 border-b border-gray-200 align-middle text-gray-500 text-sm group-last:border-b-0">
-                {day.weekDay}
-              </td>
-              <td className="px-6 py-4 border-b border-gray-200 align-middle text-center font-bold text-blue-500 group-last:border-b-0">
-                {day.dayNum}
-              </td>
+          {processedData.map((day, index) => {
+            // Find the stay for this overnight cell (only relevant when overnightRowSpan > 0)
+            const stay = day.overnightRowSpan > 0
+              ? stays.find((s) => s.firstDayIndex === index)
+              : undefined
 
-              {day.overnightRowSpan > 0 && (
-                <td
-                  rowSpan={day.overnightRowSpan}
-                  className="px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
-                  style={{ backgroundColor: getOvernightColor(day.overnight) }}
-                >
-                  {day.overnight}
+            return (
+              <tr key={index} className="group hover:bg-gray-50">
+                <td className="px-6 py-4 border-b border-gray-200 align-middle whitespace-nowrap tabular-nums text-gray-600 group-last:border-b-0">
+                  {day.date}
                 </td>
-              )}
+                <td className="px-6 py-4 border-b border-gray-200 align-middle text-gray-500 text-sm group-last:border-b-0">
+                  {day.weekDay}
+                </td>
+                <td className="px-6 py-4 border-b border-gray-200 align-middle text-center font-bold text-blue-500 group-last:border-b-0">
+                  {day.dayNum}
+                </td>
 
-              <td className="px-6 py-4 border-b border-gray-200 align-middle min-w-[280px] group-last:border-b-0">
-                <div className="space-y-1 text-sm text-gray-700">
-                  {dndError[index] && (
-                    <div className="text-red-600 text-xs font-semibold mb-1">{dndError[index]}</div>
-                  )}
-                  {planSections.map((section, sectionIndex) => {
-                    const rowId = `${index}|${section.key}`
-                    const isEditing = editingRowId === rowId
-                    const value = (planOverrides[index] ?? day.plan)[section.key].trim()
+                {day.overnightRowSpan > 0 && (
+                  <td
+                    rowSpan={day.overnightRowSpan}
+                    className="px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
+                    style={{ backgroundColor: getOvernightColor(day.overnight) }}
+                  >
+                    {stay && !stay.isLast ? (
+                      <StayEditControl
+                        stayIndex={stay.stayIndex}
+                        city={stay.overnight}
+                        currentNights={stay.nights}
+                        maxAdditionalNights={
+                          (stays[stay.stayIndex + 1]?.nights ?? 1) - 1
+                        }
+                        isLast={false}
+                        isSaving={stayEditSaving}
+                        onConfirm={handleStayConfirm}
+                        onCancel={handleStayCancel}
+                      />
+                    ) : (
+                      day.overnight
+                    )}
+                  </td>
+                )}
 
-                    if (isEditing) {
+                <td className="px-6 py-4 border-b border-gray-200 align-middle min-w-[280px] group-last:border-b-0">
+                  <div className="space-y-1 text-sm text-gray-700">
+                    {dndError[index] && (
+                      <div className="text-red-600 text-xs font-semibold mb-1">{dndError[index]}</div>
+                    )}
+                    {planSections.map((section, sectionIndex) => {
+                      const rowId = `${index}|${section.key}`
+                      const isEditing = editingRowId === rowId
+                      const value = (planOverrides[index] ?? day.plan)[section.key].trim()
+
+                      if (isEditing) {
+                        return (
+                          <React.Fragment key={section.key}>
+                            {sectionIndex > 0 && <hr className="border-gray-100" />}
+                          <div className="flex gap-2 items-start rounded">
+                            <span className="shrink-0 text-gray-400 mt-0.5" title={section.label}>
+                              {section.icon}
+                            </span>
+                            <textarea
+                              value={editingValue}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) e.currentTarget.blur() }}
+                              onBlur={() => handleEditBlur(index, section.key, day)}
+                              autoFocus
+                              rows={2}
+                              className="flex-1 px-1 py-0.5 border border-blue-400 rounded text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                            />
+                          </div>
+                          </React.Fragment>
+                        )
+                      }
+
                       return (
                         <React.Fragment key={section.key}>
                           {sectionIndex > 0 && <hr className="border-gray-100" />}
-                        <div className="flex gap-2 items-start rounded">
-                          <span className="shrink-0 text-gray-400 mt-0.5" title={section.label}>
+                        <div
+                          key={section.key}
+                          data-testid={`plan-row-${index}-${section.key}`}
+                          draggable={savingDndDayIndex !== index}
+                          onDoubleClick={() => handleRowDoubleClick(index, section.key, value)}
+                          onDragStart={(e) => handleDragStart(index, section.key, e)}
+                          onDragOver={(e) => handleDragOver(index, section.key, e)}
+                          onDrop={(e) => handleDrop(index, section.key, e, day)}
+                          onDragEnd={handleDragEnd}
+                          className={`flex gap-2 items-center rounded cursor-grab select-none
+                            ${dragSourceId === rowId ? 'opacity-40' : ''}
+                            ${dragOverId === rowId ? 'ring-2 ring-blue-400 bg-blue-50' : ''}
+                            ${savingDndDayIndex === index ? 'cursor-wait' : ''}
+                          `}
+                        >
+                          <span data-no-drag="true" className="shrink-0 text-gray-400 cursor-default" title={section.label}>
                             {section.icon}
                           </span>
-                          <textarea
-                            value={editingValue}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) e.currentTarget.blur() }}
-                            onBlur={() => handleEditBlur(index, section.key, day)}
-                            autoFocus
-                            rows={2}
-                            className="flex-1 px-1 py-0.5 border border-blue-400 rounded text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                          />
+                          <span className={`flex-1 ${value ? 'text-gray-800' : 'text-gray-400 italic'}`}>
+                            {value ? renderMarkdown(value) : '—'}
+                          </span>
+                          <span aria-label="Drag to reorder" className="text-gray-300 shrink-0">
+                            <GripVertical size={14} />
+                          </span>
                         </div>
                         </React.Fragment>
                       )
-                    }
-
-                    return (
-                      <React.Fragment key={section.key}>
-                        {sectionIndex > 0 && <hr className="border-gray-100" />}
-                      <div
-                        key={section.key}
-                        data-testid={`plan-row-${index}-${section.key}`}
-                        draggable={savingDndDayIndex !== index}
-                        onDoubleClick={() => handleRowDoubleClick(index, section.key, value)}
-                        onDragStart={(e) => handleDragStart(index, section.key, e)}
-                        onDragOver={(e) => handleDragOver(index, section.key, e)}
-                        onDrop={(e) => handleDrop(index, section.key, e, day)}
-                        onDragEnd={handleDragEnd}
-                        className={`flex gap-2 items-center rounded cursor-grab select-none
-                          ${dragSourceId === rowId ? 'opacity-40' : ''}
-                          ${dragOverId === rowId ? 'ring-2 ring-blue-400 bg-blue-50' : ''}
-                          ${savingDndDayIndex === index ? 'cursor-wait' : ''}
-                        `}
-                      >
-                        <span data-no-drag="true" className="shrink-0 text-gray-400 cursor-default" title={section.label}>
-                          {section.icon}
-                        </span>
-                        <span className={`flex-1 ${value ? 'text-gray-800' : 'text-gray-400 italic'}`}>
-                          {value ? renderMarkdown(value) : '—'}
-                        </span>
-                        <span aria-label="Drag to reorder" className="text-gray-300 shrink-0">
-                          <GripVertical size={14} />
-                        </span>
-                      </div>
-                      </React.Fragment>
-                    )
-                  })}
-                </div>
-              </td>
-              <td className="px-6 py-4 border-b border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0 relative">
-                <button
-                  data-testid={`train-json-edit-btn-${index}`}
-                  onClick={() => openTrainJsonModal(index, day.train)}
-                  className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
-                  aria-label="View train JSON"
-                >
-                  <Pencil size={14} />
-                </button>
-                {(() => {
-                  const effectiveTrain = trainOverrides[index] ?? day.train
-                  return effectiveTrain && effectiveTrain.length > 0 ? (
-                  <div className="space-y-2">
-                    {effectiveTrain.map((item, i) => {
-                      const trainId = normalizeTrainId(item.train_id)
-                      const isDbTrain = !!(item.start && item.end)
-                      const scheduleKey = isDbTrain
-                        ? buildScheduleKey(trainId, item.start, item.end)
-                        : null
-                      const schedule = scheduleKey ? trainSchedules[scheduleKey] : null
-                      const isLoading = scheduleKey && schedulesLoading && !(scheduleKey in trainSchedules)
-
-                      return (
-                        <div key={i} className="flex flex-col gap-0.5">
-                          {/* Train number: badge for DB trains, plain text for informal entries */}
-                          {isDbTrain ? (
-                            <div>
-                              <span
-                                data-testid="train-tag"
-                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200"
-                              >
-                                {trainId}
-                              </span>
-                            </div>
-                          ) : (
-                            <>
-                              <span
-                                data-testid="invalid-train-dash"
-                                className="text-gray-400 italic"
-                              >
-                                —
-                              </span>
-                              <span
-                                data-testid="invalid-train-comment"
-                                className="text-xs text-gray-400 italic"
-                              >
-                                ({trainId})
-                              </span>
-                            </>
-                          )}
-
-                          {/* Schedule details */}
-                          {isLoading ? (
-                            <span
-                              role="status"
-                              aria-label="Loading"
-                              className="inline-block w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin align-middle"
-                            />
-                          ) : schedule ? (
-                            <div
-                              data-testid="schedule-grid"
-                              className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 text-xs text-gray-500 pl-1 items-baseline"
-                            >
-                              <span className="truncate">{schedule.fromStation}</span>
-                              <span className="tabular-nums text-right">{schedule.depTime}</span>
-                              <span className="truncate">{schedule.toStation}</span>
-                              <span className="tabular-nums text-right">{schedule.arrTime}</span>
-                            </div>
-                          ) : null}
-                        </div>
-                      )
                     })}
                   </div>
-                ) : (
-                  <span className="text-gray-400 italic">—</span>
-                )
-                })()}
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="px-6 py-4 border-b border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0 relative">
+                  <button
+                    data-testid={`train-json-edit-btn-${index}`}
+                    onClick={() => openTrainJsonModal(index, day.train)}
+                    className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+                    aria-label="View train JSON"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  {(() => {
+                    const effectiveTrain = trainOverrides[index] ?? day.train
+                    return effectiveTrain && effectiveTrain.length > 0 ? (
+                    <div className="space-y-2">
+                      {effectiveTrain.map((item, i) => {
+                        const trainId = normalizeTrainId(item.train_id)
+                        const isDbTrain = !!(item.start && item.end)
+                        const scheduleKey = isDbTrain
+                          ? buildScheduleKey(trainId, item.start, item.end)
+                          : null
+                        const schedule = scheduleKey ? trainSchedules[scheduleKey] : null
+                        const isLoading = scheduleKey && schedulesLoading && !(scheduleKey in trainSchedules)
+
+                        return (
+                          <div key={i} className="flex flex-col gap-0.5">
+                            {isDbTrain ? (
+                              <div>
+                                <span
+                                  data-testid="train-tag"
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200"
+                                >
+                                  {trainId}
+                                </span>
+                              </div>
+                            ) : (
+                              <>
+                                <span
+                                  data-testid="invalid-train-dash"
+                                  className="text-gray-400 italic"
+                                >
+                                  —
+                                </span>
+                                <span
+                                  data-testid="invalid-train-comment"
+                                  className="text-xs text-gray-400 italic"
+                                >
+                                  ({trainId})
+                                </span>
+                              </>
+                            )}
+
+                            {isLoading ? (
+                              <span
+                                role="status"
+                                aria-label="Loading"
+                                className="inline-block w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin align-middle"
+                              />
+                            ) : schedule ? (
+                              <div
+                                data-testid="schedule-grid"
+                                className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 text-xs text-gray-500 pl-1 items-baseline"
+                              >
+                                <span className="truncate">{schedule.fromStation}</span>
+                                <span className="tabular-nums text-right">{schedule.depTime}</span>
+                                <span className="truncate">{schedule.toStation}</span>
+                                <span className="tabular-nums text-right">{schedule.arrTime}</span>
+                              </div>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <span className="text-gray-400 italic">—</span>
+                  )
+                  })()}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
 
@@ -568,17 +626,13 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
         </div>
       )}
 
-      {/* Floating export button — portal to document.body for correct fixed positioning.
-          SSR-safe: `typeof document !== 'undefined'` guard prevents SSR crash. */}
-      {typeof document !== 'undefined' && createPortal(
-        <FloatingExportButton
-          hasData={initialData.length > 0}
-          isPickerOpen={floatingPickerOpen}
-          onOpen={openFloatingPicker}
-          buttonRef={floatingButtonRef}
-        />,
-        document.body
-      )}
+      {/* Floating export button. Keep it inside this panel so panel-scoped locators can find it. */}
+      <FloatingExportButton
+        hasData={initialData.length > 0}
+        isPickerOpen={floatingPickerOpen}
+        onOpen={openFloatingPicker}
+        buttonRef={floatingButtonRef}
+      />
 
       {/* Export format picker — portal to document.body, positioned beside the FAB */}
       {typeof document !== 'undefined' && floatingPickerOpen && createPortal(
@@ -601,13 +655,34 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
         document.body
       )}
 
-      {/* Export success toast — Slice 1 */}
+      {/* Export success toast */}
       {exportSuccess && (
         <ExportSuccessToast
           message="Itinerary exported!"
           onDismiss={() => setExportSuccess(false)}
           autoDismissMs={3000}
         />
+      )}
+
+      {/* Stay edit error toast */}
+      {stayEditError && (
+        <div
+          data-testid="stay-edit-error-toast"
+          role="alert"
+          aria-live="assertive"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg border border-red-200
+                     bg-white px-4 py-3 shadow-lg text-sm text-gray-800"
+        >
+          <span className="text-red-500">⚠</span>
+          <span>{stayEditError}</span>
+          <button
+            aria-label="Dismiss error"
+            className="ml-2 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+            onClick={() => setStayEditError(null)}
+          >
+            ×
+          </button>
+        </div>
       )}
     </div>
   )

@@ -6,7 +6,7 @@ import TrainDelayTab from './TrainDelayTab'
 import TrainTimetableTab from './TrainTimetableTab'
 import type { RouteDay } from '../app/lib/itinerary'
 
-type Tab = 'itinerary' | 'delays' | 'timetable'
+type Tab = 'itinerary' | 'itinerary-test' | 'delays' | 'timetable'
 
 interface TravelPlanProps {
   isLoggedIn?: boolean
@@ -16,11 +16,14 @@ interface TravelPlanProps {
 export default function TravelPlan({ isLoggedIn = false, initialRouteData }: TravelPlanProps) {
   const allTabs: { id: Tab; label: string }[] = [
     { id: 'itinerary', label: 'Itinerary' },
+    { id: 'itinerary-test', label: 'Itinerary (Test)' },
     { id: 'delays', label: 'Train Delays' },
     { id: 'timetable', label: 'Timetable' },
   ]
 
-  const tabs = isLoggedIn ? allTabs : allTabs.filter(t => t.id !== 'itinerary')
+  const tabs = isLoggedIn
+    ? allTabs
+    : allTabs.filter((t) => t.id !== 'itinerary' && t.id !== 'itinerary-test')
   const defaultTab: Tab = isLoggedIn ? 'itinerary' : 'delays'
 
   const [tab, setTab] = useState<Tab>(defaultTab)
@@ -50,7 +53,12 @@ export default function TravelPlan({ isLoggedIn = false, initialRouteData }: Tra
 
       {isLoggedIn && initialRouteData && (
         <div className={tab === 'itinerary' ? '' : 'hidden'}>
-          <ItineraryTab initialData={initialRouteData} />
+          <ItineraryTab initialData={initialRouteData} tabKey="route" />
+        </div>
+      )}
+      {isLoggedIn && initialRouteData && (
+        <div className={tab === 'itinerary-test' ? '' : 'hidden'}>
+          <ItineraryTab initialData={initialRouteData} tabKey="route-test" />
         </div>
       )}
       <div className={tab === 'delays' ? 'w-full' : 'hidden'}>

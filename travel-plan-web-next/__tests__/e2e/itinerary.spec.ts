@@ -43,35 +43,44 @@ test.describe('Itinerary Tab', () => {
     await page.goto('/')
   })
 
+  // NOTE: Both ItineraryTab instances (tabKey='route' and tabKey='route-test') are always
+  // mounted in the DOM (keep-alive pattern). Selectors are scoped to the PRIMARY panel
+  // (data-testid="itinerary-tab") to avoid strict-mode violations from duplicate elements.
+
   test('itinerary table renders with date "2026/9/25"', async ({ page }) => {
-    await expect(page.getByText('2026/9/25')).toBeVisible()
+    const panel = page.getByTestId('itinerary-tab')
+    await expect(panel.getByText('2026/9/25')).toBeVisible()
   })
 
   test('plan section "e2e-morning" is visible', async ({ page }) => {
-    await expect(page.getByText('e2e-morning')).toBeVisible()
+    const panel = page.getByTestId('itinerary-tab')
+    await expect(panel.getByText('e2e-morning')).toBeVisible()
   })
 
   test('all 16 days are shown (16 date cells matching date pattern)', async ({ page }) => {
-    // Find all table cells (td) whose text matches a date pattern like YYYY/M/D
-    const dateCells = page.locator('td').filter({ hasText: /^\d{4}\/\d+\/\d+$/ })
+    // Scope to the primary panel to avoid counting cells from the hidden test-tab panel
+    const panel = page.getByTestId('itinerary-tab')
+    const dateCells = panel.locator('td').filter({ hasText: /^\d{4}\/\d+\/\d+$/ })
     await expect(dateCells).toHaveCount(16)
   })
 
   test('double-clicking the morning plan row of day 1 shows a textarea pre-filled with "e2e-morning"', async ({ page }) => {
-    const morningRow = page.locator('[data-testid="plan-row-0-morning"]')
+    const panel = page.getByTestId('itinerary-tab')
+    const morningRow = panel.locator('[data-testid="plan-row-0-morning"]')
     await morningRow.dblclick()
 
     // A textarea should appear pre-filled with the current morning value
-    const textarea = page.locator('textarea')
+    const textarea = panel.locator('textarea')
     await expect(textarea).toBeVisible()
     await expect(textarea).toHaveValue('e2e-morning')
   })
 
   test('editing the textarea and blurring saves the new value (verify new text appears in cell)', async ({ page }) => {
-    const morningRow = page.locator('[data-testid="plan-row-0-morning"]')
+    const panel = page.getByTestId('itinerary-tab')
+    const morningRow = panel.locator('[data-testid="plan-row-0-morning"]')
     await morningRow.dblclick()
 
-    const textarea = page.locator('textarea')
+    const textarea = panel.locator('textarea')
     await expect(textarea).toBeVisible()
 
     // Clear and type new value
@@ -84,13 +93,14 @@ test.describe('Itinerary Tab', () => {
     await expect(textarea).not.toBeVisible({ timeout: 5000 })
 
     // New value should appear in the cell
-    await expect(page.getByText('e2e-morning-edited')).toBeVisible({ timeout: 10000 })
+    await expect(panel.getByText('e2e-morning-edited')).toBeVisible({ timeout: 10000 })
   })
 
   test('drag-dropping morning to evening within day 1 swaps the values', async ({ page }) => {
+    const panel = page.getByTestId('itinerary-tab')
     // Verify initial state
-    const morningRow = page.locator('[data-testid="plan-row-0-morning"]')
-    const eveningRow = page.locator('[data-testid="plan-row-0-evening"]')
+    const morningRow = panel.locator('[data-testid="plan-row-0-morning"]')
+    const eveningRow = panel.locator('[data-testid="plan-row-0-evening"]')
 
     await expect(morningRow.getByText('e2e-morning')).toBeVisible()
     await expect(eveningRow.getByText('e2e-evening')).toBeVisible()

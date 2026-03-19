@@ -44,7 +44,7 @@ const mockRouteData: RouteDay[] = [
   },
 ]
 
-function getDbTrainCount(routeData: Array<{ train: Array<Record<string, unknown>> }>) {
+function getDbTrainCount(routeData: RouteDay[]) {
   return routeData.flatMap((day) => day.train).filter((train) => train.start && train.end).length
 }
 
@@ -65,7 +65,7 @@ describe('ItineraryTab', () => {
   it('renders all table header columns', async () => {
     setupFetch()
     const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     expect(screen.getByText('Date')).toBeInTheDocument()
     expect(screen.getByText('Weekday')).toBeInTheDocument()
     expect(screen.getByText('Day')).toBeInTheDocument()
@@ -77,10 +77,36 @@ describe('ItineraryTab', () => {
     })
   })
 
+  it('exposes primary itinerary panel locator with Date column header', async () => {
+    setupFetch()
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
+
+    const panel = screen.getByTestId('itinerary-tab')
+    expect(within(panel).getByRole('columnheader', { name: /^date$/i })).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
+    })
+  })
+
+  it('exposes test itinerary panel locator with Date column header', async () => {
+    setupFetch()
+    const dbTrainCount = getDbTrainCount(mockRouteData)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route-test" />)
+
+    const panel = screen.getByTestId('itinerary-test-tab')
+    expect(within(panel).getByRole('columnheader', { name: /^date$/i })).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
+    })
+  })
+
   it('renders a row for every entry in initialData', async () => {
     setupFetch()
     const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     const dateCells = screen.getAllByText(/^\d{4}\/\d+\/\d+$/)
     expect(dateCells).toHaveLength(mockRouteData.length)
     await waitFor(() => {
@@ -91,7 +117,7 @@ describe('ItineraryTab', () => {
   it('renders the first day date and plan sections', async () => {
     setupFetch()
     const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     const firstDateCell = screen.getByText(mockRouteData[0].date)
     const firstRow = firstDateCell.closest('tr')
     expect(firstRow).not.toBeNull()
@@ -110,7 +136,7 @@ describe('ItineraryTab', () => {
   it('renders 2 delimiters between the 3 plan sections', async () => {
     setupFetch()
     const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
 
     const firstDateCell = screen.getByText(mockRouteData[0].date)
     const firstRow = firstDateCell.closest('tr') as HTMLElement
@@ -124,7 +150,7 @@ describe('ItineraryTab', () => {
   it('renders a dash for days with no train schedule', async () => {
     setupFetch()
     const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     const dashes = screen.getAllByText('—')
     expect(dashes.length).toBeGreaterThan(0)
     await waitFor(() => {
@@ -144,7 +170,7 @@ describe('ItineraryTab', () => {
       },
     ]
     global.fetch = jest.fn(() => new Promise(() => {})) // never resolves
-    render(<ItineraryTab initialData={dataWithTrain} />)
+    render(<ItineraryTab initialData={dataWithTrain} tabKey="route" />)
     expect(screen.getByRole('status')).toBeInTheDocument()
   })
 
@@ -168,7 +194,7 @@ describe('ItineraryTab', () => {
       ],
     })
     const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     // Find a day with a DB train (has start/end) to verify the train tag renders
     const dayWithDbTrain = mockRouteData.find((d) =>
       d.train.some((t) => t.start && t.end)
@@ -185,7 +211,7 @@ describe('ItineraryTab', () => {
   it('renders overnight location cells with merged rowspans', async () => {
     setupFetch()
     const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     const uniqueLocations = [...new Set(mockRouteData.map((d) => d.overnight))].filter(
       (l) => l !== '—'
     )
@@ -217,7 +243,7 @@ describe('ItineraryTab', () => {
       ],
     })
     const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/timetable'))
     })
@@ -228,9 +254,9 @@ describe('ItineraryTab', () => {
 
   it('displays non-DB trains as a comment without fetching', async () => {
     setupFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     const dbTrainCount = getDbTrainCount(mockRouteData)
-    const allTrains = mockRouteData.flatMap((day) => day.train) as Array<Record<string, unknown>>
+    const allTrains = mockRouteData.flatMap((day) => day.train)
     const nonDbTrain = allTrains.find((train) => !train.start || !train.end)
     if (!nonDbTrain) {
       expect(allTrains.every((train) => train.start && train.end)).toBe(true)
@@ -239,7 +265,7 @@ describe('ItineraryTab', () => {
     await waitFor(() => {
       const comments = screen.getAllByTestId('invalid-train-comment')
       const commentTexts = comments.map((c) => c.textContent)
-      expect(commentTexts.some((t) => t?.includes(nonDbTrain.train_id as string))).toBe(true)
+      expect(commentTexts.some((t) => t?.includes(nonDbTrain.train_id))).toBe(true)
     })
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
@@ -265,7 +291,7 @@ function setupFetchWithPlanUpdate(overrides: Record<string, unknown> = {}) {
 
 async function renderAndAwaitSchedules() {
   const dbTrainCount = getDbTrainCount(mockRouteData)
-  render(<ItineraryTab initialData={mockRouteData} />)
+  render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
   if (dbTrainCount > 0) {
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount))
   }
@@ -520,7 +546,7 @@ describe('ItineraryTab - TGV/EST Railway Fetching', () => {
         },
       ],
     })
-    render(<ItineraryTab initialData={tgvData} />)
+    render(<ItineraryTab initialData={tgvData} tabKey="route" />)
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('railway=french')
@@ -557,7 +583,7 @@ describe('ItineraryTab - TGV/EST Railway Fetching', () => {
         },
       ],
     })
-    render(<ItineraryTab initialData={estData} />)
+    render(<ItineraryTab initialData={estData} tabKey="route" />)
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('railway=eurostar')
@@ -594,7 +620,7 @@ describe('ItineraryTab - TGV/EST Railway Fetching', () => {
         },
       ],
     })
-    render(<ItineraryTab initialData={iceData} />)
+    render(<ItineraryTab initialData={iceData} tabKey="route" />)
     await waitFor(() => {
       const calls = (global.fetch as jest.Mock).mock.calls
       const timetableCalls = calls.filter((c: unknown[]) =>
@@ -620,7 +646,7 @@ describe('ItineraryTab - TGV/EST Railway Fetching', () => {
       },
     ]
     setupFetch({ '/api/timetable': [] })
-    render(<ItineraryTab initialData={mixedData} />)
+    render(<ItineraryTab initialData={mixedData} tabKey="route" />)
     await waitFor(() => {
       const calls = (global.fetch as jest.Mock).mock.calls
       const timetableCalls = calls.filter((c: unknown[]) =>
@@ -648,7 +674,7 @@ describe('ItineraryTab - Train Schedule Tag Presentation', () => {
 
   it('renders DB train number (with start/end) as a tag/badge', async () => {
     setupFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     await waitFor(() => {
       const tags = screen.getAllByTestId('train-tag')
       const tagTexts = tags.map((t) => t.textContent)
@@ -659,7 +685,7 @@ describe('ItineraryTab - Train Schedule Tag Presentation', () => {
 
   it('renders non-DB train number (no start/end) as a dash with a comment, NOT as a tag', async () => {
     setupFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     const dbTrainCount = getDbTrainCount(mockRouteData)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount))
 
@@ -678,7 +704,7 @@ describe('ItineraryTab - Train Schedule Tag Presentation', () => {
 
   it('non-DB train comment appears at the bottom of the cell, after the dash', async () => {
     setupFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     const dbTrainCount = getDbTrainCount(mockRouteData)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount))
 
@@ -705,7 +731,7 @@ describe('ItineraryTab - Train Schedule Tag Presentation', () => {
       },
     ]
     setupFetch({ '/api/timetable': [] })
-    render(<ItineraryTab initialData={mixedData} />)
+    render(<ItineraryTab initialData={mixedData} tabKey="route" />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1))
 
     const tags = screen.getAllByTestId('train-tag')
@@ -740,7 +766,7 @@ describe('ItineraryTab - Train Schedule Tag Presentation', () => {
         },
       ],
     })
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     // Wait until schedule has fully loaded (station names must be present)
     await waitFor(() => {
       expect(screen.getByText('Augsburg Hbf')).toBeInTheDocument()
@@ -770,7 +796,7 @@ describe('ItineraryTab - Train Schedule Tag Presentation', () => {
         },
       ],
     })
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     await waitFor(() => {
       expect(screen.getByText('Augsburg Hbf')).toBeInTheDocument()
       expect(screen.getByText('07:14')).toBeInTheDocument()
@@ -800,7 +826,7 @@ describe('ItineraryTab - Train Schedule Tag Presentation', () => {
         },
       ],
     })
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     await waitFor(() => {
       const grid = document.querySelector('[data-testid="schedule-grid"]')
       expect(grid).not.toBeNull()
@@ -1388,19 +1414,19 @@ describe('ItineraryTab - Export Feature', () => {
 
   it('T1-S3-12: data-testid="export-fab" is in DOM (FAB replaces inline export-button)', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     expect(screen.getByTestId('export-fab')).toBeInTheDocument()
   })
 
   it('T1-S3-13: data-testid="export-button" is NOT in DOM (inline toolbar removed)', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     expect(screen.queryByTestId('export-button')).not.toBeInTheDocument()
   })
 
   it('T1-S3-14: clicking export-fab opens picker (export-format-picker visible, pdf disabled)', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
 
     expect(screen.getByTestId('export-format-picker')).toBeInTheDocument()
@@ -1412,13 +1438,13 @@ describe('ItineraryTab - Export Feature', () => {
 
   it('T1-S3-15: export-fab disabled when initialData=[]', () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={[]} />)
+    render(<ItineraryTab initialData={[]} tabKey="route" />)
     expect(screen.getByTestId('export-fab')).toBeDisabled()
   })
 
   it('clicking Markdown triggers buildMarkdownTable and saveFile with .md filename', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
     fireEvent.click(screen.getByTestId('export-md'))
     await waitFor(() => {
@@ -1431,7 +1457,7 @@ describe('ItineraryTab - Export Feature', () => {
 
   it('clicking Markdown closes the picker after export', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
     fireEvent.click(screen.getByTestId('export-md'))
     await waitFor(() => {
@@ -1441,7 +1467,7 @@ describe('ItineraryTab - Export Feature', () => {
 
   it('clicking PDF button does NOT trigger buildPdfBlob or saveFile (PDF export temporarily disabled)', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
     // Attempt to click the (disabled) PDF button
     fireEvent.click(screen.getByTestId('export-pdf'))
@@ -1455,14 +1481,14 @@ describe('ItineraryTab - Export Feature', () => {
 
   it('PDF button is disabled in the picker (PDF export temporarily disabled)', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
     expect(screen.getByTestId('export-pdf')).toBeDisabled()
   })
 
   it('Markdown export works independently of PDF being disabled', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
 
     // Markdown should work without any PDF involvement
     fireEvent.click(screen.getByTestId('export-fab'))
@@ -1479,7 +1505,7 @@ describe('ItineraryTab - Export Feature', () => {
     ;(saveFile as jest.Mock).mockRejectedValueOnce(
       Object.assign(new DOMException('cancelled', 'AbortError'))
     )
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
     fireEvent.click(screen.getByTestId('export-md'))
     await waitFor(() => {
@@ -1492,7 +1518,7 @@ describe('ItineraryTab - Export Feature', () => {
 
   it('T1-S1-11: after Markdown success, export-success-toast is shown', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
     fireEvent.click(screen.getByTestId('export-md'))
     await waitFor(() => {
@@ -1502,7 +1528,7 @@ describe('ItineraryTab - Export Feature', () => {
 
   it('T1-S1-12: clicking PDF button does NOT show success toast (PDF export temporarily disabled)', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
     fireEvent.click(screen.getByTestId('export-pdf'))
     await new Promise((r) => setTimeout(r, 200))
@@ -1514,7 +1540,7 @@ describe('ItineraryTab - Export Feature', () => {
     ;(saveFile as jest.Mock).mockRejectedValueOnce(
       Object.assign(new DOMException('cancelled', 'AbortError'))
     )
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
     fireEvent.click(screen.getByTestId('export-md'))
     await waitFor(() => {
@@ -1525,7 +1551,7 @@ describe('ItineraryTab - Export Feature', () => {
 
   it('T1-S1-14: no toast and no error banner when PDF is clicked (PDF export temporarily disabled — no-op)', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
     fireEvent.click(screen.getByTestId('export-pdf'))
     await new Promise((r) => setTimeout(r, 200))
@@ -1535,7 +1561,7 @@ describe('ItineraryTab - Export Feature', () => {
 
   it('T1-S1-15: toast disappears after clicking dismiss button', async () => {
     setupExportFetch()
-    render(<ItineraryTab initialData={mockRouteData} />)
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     fireEvent.click(screen.getByTestId('export-fab'))
     fireEvent.click(screen.getByTestId('export-md'))
     await waitFor(() => {
@@ -1544,6 +1570,263 @@ describe('ItineraryTab - Export Feature', () => {
     fireEvent.click(screen.getByTestId('export-toast-dismiss'))
     await waitFor(() => {
       expect(screen.queryByTestId('export-success-toast')).not.toBeInTheDocument()
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stay Edit feature tests (editable-itinerary-stays)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Mock data with 2 distinct stays: Paris (2 nights) → Cologne (1 night) */
+const stayMockData: RouteDay[] = [
+  {
+    date: '2026/9/25',
+    weekDay: '星期五',
+    dayNum: 1,
+    overnight: 'Paris',
+    plan: { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' },
+    train: [],
+  },
+  {
+    date: '2026/9/26',
+    weekDay: '星期六',
+    dayNum: 2,
+    overnight: 'Paris',
+    plan: { morning: 'Morning2', afternoon: 'Afternoon2', evening: 'Evening2' },
+    train: [],
+  },
+  {
+    date: '2026/9/27',
+    weekDay: '星期日',
+    dayNum: 3,
+    overnight: 'Cologne',
+    plan: { morning: 'Morning3', afternoon: 'Afternoon3', evening: 'Evening3' },
+    train: [],
+  },
+]
+
+function setupFetchForStayEdit(stayUpdateResponse?: { ok: boolean; body: unknown }) {
+  const resp = stayUpdateResponse ?? { ok: true, body: { updatedDays: stayMockData } }
+  global.fetch = jest.fn((url: RequestInfo | URL) => {
+    const path = url.toString().split('?')[0].replace('http://localhost', '')
+    if (path === '/api/stay-update') {
+      return Promise.resolve({
+        json: () => Promise.resolve(resp.body),
+        ok: resp.ok,
+        status: resp.ok ? 200 : 500,
+      } as Response)
+    }
+    if (path === '/api/plan-update') {
+      return Promise.resolve({
+        json: () => Promise.resolve({ success: true }),
+        ok: true,
+        status: 200,
+      } as Response)
+    }
+    // timetable and others
+    return Promise.resolve({
+      json: () => Promise.resolve(null),
+      ok: true,
+      status: 200,
+    } as Response)
+  })
+}
+
+describe('ItineraryTab - Stay Edit Feature', () => {
+  afterEach(() => jest.restoreAllMocks())
+
+  // ── Rendering: edit affordance ──────────────────────────────────────────
+
+  it('renders pencil buttons for non-last stays', async () => {
+    setupFetchForStayEdit()
+    render(<ItineraryTab initialData={stayMockData} tabKey="route" />)
+    // Paris is not the last stay → should have pencil button
+    await waitFor(() => {
+      const pencilBtns = screen.getAllByRole('button', { name: /edit stay duration/i })
+      expect(pencilBtns.length).toBeGreaterThan(0)
+    })
+  })
+
+  it('does NOT render a pencil button for the last stay (Cologne)', async () => {
+    setupFetchForStayEdit()
+    render(<ItineraryTab initialData={stayMockData} tabKey="route" />)
+    await waitFor(() => {
+      // Only Paris has a pencil button; Cologne is the last stay
+      const pencilBtns = screen.queryAllByRole('button', { name: /edit stay duration for Cologne/i })
+      expect(pencilBtns).toHaveLength(0)
+    })
+  })
+
+  it('pencil button for Paris has data-testid="stay-edit-btn-0"', async () => {
+    setupFetchForStayEdit()
+    render(<ItineraryTab initialData={stayMockData} tabKey="route" />)
+    await waitFor(() => {
+      expect(screen.getByTestId('stay-edit-btn-0')).toBeInTheDocument()
+    })
+  })
+
+  // ── Editing interaction ─────────────────────────────────────────────────
+
+  it('clicking pencil for Paris opens the edit input', async () => {
+    setupFetchForStayEdit()
+    render(<ItineraryTab initialData={stayMockData} tabKey="route" />)
+    await waitFor(() => screen.getByTestId('stay-edit-btn-0'))
+    await userEvent.click(screen.getByTestId('stay-edit-btn-0'))
+    expect(screen.getByTestId('stay-edit-input-0')).toBeInTheDocument()
+  })
+
+  it('POSTs to /api/stay-update with tabKey, stayIndex, newNights on confirm', async () => {
+    // Updated days after shrink: Paris=1, Cologne=2
+    const updatedDays: RouteDay[] = [
+      { ...stayMockData[0], overnight: 'Paris' },
+      { ...stayMockData[1], overnight: 'Cologne' },
+      { ...stayMockData[2], overnight: 'Cologne' },
+    ]
+    setupFetchForStayEdit({ ok: true, body: { updatedDays } })
+    render(<ItineraryTab initialData={stayMockData} tabKey="route" />)
+    await waitFor(() => screen.getByTestId('stay-edit-btn-0'))
+
+    await userEvent.click(screen.getByTestId('stay-edit-btn-0'))
+    const input = screen.getByTestId('stay-edit-input-0')
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.click(screen.getByTestId('stay-edit-confirm-0'))
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/stay-update',
+        expect.objectContaining({
+          method: 'POST',
+          keepalive: true,
+          body: expect.stringContaining('"tabKey":"route"'),
+        })
+      )
+    })
+    await waitFor(() => {
+      const calls = (global.fetch as jest.Mock).mock.calls
+      const stayCall = calls.find((c: unknown[]) => (c[0] as string).includes('/api/stay-update'))
+      const body = JSON.parse(stayCall![1].body)
+      expect(body.tabKey).toBe('route')
+      expect(body.stayIndex).toBe(0)
+      expect(body.newNights).toBe(1)
+    })
+  })
+
+  it('POSTs with tabKey="route-test" when tabKey prop is "route-test"', async () => {
+    const updatedDays: RouteDay[] = [
+      { ...stayMockData[0], overnight: 'Paris' },
+      { ...stayMockData[1], overnight: 'Cologne' },
+      { ...stayMockData[2], overnight: 'Cologne' },
+    ]
+    setupFetchForStayEdit({ ok: true, body: { updatedDays } })
+    render(<ItineraryTab initialData={stayMockData} tabKey="route-test" />)
+    await waitFor(() => screen.getByTestId('stay-edit-btn-0'))
+
+    await userEvent.click(screen.getByTestId('stay-edit-btn-0'))
+    const input = screen.getByTestId('stay-edit-input-0')
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.click(screen.getByTestId('stay-edit-confirm-0'))
+
+    await waitFor(() => {
+      const calls = (global.fetch as jest.Mock).mock.calls
+      const stayCall = calls.find((c: unknown[]) => (c[0] as string).includes('/api/stay-update'))
+      const body = JSON.parse(stayCall![1].body)
+      expect(body.tabKey).toBe('route-test')
+    })
+  })
+
+  // ── Optimistic update ───────────────────────────────────────────────────
+
+  it('applies optimistic update immediately before server response', async () => {
+    let resolveStayUpdate: (value: Response) => void
+    global.fetch = jest.fn((url: RequestInfo | URL) => {
+      const path = url.toString().split('?')[0].replace('http://localhost', '')
+      if (path === '/api/stay-update') {
+        return new Promise<Response>((resolve) => { resolveStayUpdate = resolve })
+      }
+      return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
+    })
+
+    render(<ItineraryTab initialData={stayMockData} tabKey="route" />)
+    await waitFor(() => screen.getByTestId('stay-edit-btn-0'))
+
+    await userEvent.click(screen.getByTestId('stay-edit-btn-0'))
+    const input = screen.getByTestId('stay-edit-input-0')
+    fireEvent.change(input, { target: { value: '1' } })
+
+    // Confirm — optimistic update happens immediately
+    fireEvent.click(screen.getByTestId('stay-edit-confirm-0'))
+
+    // Edit input should be gone (confirming closed it)
+    await waitFor(() => {
+      expect(screen.queryByTestId('stay-edit-input-0')).not.toBeInTheDocument()
+    })
+
+    // Clean up
+    resolveStayUpdate!({
+      json: () => Promise.resolve({ updatedDays: stayMockData }),
+      ok: true,
+      status: 200,
+    } as Response)
+  })
+
+  // ── Revert on API failure ───────────────────────────────────────────────
+
+  it('reverts to original values and shows error toast on API 500', async () => {
+    setupFetchForStayEdit({ ok: false, body: { error: 'Server error' } })
+    render(<ItineraryTab initialData={stayMockData} tabKey="route" />)
+    await waitFor(() => screen.getByTestId('stay-edit-btn-0'))
+
+    await userEvent.click(screen.getByTestId('stay-edit-btn-0'))
+    const input = screen.getByTestId('stay-edit-input-0')
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.click(screen.getByTestId('stay-edit-confirm-0'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('stay-edit-error-toast')).toBeInTheDocument()
+    })
+  })
+
+  it('reverts to original state on network error', async () => {
+    global.fetch = jest.fn((url: RequestInfo | URL) => {
+      const path = url.toString().split('?')[0].replace('http://localhost', '')
+      if (path === '/api/stay-update') {
+        return Promise.reject(new Error('Network error'))
+      }
+      return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
+    })
+
+    render(<ItineraryTab initialData={stayMockData} tabKey="route" />)
+    await waitFor(() => screen.getByTestId('stay-edit-btn-0'))
+
+    await userEvent.click(screen.getByTestId('stay-edit-btn-0'))
+    const input = screen.getByTestId('stay-edit-input-0')
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.click(screen.getByTestId('stay-edit-confirm-0'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('stay-edit-error-toast')).toBeInTheDocument()
+    })
+  })
+
+  // ── plan-update includes tabKey ─────────────────────────────────────────
+
+  it('plan-update calls include tabKey in the request body', async () => {
+    setupFetchForStayEdit()
+    render(<ItineraryTab initialData={stayMockData} tabKey="route" />)
+
+    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
+    const textarea = await screen.findByRole('textbox')
+    await userEvent.clear(textarea)
+    await userEvent.type(textarea, 'New plan')
+    fireEvent.blur(textarea)
+
+    await waitFor(() => {
+      const calls = (global.fetch as jest.Mock).mock.calls
+      const planCall = calls.find((c: unknown[]) => (c[0] as string).includes('/api/plan-update'))
+      expect(planCall).toBeDefined()
+      const body = JSON.parse(planCall![1].body)
+      expect(body.tabKey).toBe('route')
     })
   })
 })

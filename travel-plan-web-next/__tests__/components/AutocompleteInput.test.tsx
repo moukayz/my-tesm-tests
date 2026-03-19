@@ -45,6 +45,13 @@ describe('AutocompleteInput', () => {
     expect(screen.queryByText('TGV 6201')).not.toBeInTheDocument()
   })
 
+  it('does not show dropdown when there are no matches for typed input', () => {
+    render(<AutocompleteInput {...defaultProps} value="ICE" options={[]} />)
+    fireEvent.focus(screen.getByRole('textbox'))
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+    expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
+  })
+
   it('is case-insensitive when filtering', () => {
     render(<AutocompleteInput {...defaultProps} value="ice" />)
     fireEvent.focus(screen.getByRole('textbox'))

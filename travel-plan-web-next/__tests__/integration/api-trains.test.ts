@@ -6,7 +6,7 @@ jest.mock('../../app/lib/pgdb', () => ({
 }))
 
 import { NextRequest } from 'next/server'
-import { GET } from '../../app/api/trains/route'
+import { GET, __resetTrainsCacheForTests } from '../../app/api/trains/route'
 import { pgQuery } from '../../app/lib/pgdb'
 
 const mockPgQuery = pgQuery as jest.Mock
@@ -20,6 +20,7 @@ function makeRequest(params: Record<string, string> = {}) {
 describe('GET /api/trains', () => {
   beforeEach(() => {
     mockPgQuery.mockReset()
+    __resetTrainsCacheForTests()
   })
 
   it('returns the train list with railway field from all sources', async () => {
@@ -76,14 +77,103 @@ describe('GET /api/trains', () => {
   })
 
   it('returns partial results when one source fails', async () => {
-    mockPgQuery
-      .mockResolvedValueOnce([{ train_name: 'ICE 905', train_type: 'ICE' }])    // german ok
-      .mockRejectedValueOnce(new Error('French data unavailable'))
-      .mockRejectedValueOnce(new Error('Eurostar data unavailable'))
+    mockPgQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('de_db_train_latest_stops')) {
+        return [{ train_name: 'ICE 905', train_type: 'ICE' }]
+      }
+      if (sql.includes("split_part(trip_id, ':', 1) = 'fr'")) {
+        throw new Error('French data unavailable')
+      }
+      if (sql.includes("split_part(trip_id, ':', 1) = 'eu'")) {
+        throw new Error('Eurostar data unavailable')
+      }
+      return []
+    })
+
     const res = await GET(makeRequest())
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data).toEqual([{ train_name: 'ICE 905', train_type: 'ICE', railway: 'german' }])
+  })
+
+  it('retries transient german query failures for ?railway=german', async () => {
+    mockPgQuery
+      .mockRejectedValueOnce(new Error('connection warming up'))
+      .mockResolvedValueOnce([{ train_name: 'ICE 905', train_type: 'ICE' }])
+
+    const res = await GET(makeRequest({ railway: 'german' }))
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([
+      { train_name: 'ICE 905', train_type: 'ICE', railway: 'german' },
+    ])
+    expect(mockPgQuery).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries transient source failures in combined mode', async () => {
+    let frenchAttempts = 0
+    mockPgQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('de_db_train_latest_stops')) {
+        return [{ train_name: 'ICE 905', train_type: 'ICE' }]
+      }
+      if (sql.includes("split_part(trip_id, ':', 1) = 'fr'")) {
+        frenchAttempts += 1
+        if (frenchAttempts === 1) {
+          throw new Error('temporary french source failure')
+        }
+        return [{ train_name: 'TGV 8088', train_type: 'SNCF' }]
+      }
+      if (sql.includes("split_part(trip_id, ':', 1) = 'eu'")) {
+        return [{ train_name: 'EST 9423', train_type: 'Eurostar' }]
+      }
+      return []
+    })
+
+    const res = await GET(makeRequest())
+
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data).toContainEqual({ train_name: 'ICE 905', train_type: 'ICE', railway: 'german' })
+    expect(data).toContainEqual({ train_name: 'TGV 8088', train_type: 'SNCF', railway: 'french' })
+    expect(data).toContainEqual({ train_name: 'EST 9423', train_type: 'Eurostar', railway: 'eurostar' })
+    expect(mockPgQuery).toHaveBeenCalledTimes(4)
+  })
+
+  it('serves combined train list from in-memory cache within TTL', async () => {
+    mockPgQuery
+      .mockResolvedValueOnce([{ train_name: 'ICE 905', train_type: 'ICE' }])
+      .mockResolvedValueOnce([{ train_name: 'TGV 8088', train_type: 'SNCF' }])
+      .mockResolvedValueOnce([{ train_name: 'EST 9423', train_type: 'Eurostar' }])
+
+    const first = await GET(makeRequest())
+    expect(first.status).toBe(200)
+    const firstData = await first.json()
+    expect(firstData).toHaveLength(3)
+
+    const second = await GET(makeRequest())
+    expect(second.status).toBe(200)
+    const secondData = await second.json()
+    expect(secondData).toEqual(firstData)
+
+    expect(mockPgQuery).toHaveBeenCalledTimes(3)
+  })
+
+  it('serves ?railway=german from in-memory cache within TTL', async () => {
+    mockPgQuery.mockResolvedValueOnce([{ train_name: 'ICE 905', train_type: 'ICE' }])
+
+    const first = await GET(makeRequest({ railway: 'german' }))
+    expect(first.status).toBe(200)
+    expect(await first.json()).toEqual([
+      { train_name: 'ICE 905', train_type: 'ICE', railway: 'german' },
+    ])
+
+    const second = await GET(makeRequest({ railway: 'german' }))
+    expect(second.status).toBe(200)
+    expect(await second.json()).toEqual([
+      { train_name: 'ICE 905', train_type: 'ICE', railway: 'german' },
+    ])
+
+    expect(mockPgQuery).toHaveBeenCalledTimes(1)
   })
 
   it('?railway=german returns only german trains', async () => {

@@ -67,7 +67,7 @@ No feature-wise runbooks are required.
     - Call related developers only when test errors are related to them (e.g., do not call backend developers for an obvious UI bug).
     - If root causes are not obvious, call both frontend and backend developers to investigate and fix issues in their own areas.
     - IMPORTANT: tell developers to modify only their own projects/docs (e.g., do not let backend developer modify frontend code).
-    - If you call only one developer, let it run e2e tests again to verify the fix; otherwise tell developers not to run e2e tests and let QA re-run after fixes.
+    - If you call only one developer, make sure to **let itself instead of QA run e2e tests again** to verify the fix; otherwise **tell developers not to run e2e tests ** and let QA re-run after fixes.
 - [ ] After implementation, tests, and feature docs are complete:
     - Ask doc owners to update relevant global docs only if the feature materially changes them (interfaces/contracts, HLD/LLD/architecture, or operational behavior).
 - [ ] Report project results (success or failure).

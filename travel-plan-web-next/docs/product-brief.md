@@ -35,6 +35,12 @@ Travel Plan Web is a personal, authenticated web app for planning and reviewing 
 - Changes persisted via `POST /api/plan-update` -> Upstash Redis (production) / local JSON (dev).
 - Activity text supports Markdown.
 - **Export to files:** "Export to files…" button triggers a format picker (Markdown or PDF); purely client-side download via File System Access API with anchor-download fallback. Exported table omits the Weekday column, combines time-of-day activity sections into a single Plan cell, and includes train numbers only (no timetable detail). See `docs/itinerary-export/PRODUCT_BRIEF.md`.
+- **Editable overnight stays** *(planned)*: each city-stay block (non-last) exposes an edit control; shrinking a stay reassigns leftover days to the next stay; extending borrows from the next stay. Day total is conserved. See `docs/editable-itinerary-stays/feature-analysis.md`.
+
+### Itinerary (Test) *(authenticated only, planned)*
+- Duplicate of the Itinerary tab backed by a separate persistence key (`route-test` in Redis / separate JSON file in dev).
+- Intended as a safe sandbox for validating the editable-stays feature without affecting live itinerary data.
+- All editable-stays behaviours are present; data is independent from the original Itinerary tab.
 
 ### Train Schedule JSON Editor *(authenticated only)*
 - Pencil icon on each train row opens a modal with the raw `TrainRoute[]` JSON for that day.

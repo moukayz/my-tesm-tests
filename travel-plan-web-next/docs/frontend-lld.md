@@ -23,18 +23,20 @@ RSC to client props are limited to simple values such as `isLoggedIn: boolean` a
 
 ## TravelPlan
 
+- Four tabs when authenticated: **Itinerary** (`itinerary`), **Itinerary (Test)** (`itinerary-test`), **Train Delays** (`delays`), **Timetable** (`timetable`).
 - `tab` defaults to `itinerary` when logged in, otherwise `delays`.
 - Tab panels stay mounted and are shown/hidden with Tailwind `hidden`. This preserves loaded data, selected options, and in-progress UI state across tab switches.
-- `ItineraryTab` is rendered only when `isLoggedIn && initialRouteData` are both truthy.
-- The Itinerary tab button is hidden for unauthenticated users.
+- Both `ItineraryTab` instances are rendered only when `isLoggedIn && initialRouteData` are both truthy; both tab buttons hidden for unauthenticated users.
+- Each `ItineraryTab` receives a distinct `tabKey` prop (`"route"` or `"route-test"`) that is forwarded to all API calls.
 
 ## ItineraryTab
 
-Receives `initialData: RouteDay[]`.
+Receives `initialData: RouteDay[]` and `tabKey: 'route' | 'route-test'` (required).
 
 - On mount, fetches timetable details for DB-queryable trains and caches results in `trainSchedules`.
 - Non-DB trains display raw `train_id` only.
-- `planOverrides` is the client-side write layer: `planOverrides[dayIndex] ?? initialData[dayIndex].plan`.
+- `days` is the mutable itinerary overlay (initialized from `initialData`). Stay edits update `days`; optimistic reverts restore the snapshot.
+- `planOverrides` is the client-side write layer: `planOverrides[dayIndex] ?? days[dayIndex].plan`.
 - `initialData` is never mutated in place.
 
 ### Inline Edit
@@ -98,7 +100,8 @@ Parent components keep separate `input` and `selected` state so API calls happen
 
 | Component | Important states |
 |---|---|
-| `ItineraryTab` | timetable loading, edit mode, DnD drag visuals, save error, JSON modal open/closed |
+| `ItineraryTab` | timetable loading, edit mode, DnD drag visuals, save error, JSON modal open/closed, stay edit mode, stay saving, stay edit error toast |
+| `StayEditControl` | hidden (last stay), read (pencil visible), editing (input form), validating (inline error), saving (confirm disabled) |
 | `TrainDelayTab` | trains loading, stations loading, stats loading, error, empty, success |
 | `TrainTimetableTab` | trains loading, timetable loading, error, empty, success |
 | `AutocompleteInput` | open, closed, disabled |
@@ -121,7 +124,8 @@ Known gaps:
 ## State Ownership
 
 - All frontend state is local `useState`; there is no global store.
-- `planOverrides` is the only mutable overlay on top of server-provided itinerary data.
+- `days` and `planOverrides` are the two mutable overlays on top of server-provided itinerary data in `ItineraryTab`. `days` is replaced atomically by the `stay-update` server response; `planOverrides` applies inline text edits on top of `days`.
+- Each `ItineraryTab` instance owns its state independently — no sharing between the `route` and `route-test` instances.
 - `AutocompleteInput` owns only dropdown visibility; parents own values and selections.
 
 ## Feature-Specific LLD Addenda
@@ -129,6 +133,7 @@ Known gaps:
 | Feature | Document |
 |---------|----------|
 | Itinerary Export (`itinerary-export`) | [`docs/itinerary-export/LLD.md`](./itinerary-export/LLD.md) |
+| Editable Itinerary Stays (`editable-itinerary-stays`) | [`docs/editable-itinerary-stays/frontend-design.md`](./editable-itinerary-stays/frontend-design.md) |
 
 ---
 

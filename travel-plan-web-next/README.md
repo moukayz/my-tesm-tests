@@ -11,7 +11,9 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
   - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
   - **Multi-railway timetable** — Train Schedule column auto-detects TGV (French) and EST (Eurostar) trains from the train ID prefix and fetches from the correct railway data source; German trains remain the default
   - **Export to files** — A floating action button (FAB, fixed at viewport mid-right) lets authenticated users download their itinerary as Markdown (`.md`) or PDF (`.pdf`). Uses the File System Access API where available (Chrome/Edge native save dialog), with a silent anchor-download fallback for Firefox/Safari. PDF generation is client-side only (jsPDF + jspdf-autotable, dynamically imported). CJK characters (Chinese/Japanese/Korean) render correctly in PDF via a lazily-loaded NotoSansSC font subset. A success toast confirms each export. Exported columns: Date, Day, Overnight, Plan, Train Schedule (Weekday omitted).
-- Changes persist via `POST /api/plan-update` → `RouteStore` (file locally, Upstash Redis in production)
+  - **Editable stay duration** — each non-last overnight city block shows a pencil icon; clicking it opens an inline input to set the number of nights. Reducing a stay by N days transfers those days to the following stay; extending borrows from the next. Day-conservation invariant is enforced both client-side (pre-flight) and server-side. Optimistic update with revert-on-failure and an error toast.
+- **Itinerary (Test) tab** — sandboxed duplicate of the Itinerary tab backed by an independent persistence key (`route-test`). Edits here never affect the main Itinerary data. Both tabs carry full stay-editing capability.
+- Changes persist via `POST /api/plan-update` → `RouteStore` (file locally, Upstash Redis in production); stay changes persist via `POST /api/stay-update`
 - Server-side backend-selection logs show which persistence services are active (FileRouteStore vs Upstash Redis, local `pg` pool vs Neon serverless)
 - **Train Timetable tab** — unified search across German (DB), French (SNCF), and Eurostar trains; type any train ID and the correct data source is queried automatically — no railway selector needed
 - **Train Delays tab** — search any train and station to see delay statistics (avg, median, p75/p90/p95, max) and a daily trend chart over the last 3 months
@@ -54,19 +56,22 @@ travel-plan-web-next/
 │   │   ├── db.ts                # DuckDB singleton + query helper + convertBigInt
 │   │   ├── pgdb.ts              # pgQuery: pg.Pool locally, @neondatabase/serverless on Vercel
 │   │   ├── itinerary.ts         # RouteDay/ProcessedDay types, getOvernightColor, processItinerary, getRailwayFromTrainId
-│   │   ├── routeStore.ts        # RouteStore interface + FileRouteStore + UpstashRouteStore + getRouteStore()
+│   │   ├── routeStore.ts        # RouteStore interface + FileRouteStore + UpstashRouteStore + getRouteStore(tabKey)
+│   │   ├── stayUtils.ts         # Pure stay utilities: getStays, getStaysWithMeta, validateStayEdit, applyStayEdit, applyStayEditOptimistic
 │   │   └── trainDelay.ts        # DelayStats/TrendPoint types, formatDay, buildStatItems
 │   └── api/
 │       ├── auth/[...nextauth]/route.ts  # NextAuth.js catch-all handler (GET + POST)
 │       ├── trains/route.ts      # GET /api/trains
 │       ├── stations/route.ts    # GET /api/stations?train=<name>
 │       ├── delay-stats/route.ts # GET /api/delay-stats?train=<name>&station=<name>
-│       ├── plan-update/route.ts # POST /api/plan-update (auth required)
+│       ├── plan-update/route.ts # POST /api/plan-update (auth required; tabKey param)
+│       ├── stay-update/route.ts # POST /api/stay-update (auth required; editable stays)
 │       └── train-stops/route.ts # GET /api/train-stops
 ├── components/
 │   ├── AuthHeader.tsx           # Login/logout header with session state
-│   ├── TravelPlan.tsx           # Tab switcher (keeps both tabs mounted)
-│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic, inline editing, drag-and-drop, export
+│   ├── TravelPlan.tsx           # Tab switcher: Itinerary, Itinerary (Test), Train Delays, Timetable
+│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic, inline editing, drag-and-drop, export, stay editing
+│   ├── StayEditControl.tsx      # Inline stay-duration edit widget (pencil → number input → confirm/cancel)
 │   ├── ExportToolbar.tsx        # Legacy export toolbar (superseded by FloatingExportButton)
 │   ├── FloatingExportButton.tsx # Floating action button (viewport-fixed, portal to body) for export
 │   ├── ExportSuccessToast.tsx   # Auto-dismissing success toast after file export
@@ -81,6 +86,8 @@ travel-plan-web-next/
 │   │   ├── db.test.ts              # convertBigInt
 │   │   ├── trainDelay.test.ts      # formatDay, buildStatItems
 │   │   ├── routeStore.test.ts      # FileRouteStore + UpstashRouteStore
+│   │   ├── routeStore.tabKey.test.ts  # tabKey dual-key isolation, updateDays, auto-seed
+│   │   ├── stayUtils.test.ts       # getStays, validateStayEdit, applyStayEdit, StayEditError
 │   │   └── pgdb.test.ts            # pgQuery local (pg.Pool) + Vercel (neon) paths
 │   ├── middleware/
 │   │   └── login-rate-limit.test.ts  # Edge middleware 429 behaviour
@@ -92,16 +99,19 @@ travel-plan-web-next/
 │   │   ├── api-stations.test.ts
 │   │   ├── api-delay-stats.test.ts
 │   │   ├── api-plan-update.test.ts
+│   │   ├── api-plan-update-tabkey.test.ts  # tabKey extension tests (backward compat + route-test)
+│   │   ├── api-stay-update.test.ts         # POST /api/stay-update — all error paths + both tabKeys
 │   │   └── api-train-stops.test.ts
 │   └── components/
 │       ├── AuthHeader.test.tsx          # user prop + signOut mock
 │       ├── AuthErrorPage.test.tsx       # Access denied page + countdown redirect
 │       ├── LoginPage.test.tsx           # Google sign-in button
 │       ├── AutocompleteInput.test.tsx
-│       ├── ItineraryTab.test.tsx        # includes export integration tests
+│       ├── ItineraryTab.test.tsx        # includes export integration tests + stay edit tests
+│       ├── StayEditControl.test.tsx     # render, validation, confirm/cancel, isSaving, a11y, data-testid
 │       ├── ExportToolbar.test.tsx       # button states, disabled tooltip, aria attrs
 │       ├── ExportFormatPicker.test.tsx  # format buttons, Escape/outside-click dismiss, spinner, error
-│       └── TravelPlan.test.tsx
+│       └── TravelPlan.test.tsx          # includes dual-tab (Itinerary/Itinerary (Test)) assertions
 ├── data/
 │   └── route.json               # Static trip itinerary data (16 days)
 ├── next.config.ts
@@ -123,7 +133,19 @@ travel-plan-web-next/
 
 ### Frontend
 
-`TravelPlan` manages the active tab and always renders both `ItineraryTab` and `TrainDelayTab`, toggling Tailwind's `hidden` class to show/hide them. This keeps component state alive across tab switches.
+`TravelPlan` manages the active tab and renders all four tab panels simultaneously (`itinerary`, `itinerary-test`, `delays`, `timetable`), toggling Tailwind's `hidden` class to show/hide them. This keeps component state alive across tab switches. Both `ItineraryTab` instances receive a `tabKey` prop (`"route"` or `"route-test"`) that is forwarded in every API call body to isolate their data. The home route (`app/page.tsx`) is explicitly `force-dynamic` so reloads always re-read the latest itinerary state after stay/plan edits.
+
+### Editable Stays
+
+`ItineraryTab` owns a `days: RouteDay[]` state (initialized from `initialData`). Overnight cells for non-last stays render a `StayEditControl` component — a pencil icon that opens an inline number input. On confirm:
+
+1. A snapshot of `days` is taken.
+2. An optimistic update is applied via `applyStayEditOptimistic` (from `app/lib/stayUtils.ts`).
+3. `POST /api/stay-update` is called with `{ tabKey, stayIndex, newNights }`.
+4. On success, `days` is replaced with the server-authoritative `updatedDays` response.
+5. On failure, `days` is restored from the snapshot and an error toast is shown.
+
+`StayEditControl` performs client-side pre-flight validation (min 1 night; next stay not exhausted) before calling `onConfirm`. The server performs the same checks authoritatively.
 
 `AutocompleteInput` is a controlled component that accepts an `options` string array and filters it case-insensitively against the current input value. It uses `onMouseDown` (not `onClick`) for list item selection so the event fires before the input's `onBlur`, preventing the dropdown from closing before a selection registers.
 
@@ -140,7 +162,7 @@ Each plan row (Morning / Afternoon / Evening) supports two interaction modes:
 
 Google OAuth via NextAuth.js v5 (Auth.js). `auth.ts` configures the Google provider and an optional `ALLOWED_EMAIL` allow-list. The NextAuth catch-all handler at `GET|POST /api/auth/[...nextauth]` manages the OAuth callback, session cookies, and CSRF tokens automatically.
 
-`POST /api/plan-update` calls `auth()` server-side and returns 401 if no authenticated user is found.
+`POST /api/plan-update` and `POST /api/stay-update` both call `auth()` server-side and return 401 if no authenticated user is found.
 
 The login page (`/login`) renders a single "Sign in with Google" button that calls `signIn('google', { callbackUrl: '/' })` from `next-auth/react`.
 
@@ -356,7 +378,7 @@ npm run test:e2e:verbose  # full per-test output
 npm run test:e2e:ui       # interactive Playwright UI
 ```
 
-355 Jest tests across 25 suites + 70 Playwright E2E tests covering unit logic, API route integration, component behaviour, and Google OAuth auth (including session injection for authenticated flows).
+539 Jest tests across 33 suites + 70 Playwright E2E tests covering unit logic, API route integration, component behaviour, and Google OAuth auth (including session injection for authenticated flows). New tests include: `stayUtils` pure-domain tests (32), `routeStore` tabKey isolation tests (26), `api-stay-update` integration tests (22), and `api-plan-update` tabKey extension tests (7).
 
 ### Merge GTFS timetables
 
@@ -469,9 +491,39 @@ Returns all stations for a given train, ordered by their position on the line. Q
 
 Persists an updated plan object for a single day via `RouteStore` (file locally, Upstash Redis in production).
 
-**Body:** `{ "dayIndex": 0, "plan": { "morning": "...", "afternoon": "...", "evening": "..." } }`
+**Body:** `{ "tabKey"?: "route" | "route-test", "dayIndex": 0, "plan": { "morning": "...", "afternoon": "...", "evening": "..." } }`
 
-**Response:** `200` with the updated day object, `400` for validation errors, `500` for file errors.
+`tabKey` is optional and defaults to `"route"` for backward compatibility. Invalid `tabKey` values return `400 { error: "invalid_tab_key" }`.
+
+**Response:** `200` with the updated day object, `400` for validation errors, `500` for store errors.
+
+---
+
+### `POST /api/stay-update`
+
+Adjusts the stay boundary between two adjacent city blocks. The `stayIndex` stay gains or loses `newNights − currentNights` days; the following stay absorbs/donates the difference. Day conservation is enforced server-side.
+
+**Auth:** Session required (`401` if unauthenticated).
+
+**Body:** `{ "tabKey": "route" | "route-test", "stayIndex": 0, "newNights": 2 }`
+
+- `tabKey` — required; must be `"route"` or `"route-test"`
+- `stayIndex` — stay index (0-based, from `getStays(days)`); must not be the last stay
+- `newNights` — target nights for the stay; integer ≥ 1; must not reduce the next stay below 1 night
+
+**Success response `200`:** `{ "updatedDays": RouteDay[] }` — full updated array; replace local state atomically.
+
+**Error responses:**
+
+| Status | `error` | Condition |
+|--------|---------|-----------|
+| 400 | `"invalid_tab_key"` | `tabKey` not in allowed set |
+| 400 | `"invalid_stay_index"` | not integer, `< 0`, or is last stay |
+| 400 | `"invalid_new_nights"` | `< 1` or not integer |
+| 400 | `"next_stay_exhausted"` | next stay would fall below 1 night |
+| 400 | `"day_conservation_violated"` | postcondition failed (defence-in-depth) |
+| 401 | `"Unauthorized"` | no session |
+| 500 | `"internal_error"` | store read/write failure |
 
 ---
 

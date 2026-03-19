@@ -15,12 +15,14 @@ app/
 |  |- stations/route.ts             # GET  — stations for a German train
 |  |- delay-stats/route.ts          # GET  — delay percentiles + daily trend
 |  |- train-stops/route.ts          # GET  — dep/arr times between two cities
-|  |- plan-update/route.ts          # POST — persist itinerary plan (auth-gated)
+|  |- plan-update/route.ts          # POST — persist itinerary plan (auth-gated); accepts optional tabKey
+|  |- stay-update/route.ts          # POST — stay-boundary edit (auth-gated); NEW
 |  |- train-update/route.ts         # POST — edit raw train JSON (auth-gated)
 |  `- warmup/route.ts               # GET  — DB readiness probe
 `- lib/
    |- pgdb.ts           # pgQuery abstraction (pg.Pool locally / Neon on Vercel)
-   |- routeStore.ts     # RouteStore interface + File/Upstash implementations
+   |- routeStore.ts     # RouteStore interface + File/Upstash implementations; tabKey support
+   |- stayUtils.ts      # Pure stay-boundary domain logic (getStays, validateStayEdit, applyStayEdit); NEW
    |- itinerary.ts      # RouteDay types, city alias resolution, pure helpers
    |- trainDelay.ts     # DelayStats types + display helpers
    |- trainTimetable.ts # TimetableRow type + formatTime
@@ -43,18 +45,27 @@ auth.ts                 # NextAuth.js v5 config (Google OAuth, ALLOWED_EMAIL gua
 ### `routeStore.ts`
 
 ```typescript
+type TabKey = 'route' | 'route-test'
+
 interface RouteStore {
   getAll(): Promise<RouteDay[]>
   updatePlan(dayIndex: number, plan: PlanSections): Promise<RouteDay>
+  updateTrain(dayIndex: number, train: TrainRoute[]): Promise<RouteDay>
+  updateDays(days: RouteDay[]): Promise<RouteDay[]>  // atomic full-array write
 }
 ```
 
-| Condition | Implementation | Storage |
-|---|---|---|
-| `KV_REST_API_URL` and `KV_REST_API_TOKEN` set | `UpstashRouteStore` | Upstash Redis key `route` |
-| Either missing | `FileRouteStore` | `data/route.json` or `ROUTE_DATA_PATH` |
+`getRouteStore(tabKey: TabKey = 'route'): RouteStore` — factory; accepts optional `tabKey` to select the store backend.
+
+| tabKey | Condition | Implementation | Storage key |
+|---|---|---|---|
+| `'route'` | Upstash env set | `UpstashRouteStore` | `ROUTE_REDIS_KEY` or `"route"` |
+| `'route-test'` | Upstash env set | `UpstashRouteStore` | `ROUTE_TEST_REDIS_KEY` or `"route-test"` |
+| `'route'` | No Upstash env | `FileRouteStore` | `ROUTE_DATA_PATH` or `data/route.json` |
+| `'route-test'` | No Upstash env | `FileRouteStore` | `ROUTE_TEST_DATA_PATH` or `data/route-test.json` (auto-seeds from `route.json` on first read) |
 
 - Upstash auto-seeds from the bundled JSON on first read if Redis is empty.
+- `FileRouteStore` for `route-test` auto-seeds from `data/route.json` if the test file is absent.
 - Update flow is read-mutate-write; there is no distributed lock.
 
 ---
@@ -70,9 +81,10 @@ All routes follow the same pattern: validate input, run DB/store work, return JS
 | `GET /api/stations` | None | German only; returns stations for one train |
 | `GET /api/delay-stats` | None | German only; returns stats + daily trend for the last 3 months of available data |
 | `GET /api/train-stops` | None | Resolves dep/arr between two city names using city aliases; returns `null` if no match |
-| `POST /api/plan-update` | Session | Validates `dayIndex` and `plan` strings, persists updated itinerary plan, returns updated `RouteDay` |
+| `POST /api/plan-update` | Session | Validates `dayIndex` and `plan` strings; optional `tabKey` (`'route'`\|`'route-test'`, default `'route'`); persists updated itinerary plan; returns updated `RouteDay` |
+| `POST /api/stay-update` | Session | Validates `tabKey` (required), `stayIndex`, `newNights`; applies stay-boundary mutation via `stayUtils`; persists full `RouteDay[]`; returns `{ updatedDays: RouteDay[] }` |
 | `POST /api/train-update` | Session | Persists edited raw train JSON for a day |
-| `GET|POST /api/auth/[...nextauth]` | None | Delegates entirely to NextAuth |
+| `GET\|POST /api/auth/[...nextauth]` | None | Delegates entirely to NextAuth |
 | `GET /api/warmup` | None | Lightweight DB readiness probe for E2E startup |
 
 ### Route-specific rules
@@ -82,6 +94,15 @@ All routes follow the same pattern: validate input, run DB/store work, return JS
 - `/api/delay-stats` excludes canceled stops.
 - `/api/train-stops` uses `CITY_ALIASES`; `from` resolves to the first match, `to` to the last match.
 - `/api/plan-update` and `/api/train-update` check session before allowing writes.
+- `/api/plan-update` accepts optional `tabKey`; omitting it defaults to `'route'` (backward-compatible).
+- `/api/stay-update` requires `tabKey` (no default); validates it before any I/O. Returns 400 with typed error codes; see `stayUtils.ts` for domain invariants.
+
+### `stayUtils.ts` domain rules (enforced by `/api/stay-update`)
+
+- `newNights ≥ 1` (integer)
+- `stayIndex` must not be the last stay (no following stay to absorb days)
+- next stay nights after transfer must remain `≥ 1`
+- day-conservation postcondition: `sum(updatedDays) === sum(originalDays)` (defence-in-depth)
 
 ---
 
@@ -154,6 +175,9 @@ Key runtime dependencies:
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_SECRET` for auth
 - `ALLOWED_EMAIL` for optional single-user restriction
 - `ROUTE_DATA_PATH` for local itinerary override
+- `ROUTE_REDIS_KEY` — Redis key for main itinerary tab (default `"route"`)
+- `ROUTE_TEST_DATA_PATH` — file path for test-tab local store (default `"data/route-test.json"`)
+- `ROUTE_TEST_REDIS_KEY` — Redis key for test-tab store (default `"route-test"`)
 - `LOG_LEVEL` for pino
 
 Backend selection is environment-driven; no code changes are needed to switch local file vs. Upstash or local `pg` vs. Neon serverless.

@@ -63,7 +63,7 @@ describe('FileRouteStore (via getRouteStore, no Upstash env)', () => {
   beforeEach(() => {
     setFileStore()
     clearRoutePath()
-    jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
+    jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData))
     jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {})
   })
 
@@ -103,13 +103,13 @@ describe('FileRouteStore (via getRouteStore, no Upstash env)', () => {
 
   it('uses ROUTE_DATA_PATH env var as the file path when set', async () => {
     setRoutePath('data/route.e2e.json')
-    const readSpy = jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
+    const readSpy = jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData))
     await getRouteStore().getAll()
     expect(readSpy).toHaveBeenCalledWith(expect.stringContaining('route.e2e.json'), 'utf-8')
   })
 
   it('falls back to data/route.json when ROUTE_DATA_PATH is not set', async () => {
-    const readSpy = jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
+    const readSpy = jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData))
     await getRouteStore().getAll()
     expect(readSpy).toHaveBeenCalledWith(expect.stringContaining('route.json'), 'utf-8')
     expect(readSpy).not.toHaveBeenCalledWith(expect.stringContaining('e2e'), 'utf-8')
@@ -141,7 +141,7 @@ describe('UpstashRouteStore (via getRouteStore, with Upstash env)', () => {
   it('getAll() seeds Redis from route.json when Redis is empty', async () => {
     mockRedis.get.mockResolvedValue(null)
     mockRedis.set.mockResolvedValue('OK')
-    jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
+    jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData))
     const result = await getRouteStore().getAll()
     expect(mockRedis.set).toHaveBeenCalledWith('route', expect.any(Array))
     expect(Array.isArray(result)).toBe(true)
@@ -195,7 +195,7 @@ describe('UpstashRouteStore ROUTE_REDIS_KEY configuration', () => {
     process.env.ROUTE_REDIS_KEY = 'route:e2e'
     mockRedis.get.mockResolvedValue(null)
     mockRedis.set.mockResolvedValue('OK')
-    jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
+    jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData))
     await getRouteStore().getAll()
     expect(mockRedis.set).toHaveBeenCalledWith('route:e2e', expect.any(Array))
   })
@@ -244,7 +244,7 @@ describe('UpstashRouteStore seeding uses ROUTE_DATA_PATH', () => {
     process.env.ROUTE_DATA_PATH = 'data/route.e2e.json'
     mockRedis.get.mockResolvedValue(null)
     mockRedis.set.mockResolvedValue('OK')
-    const readSpy = jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
+    const readSpy = jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData))
     await getRouteStore().getAll()
     expect(readSpy).toHaveBeenCalledWith(
       expect.stringContaining('route.e2e.json'),
@@ -257,7 +257,7 @@ describe('UpstashRouteStore seeding uses ROUTE_DATA_PATH', () => {
     delete process.env.ROUTE_DATA_PATH
     mockRedis.get.mockResolvedValue(null)
     mockRedis.set.mockResolvedValue('OK')
-    const readSpy = jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData) as unknown as Buffer)
+    const readSpy = jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData))
     await getRouteStore().getAll()
     expect(readSpy).toHaveBeenCalledWith(
       expect.stringContaining(path.join('data', 'route.json')),
