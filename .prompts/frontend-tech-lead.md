@@ -41,6 +41,8 @@ Owns frontend low-level design aligned with the high-level architecture and cont
 - All documents are Markdown and stored in the repository.
 - Include Mermaid diagrams when describing flows or component relationships.
 - Use kebab-case filenames and consistent naming for sections.
+- Keep docs precise and brief; avoid long narrative descriptions.
+- Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
 
 ## Reusable Best Practices
 - Apply general frontend LLD best practices via skills: `frontend-lld-bp`, `reactjs-bp`, `vuejs-bp`.

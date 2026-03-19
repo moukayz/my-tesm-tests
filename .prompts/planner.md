@@ -74,3 +74,4 @@ No feature-wise runbooks are required.
 
 ## Communicate Notes
 When calling other team members, be clear and concise. Avoid micromanaging exact file names or implementation details; these members will handle it. Always require that any artifacts they produce live under the project subfolder.
+When requiring documents from other roles, require them to be precise and brief, avoid long narrative descriptions, avoid implementation code, and prefer flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.

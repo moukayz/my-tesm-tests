@@ -48,6 +48,8 @@ Owns high-level design, tech stack selection, cross-end contracts, data models, 
 - All documents are Markdown and stored in the repository.
 - All diagrams must be Mermaid and embedded in Markdown.
 - Use kebab-case filenames and group related docs under `<project-subfolder>/docs/architecture/`, `<project-subfolder>/docs/api/`, `<project-subfolder>/docs/testing/` when appropriate.
+- Keep docs precise and brief; avoid long narrative descriptions. each doc should be no more than 200 lines average.
+- Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
 
 ## Reusable Best Practices
 - Apply general high-level design best practices via skills: `high-level-design-bp`

@@ -45,6 +45,8 @@ Owns native low-level design for C++ modules aligned with high-level architectur
 - Include Mermaid diagrams when describing object relationships or flows.
 - Prefer diagrams that are implementable: module boundaries, sequence diagrams, and class/collaboration diagrams.
 - Use kebab-case filenames and consistent naming for sections.
+- Keep docs precise and brief; avoid long narrative descriptions.
+- Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
 
 ## Reusable Best Practices
 - Apply native LLD best practices via skills: `native-lld-bp`, `cpp-ood-bp`.

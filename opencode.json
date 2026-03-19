@@ -6,19 +6,6 @@
     "bash": true
   },
   "mcp": {
-    "flights-mcp": {
-      "type": "local",
-      "command": [
-        "pnpm",
-        "--dir",
-        "./flights-mcp",
-        "start"
-      ],
-      "enabled": true,
-      "environment": {
-        "DUFFEL_ACCESS_TOKEN": "{env:DUFFEL_ACCESS_TOKEN}"
-      }
-    },
     "google-flights-mcp": {
       "type": "remote",
       "url": "http://127.0.0.1:3000/mcp",
@@ -43,14 +30,12 @@
   },
   "agent": {
     "planner": {
-      "model": "anthropic/claude-opus-4-6",
       "description": "",
       "mode": "primary",
       "prompt": "{file:./.prompts/planner.md}",
       "permission": {}
     },
     "product-manager": {
-      "model": "anthropic/claude-sonnet-4-6",
       "description": "Turns external requirements into a feature brief with scope, flows, and acceptance criteria, and coordinates the cross-role workflow to completion.",
       "mode": "all",
       "prompt": "{file:./.prompts/product-manager.md}",
@@ -61,7 +46,6 @@
       }
     },
     "chief-tech-lead": {
-      "model": "anthropic/claude-sonnet-4-6",
       "description": "Owns high-level system design and cross-end contracts, defines architecture and error models, and plans vertical slices with test gates.",
       "mode": "subagent",
       "prompt": "{file:./.prompts/chief-tech-lead.md}",
@@ -72,7 +56,6 @@
       }
     },
     "frontend-tech-lead": {
-      "model": "anthropic/claude-sonnet-4-6",
       "description": "Creates frontend low-level design from the HLD and contracts, defines internal boundaries for parallel delivery, and specifies frontend test strategy.",
       "mode": "subagent",
       "prompt": "{file:./.prompts/frontend-tech-lead.md}",
@@ -85,7 +68,6 @@
       }
     },
     "frontend-developer": {
-      "model": "anthropic/claude-sonnet-4-6",
       "description": "Implements frontend features from approved LLD and contracts, adds FE tests, updates runbook docs, and updates design docs before deviating from LLD.",
       "mode": "subagent",
       "prompt": "{file:./.prompts/frontend-developer.md}",
@@ -98,7 +80,6 @@
       }
     },
     "backend-tech-lead": {
-      "model": "anthropic/claude-sonnet-4-6",
       "description": "Creates backend low-level design from the HLD and contracts, defines module boundaries for parallel delivery, and specifies backend test strategy.",
       "mode": "subagent",
       "prompt": "{file:./.prompts/backend-tech-lead.md}",
@@ -109,7 +90,6 @@
       }
     },
     "backend-developer": {
-      "model": "anthropic/claude-sonnet-4-6",
       "description": "Implements backend APIs and domain logic from approved LLD and contracts, adds BE tests, updates runbook docs, and updates design docs before deviating from LLD.",
       "mode": "subagent",
       "prompt": "{file:./.prompts/backend-developer.md}",
@@ -122,7 +102,6 @@
       }
     },
     "qa": {
-      "model": "anthropic/claude-sonnet-4-6",
       "description": "Owns cross-end E2E and regression testing, validates critical user journeys against contracts, and feeds failures back with minimal repro steps.",
       "mode": "subagent",
       "prompt": "{file:./.prompts/qa.md}",
@@ -133,5 +112,6 @@
         }
       }
     }
-  }
+  },
+  "plugin": ["opencode-scheduler"]
 }

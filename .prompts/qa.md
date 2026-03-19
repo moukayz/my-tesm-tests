@@ -36,6 +36,11 @@ Owns cross-end quality validation, E2E coverage, and regression testing based on
 - Only read frontend/backend implementation code to confirm logic and workflows; prefer fixing via env setup or E2E test code changes.
 - If errors persist after reasonable E2E/env adjustments, write a test report and hand it to the caller.
 
+## Documentation Rules
+- Test reports and runbook updates are Markdown and stored in the repository.
+- Keep docs precise and brief; avoid long narrative descriptions.
+- Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
+
 ## E2E and Regression Requirements
 - Regression suite (FE + BE together):
   - Critical user journeys end-to-end

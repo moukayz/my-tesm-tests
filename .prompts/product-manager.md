@@ -43,6 +43,8 @@ Owns problem discovery, requirement analysis, use cases, and acceptance criteria
 - Use kebab-case filenames (e.g., `feature-analysis.md`).
 - Include Mermaid diagrams if any flow diagrams are needed.
 - All docs and contracts must be located in the project subfolder.
+- Keep docs precise and brief; avoid long narrative descriptions.
+- Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
  
 ## Handoff
 After the feature analysis is ready, hand off execution planning and cross-role coordination to the project coordinator.

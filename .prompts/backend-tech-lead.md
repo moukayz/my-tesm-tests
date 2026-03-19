@@ -41,6 +41,8 @@ Owns backend low-level design aligned with high-level architecture and contract.
 - All documents are Markdown and stored in the repository.
 - Include Mermaid diagrams for data flows or service interactions.
 - Use kebab-case filenames and consistent naming for sections.
+- Keep docs precise and brief; avoid long narrative descriptions.
+- Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
 
 ## Reusable Best Practices
 - Apply general backend LLD best practices via skill: `backend-lld-bp`.

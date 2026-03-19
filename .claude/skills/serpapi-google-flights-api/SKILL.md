@@ -1,12 +1,12 @@
 ---
 name: serpapi-google-flights-api
-description: Query flight search, multi-city legs, and booking options with SerpApi Google Flights. Use when users ask for live Google Flights data via API.
+description: Query one-way, round-trip, and multi-city flight search with SerpApi Google Flights. Use when users ask for SerpApi Google Flights  API usages.
 compatibility: claude-code
 ---
 
 ## When to use me
 
-Use this skill when a user asks to fetch flight options from Google Flights through SerpApi, including one-way, round-trip, multi-city, or booking follow-ups.
+Use this skill when a user asks to fetch flight options from Google Flights through SerpApi, including one-way, round-trip, and multi-city searches.
 
 ## API endpoint
 
@@ -14,29 +14,45 @@ Use this skill when a user asks to fetch flight options from Google Flights thro
 - Engine parameter: `engine=google_flights` (required)
 - Auth parameter: `api_key=<SERPAPI_API_KEY>` (required)
 
-## Prerequisites
+## Sample request body JSON
 
-- Export API key in environment:
+Use these JSON objects as parameter payload templates.
 
-```bash
-export SERPAPI_API_KEY="<your_key>"
+### One-way
+
+```json
+{
+  "engine": "google_flights",
+  "api_key": "<SERPAPI_API_KEY>",
+  "departure_id": "SFO",
+  "arrival_id": "JFK",
+  "type": "2",
+  "outbound_date": "2026-04-15",
+  "travel_class": "1",
+  "adults": "1",
+  "currency": "USD",
+  "hl": "en",
+  "gl": "us"
+}
 ```
 
-- Use `curl` for requests and `jq` to inspect response fields.
+### Round-trip (first call)
 
-## Core request template
-
-```bash
-curl -sG "https://serpapi.com/search" \
-  --data-urlencode "engine=google_flights" \
-  --data-urlencode "api_key=$SERPAPI_API_KEY" \
-  --data-urlencode "departure_id=SFO" \
-  --data-urlencode "arrival_id=JFK" \
-  --data-urlencode "type=2" \
-  --data-urlencode "outbound_date=2026-04-15" \
-  --data-urlencode "currency=USD" \
-  --data-urlencode "hl=en" \
-  --data-urlencode "gl=us"
+```json
+{
+  "engine": "google_flights",
+  "api_key": "<SERPAPI_API_KEY>",
+  "departure_id": "SFO",
+  "arrival_id": "LHR",
+  "type": "1",
+  "outbound_date": "2026-05-10",
+  "return_date": "2026-05-20",
+  "travel_class": "1",
+  "adults": "1",
+  "currency": "USD",
+  "hl": "en",
+  "gl": "us"
+}
 ```
 
 ## Trip types
@@ -62,41 +78,35 @@ curl -sG "https://serpapi.com/search" \
 2. Read `best_flights[].departure_token` (or from `other_flights[]`).
 3. Make second call with `departure_token=<token>` to fetch return choices.
 
-Example second call:
+Sample second-call body:
 
-```bash
-curl -sG "https://serpapi.com/search" \
-  --data-urlencode "engine=google_flights" \
-  --data-urlencode "api_key=$SERPAPI_API_KEY" \
-  --data-urlencode "departure_token=<token_from_outbound>"
+```json
+{
+  "engine": "google_flights",
+  "api_key": "<SERPAPI_API_KEY>",
+  "departure_token": "<token_from_outbound_results>"
+}
 ```
 
 ### 2) Multi-city itinerary
 
-For `type=3`, pass `multi_city_json` as JSON string:
+For `type=3`, pass `multi_city_json` as a JSON string.
 
-```bash
-curl -sG "https://serpapi.com/search" \
-  --data-urlencode "engine=google_flights" \
-  --data-urlencode "api_key=$SERPAPI_API_KEY" \
-  --data-urlencode "type=3" \
-  --data-urlencode 'multi_city_json=[{"departure_id":"CDG","arrival_id":"NRT","date":"2026-05-05"},{"departure_id":"NRT","arrival_id":"LAX","date":"2026-05-12"}]'
+Sample body:
+
+```json
+{
+  "engine": "google_flights",
+  "api_key": "<SERPAPI_API_KEY>",
+  "type": "3",
+  "multi_city_json": "[{\"departure_id\":\"CDG\",\"arrival_id\":\"NRT\",\"date\":\"2026-05-05\"},{\"departure_id\":\"NRT\",\"arrival_id\":\"LAX\",\"date\":\"2026-05-12\"}]",
+  "currency": "USD",
+  "hl": "en",
+  "gl": "us"
+}
 ```
 
 Use `departure_token` from leg N to fetch leg N+1 options.
-
-### 3) Booking options for selected flights
-
-Use `booking_token` from a result to retrieve booking offers:
-
-```bash
-curl -sG "https://serpapi.com/search" \
-  --data-urlencode "engine=google_flights" \
-  --data-urlencode "api_key=$SERPAPI_API_KEY" \
-  --data-urlencode "booking_token=<booking_token_from_results>"
-```
-
-`booking_token` and `departure_token` are mutually exclusive.
 
 ## Useful response fields
 
@@ -104,19 +114,26 @@ curl -sG "https://serpapi.com/search" \
 - API error text: top-level `error`
 - Main result sets: `best_flights`, `other_flights`
 - Trend data: `price_insights` (for example `lowest_price`, `price_history`)
-- Follow-up tokens: `departure_token`, `booking_token`
+- Follow-up tokens: `departure_token`
 
-Quick extraction examples:
+Sample response fields:
 
-```bash
-# Show top 5 best flight prices with first segment details
-jq '.best_flights[:5] | map({price, total_duration, first_leg: .flights[0]})'
-
-# Pull departure tokens for chaining
-jq -r '.best_flights[]?.departure_token // empty'
-
-# Check status and possible error
-jq '{status: .search_metadata.status, error: .error}'
+```json
+{
+  "search_metadata": {
+    "status": "Success"
+  },
+  "best_flights": [
+    {
+      "price": 742,
+      "total_duration": 640,
+      "departure_token": "<token>"
+    }
+  ],
+  "price_insights": {
+    "lowest_price": 699
+  }
+}
 ```
 
 ## Validation rules and caveats

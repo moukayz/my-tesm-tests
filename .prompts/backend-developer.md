@@ -38,6 +38,8 @@ Implements backend code based on approved backend low-level design and contracts
 ## Documentation Rules
 - Runbook updates are Markdown and stored in the repository.
 - Use Mermaid if a diagram is required.
+- Keep docs precise and brief; avoid long narrative descriptions.
+- Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
 
 ## Backend Bootstrapping (Non-Interactive Examples)
 - Prefer fully non-interactive commands or documented defaults.
@@ -67,6 +69,7 @@ Implements backend code based on approved backend low-level design and contracts
 
 ## Testing Gate
 - Ensure all unit tests, API tests, and integration tests pass before completion.
+- Ensure compilation and typecheck (if applicable) pass before completion.
 - Mandatory: run the backend test suite locally in this workspace and confirm it is green before claiming completion.
 - E2E tests are not required for completion.
 
