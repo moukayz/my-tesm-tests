@@ -10,6 +10,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
   - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away
   - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
   - **Multi-railway timetable** — Train Schedule column auto-detects TGV (French) and EST (Eurostar) trains from the train ID prefix and fetches from the correct railway data source; German trains remain the default
+  - **Export to files** — A floating action button (FAB, fixed at viewport mid-right) lets authenticated users download their itinerary as Markdown (`.md`) or PDF (`.pdf`). Uses the File System Access API where available (Chrome/Edge native save dialog), with a silent anchor-download fallback for Firefox/Safari. PDF generation is client-side only (jsPDF + jspdf-autotable, dynamically imported). CJK characters (Chinese/Japanese/Korean) render correctly in PDF via a lazily-loaded NotoSansSC font subset. A success toast confirms each export. Exported columns: Date, Day, Overnight, Plan, Train Schedule (Weekday omitted).
 - Changes persist via `POST /api/plan-update` → `RouteStore` (file locally, Upstash Redis in production)
 - Server-side backend-selection logs show which persistence services are active (FileRouteStore vs Upstash Redis, local `pg` pool vs Neon serverless)
 - **Train Timetable tab** — unified search across German (DB), French (SNCF), and Eurostar trains; type any train ID and the correct data source is queried automatically — no railway selector needed
@@ -28,6 +29,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 | Language | TypeScript 5 |
 | UI | React 19 + Tailwind CSS v3 + lucide-react |
 | Charts | Recharts |
+| PDF export | jsPDF + jspdf-autotable (dynamically imported — not on initial bundle) |
 | Data (static) | `data/route.json` (seed / local fallback) |
 | Data (dynamic) | DuckDB (parquet) + PostgreSQL/Neon (GTFS) via Node.js API routes |
 | Route persistence | `app/lib/routeStore.ts` — `FileRouteStore` locally, `UpstashRouteStore` in production |
@@ -64,16 +66,22 @@ travel-plan-web-next/
 ├── components/
 │   ├── AuthHeader.tsx           # Login/logout header with session state
 │   ├── TravelPlan.tsx           # Tab switcher (keeps both tabs mounted)
-│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic, inline editing, drag-and-drop
+│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic, inline editing, drag-and-drop, export
+│   ├── ExportToolbar.tsx        # Legacy export toolbar (superseded by FloatingExportButton)
+│   ├── FloatingExportButton.tsx # Floating action button (viewport-fixed, portal to body) for export
+│   ├── ExportSuccessToast.tsx   # Auto-dismissing success toast after file export
+│   ├── ExportFormatPicker.tsx   # Format picker popover: Markdown / PDF (presentational)
 │   ├── TrainDelayTab.tsx        # Delay search UI + stats grid + chart
 │   └── AutocompleteInput.tsx    # Reusable text input with filtered dropdown
 ├── __tests__/
 │   ├── unit/
-│   │   ├── itinerary.test.ts    # getOvernightColor, processItinerary, getRailwayFromTrainId
-│   │   ├── db.test.ts           # convertBigInt
-│   │   ├── trainDelay.test.ts   # formatDay, buildStatItems
-│   │   ├── routeStore.test.ts   # FileRouteStore + UpstashRouteStore
-│   │   └── pgdb.test.ts         # pgQuery local (pg.Pool) + Vercel (neon) paths
+│   │   ├── itinerary.test.ts      # getOvernightColor, processItinerary, getRailwayFromTrainId
+│   │   ├── itineraryExport.test.ts # buildPlanCell, buildTrainCell, stripMarkdown, buildMarkdownTable, toExportRows
+│   │   ├── fileSave.test.ts        # saveFile — File System Access API + anchor fallback paths
+│   │   ├── db.test.ts              # convertBigInt
+│   │   ├── trainDelay.test.ts      # formatDay, buildStatItems
+│   │   ├── routeStore.test.ts      # FileRouteStore + UpstashRouteStore
+│   │   └── pgdb.test.ts            # pgQuery local (pg.Pool) + Vercel (neon) paths
 │   ├── middleware/
 │   │   └── login-rate-limit.test.ts  # Edge middleware 429 behaviour
 │   ├── integration/
@@ -86,11 +94,13 @@ travel-plan-web-next/
 │   │   ├── api-plan-update.test.ts
 │   │   └── api-train-stops.test.ts
 │   └── components/
-│       ├── AuthHeader.test.tsx       # user prop + signOut mock
-│       ├── AuthErrorPage.test.tsx    # Access denied page + countdown redirect
-│       ├── LoginPage.test.tsx        # Google sign-in button
+│       ├── AuthHeader.test.tsx          # user prop + signOut mock
+│       ├── AuthErrorPage.test.tsx       # Access denied page + countdown redirect
+│       ├── LoginPage.test.tsx           # Google sign-in button
 │       ├── AutocompleteInput.test.tsx
-│       ├── ItineraryTab.test.tsx
+│       ├── ItineraryTab.test.tsx        # includes export integration tests
+│       ├── ExportToolbar.test.tsx       # button states, disabled tooltip, aria attrs
+│       ├── ExportFormatPicker.test.tsx  # format buttons, Escape/outside-click dismiss, spinner, error
 │       └── TravelPlan.test.tsx
 ├── data/
 │   └── route.json               # Static trip itinerary data (16 days)
@@ -346,7 +356,7 @@ npm run test:e2e:verbose  # full per-test output
 npm run test:e2e:ui       # interactive Playwright UI
 ```
 
-272 Jest tests across 21 suites + 70 Playwright E2E tests covering unit logic, API route integration, component behaviour, and Google OAuth auth (including session injection for authenticated flows).
+355 Jest tests across 25 suites + 70 Playwright E2E tests covering unit logic, API route integration, component behaviour, and Google OAuth auth (including session injection for authenticated flows).
 
 ### Merge GTFS timetables
 

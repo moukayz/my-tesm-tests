@@ -34,6 +34,7 @@ Travel Plan Web is a personal, authenticated web app for planning and reviewing 
 - **Drag-and-drop reorder:** drag grip handle to swap activity rows within a day; optimistic update reverts on API failure.
 - Changes persisted via `POST /api/plan-update` -> Upstash Redis (production) / local JSON (dev).
 - Activity text supports Markdown.
+- **Export to files:** "Export to files…" button triggers a format picker (Markdown or PDF); purely client-side download via File System Access API with anchor-download fallback. Exported table omits the Weekday column, combines time-of-day activity sections into a single Plan cell, and includes train numbers only (no timetable detail). See `docs/itinerary-export/PRODUCT_BRIEF.md`.
 
 ### Train Schedule JSON Editor *(authenticated only)*
 - Pencil icon on each train row opens a modal with the raw `TrainRoute[]` JSON for that day.

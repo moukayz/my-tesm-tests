@@ -1,8 +1,21 @@
 import React from 'react'
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ItineraryTab from '../../components/ItineraryTab'
 import type { RouteDay } from '../../app/lib/itinerary'
+
+// Mock fileSave and itineraryExport for export integration tests
+jest.mock('../../app/lib/fileSave', () => ({
+  saveFile: jest.fn().mockResolvedValue(undefined),
+}))
+
+jest.mock('../../app/lib/itineraryExport', () => ({
+  buildMarkdownTable: jest.fn().mockReturnValue('| Date | Day | Overnight | Plan | Train Schedule |\n|---|---|---|---|---|\n| 2026/9/25 | 1 | 巴黎 | Morning: e2e-morning | — |'),
+  buildPdfBlob: jest.fn().mockResolvedValue(new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
+}))
+
+import { saveFile } from '../../app/lib/fileSave'
+import { buildMarkdownTable, buildPdfBlob } from '../../app/lib/itineraryExport'
 
 const mockRouteData: RouteDay[] = [
   {
@@ -1353,5 +1366,184 @@ describe('ItineraryTab - Drag and Drop', () => {
 
     expect(morningRow.className).not.toContain('opacity-40')
     expect(eveningRow.className).not.toContain('ring-2')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Integration tests: Export flow
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ItineraryTab - Export Feature', () => {
+  afterEach(() => {
+    jest.clearAllMocks()
+  })
+
+  function setupExportFetch() {
+    global.fetch = jest.fn(() =>
+      Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
+    )
+  }
+
+  // ── T1-S3-12: export-fab present; export-button removed ──────────────────
+
+  it('T1-S3-12: data-testid="export-fab" is in DOM (FAB replaces inline export-button)', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    expect(screen.getByTestId('export-fab')).toBeInTheDocument()
+  })
+
+  it('T1-S3-13: data-testid="export-button" is NOT in DOM (inline toolbar removed)', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    expect(screen.queryByTestId('export-button')).not.toBeInTheDocument()
+  })
+
+  it('T1-S3-14: clicking export-fab opens picker (export-format-picker visible, pdf disabled)', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+
+    expect(screen.getByTestId('export-format-picker')).toBeInTheDocument()
+    expect(screen.getByTestId('export-md')).toBeInTheDocument()
+    // PDF button is present but disabled (temporarily unavailable)
+    expect(screen.getByTestId('export-pdf')).toBeInTheDocument()
+    expect(screen.getByTestId('export-pdf')).toBeDisabled()
+  })
+
+  it('T1-S3-15: export-fab disabled when initialData=[]', () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={[]} />)
+    expect(screen.getByTestId('export-fab')).toBeDisabled()
+  })
+
+  it('clicking Markdown triggers buildMarkdownTable and saveFile with .md filename', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+    fireEvent.click(screen.getByTestId('export-md'))
+    await waitFor(() => {
+      expect(buildMarkdownTable).toHaveBeenCalled()
+      expect(saveFile).toHaveBeenCalledWith(
+        expect.objectContaining({ filename: 'itinerary.md' })
+      )
+    })
+  })
+
+  it('clicking Markdown closes the picker after export', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+    fireEvent.click(screen.getByTestId('export-md'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('export-format-picker')).not.toBeInTheDocument()
+    })
+  })
+
+  it('clicking PDF button does NOT trigger buildPdfBlob or saveFile (PDF export temporarily disabled)', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+    // Attempt to click the (disabled) PDF button
+    fireEvent.click(screen.getByTestId('export-pdf'))
+    // Neither buildPdfBlob nor saveFile should be called
+    await new Promise((r) => setTimeout(r, 100))
+    expect(buildPdfBlob).not.toHaveBeenCalled()
+    expect(saveFile).not.toHaveBeenCalledWith(
+      expect.objectContaining({ filename: 'itinerary.pdf' })
+    )
+  })
+
+  it('PDF button is disabled in the picker (PDF export temporarily disabled)', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+    expect(screen.getByTestId('export-pdf')).toBeDisabled()
+  })
+
+  it('Markdown export works independently of PDF being disabled', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+
+    // Markdown should work without any PDF involvement
+    fireEvent.click(screen.getByTestId('export-fab'))
+    fireEvent.click(screen.getByTestId('export-md'))
+    await waitFor(() => {
+      expect(saveFile).toHaveBeenCalledWith(
+        expect.objectContaining({ filename: 'itinerary.md' })
+      )
+    })
+  })
+
+  it('AbortError from saveFile closes picker silently with no error banner', async () => {
+    setupExportFetch()
+    ;(saveFile as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new DOMException('cancelled', 'AbortError'))
+    )
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+    fireEvent.click(screen.getByTestId('export-md'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('export-format-picker')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('export-pdf-error')).not.toBeInTheDocument()
+    })
+  })
+
+  // ── Slice 1 — Success Toast (T1-S1-11 through T1-S1-15) ─────────────────
+
+  it('T1-S1-11: after Markdown success, export-success-toast is shown', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+    fireEvent.click(screen.getByTestId('export-md'))
+    await waitFor(() => {
+      expect(screen.getByTestId('export-success-toast')).toBeInTheDocument()
+    })
+  })
+
+  it('T1-S1-12: clicking PDF button does NOT show success toast (PDF export temporarily disabled)', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+    fireEvent.click(screen.getByTestId('export-pdf'))
+    await new Promise((r) => setTimeout(r, 200))
+    expect(screen.queryByTestId('export-success-toast')).not.toBeInTheDocument()
+  })
+
+  it('T1-S1-13: no toast when saveFile throws AbortError', async () => {
+    setupExportFetch()
+    ;(saveFile as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new DOMException('cancelled', 'AbortError'))
+    )
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+    fireEvent.click(screen.getByTestId('export-md'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('export-format-picker')).not.toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('export-success-toast')).not.toBeInTheDocument()
+  })
+
+  it('T1-S1-14: no toast and no error banner when PDF is clicked (PDF export temporarily disabled — no-op)', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+    fireEvent.click(screen.getByTestId('export-pdf'))
+    await new Promise((r) => setTimeout(r, 200))
+    expect(screen.queryByTestId('export-pdf-error')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('export-success-toast')).not.toBeInTheDocument()
+  })
+
+  it('T1-S1-15: toast disappears after clicking dismiss button', async () => {
+    setupExportFetch()
+    render(<ItineraryTab initialData={mockRouteData} />)
+    fireEvent.click(screen.getByTestId('export-fab'))
+    fireEvent.click(screen.getByTestId('export-md'))
+    await waitFor(() => {
+      expect(screen.getByTestId('export-success-toast')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTestId('export-toast-dismiss'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('export-success-toast')).not.toBeInTheDocument()
+    })
   })
 })

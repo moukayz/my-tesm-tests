@@ -124,6 +124,14 @@ Known gaps:
 - `planOverrides` is the only mutable overlay on top of server-provided itinerary data.
 - `AutocompleteInput` owns only dropdown visibility; parents own values and selections.
 
+## Feature-Specific LLD Addenda
+
+| Feature | Document |
+|---------|----------|
+| Itinerary Export (`itinerary-export`) | [`docs/itinerary-export/LLD.md`](./itinerary-export/LLD.md) |
+
+---
+
 ## Test Focus
 
 | Tier | Tool | Scope |

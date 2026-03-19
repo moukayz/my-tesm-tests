@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Sunrise, Sun, Moon, GripVertical, Pencil } from 'lucide-react'
 import {
   getOvernightColor,
@@ -13,6 +14,11 @@ import {
 } from '../app/lib/itinerary'
 import { formatTime } from '../app/lib/trainTimetable'
 import { renderMarkdown } from '../app/lib/markdown'
+import { buildMarkdownTable /*, buildPdfBlob — temporarily disabled */ } from '../app/lib/itineraryExport'
+import { saveFile } from '../app/lib/fileSave'
+import FloatingExportButton from './FloatingExportButton'
+import ExportFormatPicker from './ExportFormatPicker'
+import ExportSuccessToast from './ExportSuccessToast'
 
 interface TrainStopsResult {
   fromStation: string
@@ -49,6 +55,75 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
   const [trainJsonSaving, setTrainJsonSaving] = useState(false)
   const [trainJsonError, setTrainJsonError] = useState<string | null>(null)
   const [trainOverrides, setTrainOverrides] = useState<Record<number, RouteDay['train']>>({})
+
+  // ── Export state ────────────────────────────────────────────────────────────
+  const [floatingPickerOpen, setFloatingPickerOpen] = useState(false)  // renamed from exportPickerOpen
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false)
+  const [exportSuccess, setExportSuccess] = useState(false)            // NEW — Slice 1
+  const floatingButtonRef = useRef<HTMLButtonElement>(null)             // renamed from exportButtonRef
+
+  // ── Export helpers ──────────────────────────────────────────────────────────
+
+  function getEffectiveData(): RouteDay[] {
+    return initialData.map((day, i) => ({
+      ...day,
+      plan: planOverrides[i] ?? day.plan,
+      train: trainOverrides[i] ?? day.train,
+    }))
+  }
+
+  function openFloatingPicker() {
+    setFloatingPickerOpen(true)
+    setExportError(null)
+  }
+
+  function closeFloatingPicker() {
+    setFloatingPickerOpen(false)
+    setExportError(null)
+    setIsPdfGenerating(false)
+    // Return focus to the floating button (accessibility)
+    setTimeout(() => floatingButtonRef.current?.focus(), 0)
+  }
+
+  async function handleExportMarkdown() {
+    try {
+      const content = buildMarkdownTable(getEffectiveData())
+      await saveFile({ content, filename: 'itinerary.md', mimeType: 'text/markdown' })
+      // Only reaches here on clean success
+      closeFloatingPicker()
+      setExportSuccess(true)
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // silent — user cancelled native dialog; no toast
+        closeFloatingPicker()
+      }
+      // other errors from Markdown path are not expected; swallow silently
+    }
+  }
+
+  // PDF export is temporarily disabled — restore the implementation below to re-enable.
+  // async function handleExportPdf() {
+  //   setIsPdfGenerating(true)
+  //   try {
+  //     const blob = await buildPdfBlob(getEffectiveData())
+  //     setIsPdfGenerating(false)
+  //     await saveFile({ content: blob, filename: 'itinerary.pdf', mimeType: 'application/pdf' })
+  //     // Only reaches here on clean success
+  //     closeFloatingPicker()
+  //     setExportSuccess(true)
+  //   } catch (err) {
+  //     setIsPdfGenerating(false)
+  //     if (err instanceof DOMException && err.name === 'AbortError') {
+  //       closeFloatingPicker()
+  //       return
+  //     }
+  //     setExportError(err instanceof Error ? err.message : 'PDF generation failed. Please try again.')
+  //   }
+  // }
+  function handleExportPdf() {
+    // PDF export is temporarily disabled — this is a no-op stub.
+  }
 
   const buildScheduleKey = (trainId: string, start?: string, end?: string) =>
     `${trainId}|${start ?? ''}|${end ?? ''}`
@@ -491,6 +566,48 @@ export default function ItineraryTab({ initialData }: ItineraryTabProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating export button — portal to document.body for correct fixed positioning.
+          SSR-safe: `typeof document !== 'undefined'` guard prevents SSR crash. */}
+      {typeof document !== 'undefined' && createPortal(
+        <FloatingExportButton
+          hasData={initialData.length > 0}
+          isPickerOpen={floatingPickerOpen}
+          onOpen={openFloatingPicker}
+          buttonRef={floatingButtonRef}
+        />,
+        document.body
+      )}
+
+      {/* Export format picker — portal to document.body, positioned beside the FAB */}
+      {typeof document !== 'undefined' && floatingPickerOpen && createPortal(
+        <div
+          className="fixed z-[45]"
+          style={{
+            top: '50%',
+            right: 'calc(1rem + 2.5rem + 0.75rem)',
+            transform: 'translateY(-50%)',
+          }}
+        >
+          <ExportFormatPicker
+            onExportMarkdown={handleExportMarkdown}
+            onExportPdf={handleExportPdf}
+            onClose={closeFloatingPicker}
+            exportError={exportError}
+            isPdfGenerating={isPdfGenerating}
+          />
+        </div>,
+        document.body
+      )}
+
+      {/* Export success toast — Slice 1 */}
+      {exportSuccess && (
+        <ExportSuccessToast
+          message="Itinerary exported!"
+          onDismiss={() => setExportSuccess(false)}
+          autoDismissMs={3000}
+        />
       )}
     </div>
   )
