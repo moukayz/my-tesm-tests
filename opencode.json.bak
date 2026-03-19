@@ -1,0 +1,125 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "tools": {
+    "write": true,
+    "edit": true,
+    "bash": true
+  },
+  "mcp": {
+    "google-flights-mcp": {
+      "type": "remote",
+      "url": "http://127.0.0.1:3000/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer 8f3275b443423d97c1bcc5fd8453f3e3b260bf73cdd2c3282c74da4d8c4e06a2"
+      }
+    }
+  },
+  "permission": {
+    "edit": "allow",
+    "bash": "allow",
+    "webfetch": "allow",
+    "task": {
+      "*": "allow"
+    },
+    "skill": {
+      "*": "allow",
+      "*-timetable": "deny",
+      "euro-railway-timetable": "allow"
+    }
+  },
+  "agent": {
+    "planner": {
+      "model": "openai/gpt-5.4",
+      "description": "",
+      "mode": "primary",
+      "prompt": "{file:./.prompts/planner.md}",
+      "permission": {}
+    },
+    "product-manager": {
+      "model": "openai/gpt-5.4",
+      "description": "Turns external requirements into a feature brief with scope, flows, and acceptance criteria, and coordinates the cross-role workflow to completion.",
+      "mode": "all",
+      "prompt": "{file:./.prompts/product-manager.md}",
+      "permission": {
+        "skill": {
+          "product-brief-bp": "allow"
+        }
+      }
+    },
+    "chief-tech-lead": {
+      "model": "openai/gpt-5.4",
+      "description": "Owns high-level system design and cross-end contracts, defines architecture and error models, and plans vertical slices with test gates.",
+      "mode": "subagent",
+      "prompt": "{file:./.prompts/chief-tech-lead.md}",
+      "permission": {
+        "skill": {
+          "high-level-design-bp": "allow"
+        }
+      }
+    },
+    "frontend-tech-lead": {
+      "model": "openai/gpt-5.4",
+      "description": "Creates frontend low-level design from the HLD and contracts, defines internal boundaries for parallel delivery, and specifies frontend test strategy.",
+      "mode": "subagent",
+      "prompt": "{file:./.prompts/frontend-tech-lead.md}",
+      "permission": {
+        "skill": {
+          "frontend-lld-bp": "allow",
+          "reactjs-bp": "allow",
+          "vuejs-bp": "allow"
+        }
+      }
+    },
+    "frontend-developer": {
+      "model": "openai/gpt-5.3-codex",
+      "description": "Implements frontend features from approved LLD and contracts, adds FE tests, updates runbook docs, and updates design docs before deviating from LLD.",
+      "mode": "subagent",
+      "prompt": "{file:./.prompts/frontend-developer.md}",
+      "permission": {
+        "skill": {
+          "frontend-dev-bp": "allow",
+          "reactjs-bp": "allow",
+          "vuejs-bp": "allow"
+        }
+      }
+    },
+    "backend-tech-lead": {
+      "model": "openai/gpt-5.4",
+      "description": "Creates backend low-level design from the HLD and contracts, defines module boundaries for parallel delivery, and specifies backend test strategy.",
+      "mode": "subagent",
+      "prompt": "{file:./.prompts/backend-tech-lead.md}",
+      "permission": {
+        "skill": {
+          "backend-lld-bp": "allow"
+        }
+      }
+    },
+    "backend-developer": {
+      "model": "openai/gpt-5.3-codex",
+      "description": "Implements backend APIs and domain logic from approved LLD and contracts, adds BE tests, updates runbook docs, and updates design docs before deviating from LLD.",
+      "mode": "subagent",
+      "prompt": "{file:./.prompts/backend-developer.md}",
+      "permission": {
+        "skill": {
+          "backend-dev-bp": "allow",
+          "fastify-bp": "allow",
+          "fastapi-bp": "allow"
+        }
+      }
+    },
+    "qa": {
+      "model": "openai/gpt-5.4",
+      "description": "Owns cross-end E2E and regression testing, validates critical user journeys against contracts, and feeds failures back with minimal repro steps.",
+      "mode": "subagent",
+      "prompt": "{file:./.prompts/qa.md}",
+      "permission": {
+        "skill": {
+          "qa-e2e-bp": "allow",
+          "playwright-bp": "allow"
+        }
+      }
+    }
+  },
+  "plugin": ["opencode-scheduler"]
+}
