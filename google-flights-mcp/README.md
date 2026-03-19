@@ -2,6 +2,11 @@
 
 TypeScript MCP server that exposes one tool, `search_flights`, backed by the [SerpApi Google Flights engine](https://serpapi.com/google-flights-api).
 
+Supported trip modes:
+- One-way (`type=2`)
+- Round-trip (`type=1`)
+- Multi-city (`type=3`, exactly 2 legs via `multi_city_segments`)
+
 Unlike `flights-mcp` (stdio), this server uses **Streamable HTTP transport** — it runs as a persistent HTTP process and MCP clients connect to it over the network.
 
 ---
@@ -12,7 +17,7 @@ Unlike `flights-mcp` (stdio), this server uses **Streamable HTTP transport** —
 src/
 ├── index.ts        # Express HTTP server + session management + transport wiring
 ├── server.ts       # McpServer factory + search_flights tool registration
-└── flightSearch.ts # Zod schema, SerpApi fetch logic, round-trip orchestration
+└── flightSearch.ts # Zod schema, SerpApi fetch logic, and trip-type orchestration
 ```
 
 ### Source modules
@@ -47,9 +52,12 @@ MCP client (POST /mcp)
          │    merge best_flights + other_flights
          │    slice to max_results
          │
-         └─ type=1 (round-trip)?
-              Promise.all → GET serpapi (return, per departure_token)
-              silently sets return_flights=[] on failure / missing token
+          └─ type=1 (round-trip)?
+               Promise.all → GET serpapi (return, per departure_token)
+               silently sets return_flights=[] on failure / missing token
+             type=3 (multi-city, exactly 2 segments)?
+               Promise.all → GET serpapi (next leg, per departure_token)
+               attaches next_leg_flights (up to 3) or [] on failure / missing token
          │
          ▼
   { content: [{type:"text", text: JSON}], structuredContent: {flights:[...]} }
@@ -80,6 +88,16 @@ sequenceDiagram
             A-->>S: { best_flights, other_flights }
         end
         S->>S: Attach return_flights to each outbound<br/>(empty [] on error or missing token)
+    end
+
+    alt type = 3 (multi-city)
+        S->>A: GET /search.json?engine=google_flights&type=3<br/>&multi_city_json=[...]
+        A-->>S: { best_flights, other_flights }
+        par for each first-leg flight
+            S->>A: GET /search.json?engine=google_flights&departure_token=<token>
+            A-->>S: { best_flights, other_flights }
+        end
+        S->>S: Attach next_leg_flights to each first-leg flight<br/>(max 3, [] on error or missing token)
     end
 
     S-->>C: { content: [{type:"text", text: JSON}],<br/>  structuredContent: { flights: […] } }
@@ -148,6 +166,8 @@ Environment knobs:
 | `PORT` | `3000` | TCP port to listen on |
 | `HOST` | `127.0.0.1` | Bind address; `createMcpExpressApp` enables DNS-rebinding protection automatically for localhost |
 | `SERPAPI_API_KEY` | — | Fallback key if no `Authorization` header is sent (useful for manual testing) |
+| `MCP_LOG_PREVIEW_COUNT` | `2` | Number of returned flights to include in `mcp.tool.success` log preview |
+| `MCP_LOG_FULL_OUTPUT` | `false` | When `true`, logs full returned payload for each tool call (use with care) |
 
 ### Register with an MCP client (Claude Code)
 
@@ -184,6 +204,85 @@ Add to `.mcp.json` in your project root. The server must already be running.
 }
 ```
 
+### Tool input by trip type
+
+`search_flights` accepts one of these payload shapes:
+
+```json
+{
+  "type": 2,
+  "departure_id": "SFO",
+  "arrival_id": "JFK",
+  "outbound_date": "2026-06-10",
+  "sort_by": 2,
+  "max_stops": 1,
+  "outbound_times": "09,18",
+  "include_airlines": ["UA", "DL"],
+  "travel_class": 1,
+  "max_results": 5
+}
+```
+
+```json
+{
+  "type": 1,
+  "departure_id": "SFO",
+  "arrival_id": "JFK",
+  "outbound_date": "2026-06-10",
+  "return_date": "2026-06-18",
+  "sort_by": 3,
+  "max_stops": 0,
+  "outbound_times": "09,18",
+  "return_times": "10,21",
+  "exclude_airlines": ["NK"],
+  "travel_class": 2,
+  "max_results": 5
+}
+```
+
+```json
+{
+  "type": 3,
+  "multi_city_segments": [
+    { "departure_id": "SFO", "arrival_id": "LAX", "date": "2026-06-10" },
+    { "departure_id": "LAX", "arrival_id": "LAS", "date": "2026-06-13" }
+  ],
+  "sort_by": 2,
+  "next_leg_sort_by": 5,
+  "max_stops": 0,
+  "include_airlines": ["UA"],
+  "travel_class": 1,
+  "max_results": 5
+}
+```
+
+For `type=3`, the server converts `multi_city_segments` into SerpApi `multi_city_json` internally.
+The array must contain exactly 2 segments. `max_results` limits first-leg flights only.
+Each first-leg flight includes `next_leg_flights`, capped at 3 results.
+
+### Sort/filter options
+
+- `sort_by`: `1` top flights, `2` price, `3` departure time, `4` arrival time, `5` duration
+- `next_leg_sort_by` (`type=3` only): sort for token-based next-leg lookups; inherits `sort_by` when omitted
+- `max_stops` (SerpApi stops mapping):
+  - `0`: any number of stops (default)
+  - `1`: nonstop only
+  - `2`: 1 stop or fewer
+  - `3`: 2 stops or fewer
+- `outbound_times`: SerpApi outbound time-window string
+- `return_times`: SerpApi return time-window string
+- Accepted formats: `H,H` / `HH,HH` and `HH:MM,HH:MM` (also 4-value versions for departure+arrival windows)
+- Values are normalized to hour buckets before querying
+- Time format examples:
+  - `"4,18"`: departure between 04:00 and 19:00
+  - `"4,18,3,19"`: departure 04:00-19:00 and arrival 03:00-20:00
+- For `type=3`, time filters are applied via `multi_city_json` segment `times`:
+  - segment 1 uses `outbound_times`
+  - segment 2 uses `return_times`
+- `include_airlines`: airline code array (mutually exclusive with `exclude_airlines`)
+- `exclude_airlines`: airline code array (mutually exclusive with `include_airlines`)
+- `travel_class`: `1` economy, `2` premium economy, `3` business, `4` first
+
 ### Typecheck
 
 ```bash
@@ -206,7 +305,7 @@ SERPAPI_API_KEY=<key> pnpm test --coverage
 E2e tests (`tests/mcpServer.http.e2e.test.ts`) are automatically skipped when `SERPAPI_API_KEY` is not set. They:
 1. Spawn `pnpm start` on port 3099 with no env key (server starts keyless)
 2. Connect via `StreamableHTTPClientTransport` with `Authorization: Bearer <key>`
-3. Verify `listTools`, one-way search, and round-trip search
+3. Verify `listTools`, one-way search, round-trip search, and multi-city search
 
 ### Manual smoke test
 

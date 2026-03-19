@@ -69,6 +69,35 @@ describe("createGoogleFlightsServer", () => {
 		expect(searchFlightsWithSerpApi).toHaveBeenCalledWith(expect.anything(), "env-key");
 	});
 
+	it("passes multi-city tool input through unchanged", async () => {
+		const { createGoogleFlightsServer } = await import("../src/server.js");
+
+		searchFlightsWithSerpApi.mockResolvedValueOnce([]);
+		createGoogleFlightsServer("test-api-key");
+
+		const handler = registerTool.mock.calls[0]?.[2] as (input: unknown) => Promise<unknown>;
+		await handler({
+			type: 3,
+			multi_city_segments: [
+				{ departure_id: "SFO", arrival_id: "LAX", date: "2025-06-01" },
+				{ departure_id: "LAX", arrival_id: "LAS", date: "2025-06-04" },
+			],
+			max_results: 5,
+		});
+
+		expect(searchFlightsWithSerpApi).toHaveBeenCalledWith(
+			{
+				type: 3,
+				multi_city_segments: [
+					{ departure_id: "SFO", arrival_id: "LAX", date: "2025-06-01" },
+					{ departure_id: "LAX", arrival_id: "LAS", date: "2025-06-04" },
+				],
+				max_results: 5,
+			},
+			"test-api-key",
+		);
+	});
+
 	it("throws when no API key is provided", async () => {
 		const { createGoogleFlightsServer } = await import("../src/server.js");
 

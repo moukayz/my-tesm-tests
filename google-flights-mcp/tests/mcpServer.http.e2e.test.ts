@@ -105,6 +105,34 @@ describe("google-flights-mcp HTTP e2e", () => {
 		}
 	}, 60000);
 
+	runIfKey("one-way search accepts exposed sort and filter options", async () => {
+		const client = await createClient();
+		try {
+			const result = await client.callTool({
+				name: "search_flights",
+				arguments: {
+					departure_id: "SFO",
+					arrival_id: "JFK",
+					outbound_date: formatDate(45),
+					type: 2,
+					sort_by: 2,
+					max_stops: 1,
+					outbound_times: "09,18",
+					include_airlines: ["UA", "DL"],
+					travel_class: 1,
+					max_results: 2,
+				},
+			});
+
+			expect("isError" in result && result.isError).toBe(false);
+			const structured = result.structuredContent as { flights: unknown[] };
+			expect(structured.flights.length).toBeGreaterThan(0);
+			expect(structured.flights.length).toBeLessThanOrEqual(2);
+		} finally {
+			await client.close();
+		}
+	}, 60000);
+
 	runIfKey("round-trip search returns flights with return_flights arrays", async () => {
 		const client = await createClient();
 		try {
@@ -127,6 +155,72 @@ describe("google-flights-mcp HTTP e2e", () => {
 			expect(structured.flights.length).toBeGreaterThan(0);
 			for (const flight of structured.flights) {
 				expect(Array.isArray(flight.return_flights)).toBe(true);
+			}
+		} finally {
+			await client.close();
+		}
+	}, 60000);
+
+	runIfKey("multi-city search returns first-leg flights with chained next_leg_flights", async () => {
+		const client = await createClient();
+		try {
+			const result = await client.callTool({
+				name: "search_flights",
+				arguments: {
+					type: 3,
+					multi_city_segments: [
+						{ departure_id: "SFO", arrival_id: "LAX", date: formatDate(45) },
+						{ departure_id: "LAX", arrival_id: "LAS", date: formatDate(48) },
+					],
+					max_results: 2,
+				},
+			});
+
+			expect("isError" in result && result.isError).toBe(false);
+			const structured = result.structuredContent as {
+				flights: Array<{ next_leg_flights?: unknown[] }>;
+			};
+			expect(structured.flights.length).toBeGreaterThan(0);
+			expect(structured.flights.length).toBeLessThanOrEqual(2);
+			for (const flight of structured.flights) {
+				expect(Array.isArray(flight.next_leg_flights)).toBe(true);
+				expect((flight.next_leg_flights ?? []).length).toBeLessThanOrEqual(3);
+			}
+		} finally {
+			await client.close();
+		}
+	}, 60000);
+
+	runIfKey("multi-city search accepts next_leg_sort_by override", async () => {
+		const client = await createClient();
+		try {
+			const result = await client.callTool({
+				name: "search_flights",
+				arguments: {
+					type: 3,
+					multi_city_segments: [
+						{ departure_id: "PVG", arrival_id: "CPH", date: "2027-01-30" },
+						{ departure_id: "HEL", arrival_id: "PVG", date: "2027-02-09" },
+					],
+					sort_by: 2,
+					next_leg_sort_by: 5,
+					max_stops: 2,
+					travel_class: 1,
+					max_results: 2,
+				},
+			});
+
+			expect("isError" in result && result.isError).toBe(false);
+			const structured = result.structuredContent as {
+				flights: Array<{ next_leg_flights?: unknown[] }>;
+			};
+			expect(structured.flights.length).toBeGreaterThan(0);
+			expect(
+				structured.flights.some((flight) => (flight.next_leg_flights ?? []).length > 0),
+			).toBe(true);
+			for (const flight of structured.flights) {
+				expect(Array.isArray(flight.next_leg_flights)).toBe(true);
+				expect((flight.next_leg_flights ?? []).length).toBeLessThanOrEqual(3);
 			}
 		} finally {
 			await client.close();
