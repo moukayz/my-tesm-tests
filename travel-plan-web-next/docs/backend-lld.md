@@ -184,16 +184,16 @@ Backend selection is environment-driven; no code changes are needed to switch lo
 
 ---
 
-## Test Focus
+## Validation Strategy
 
-| Tier | Tool | Scope |
-|---|---|---|
-| 0 | `next lint` + `tsc --noEmit` | Lint and type safety |
-| 1 | Jest | Pure modules such as `pgdb.ts`, `routeStore.ts`, `itinerary.ts`, `trainDelay.ts` |
-| 2 | Jest | Route handlers with mocked DB/auth/store dependencies |
-| 3 | Playwright | Full browser flows against running app and real services |
+| Tier | Scope |
+|---|---|
+| 0 | Linting and type safety for route contracts, shared types, and config-driven backend selection |
+| 1 | Pure backend domain and data-access logic, including invariants, store selection, and transformation helpers |
+| 2 | API handler behavior across request validation, auth enforcement, persistence failures, and success/error envelopes |
+| 3 | End-to-end confirmation of browser-visible flows that depend on backend contracts and seeded runtime environments |
 
-Backend coverage should focus on validation paths, auth gates, route success/error behavior, and environment-dependent backend selection.
+Backend validation should emphasize request-boundary checks, auth gates, contract/error coverage, and environment-dependent storage behavior rather than implementation-specific test structure.
 
 ---
 

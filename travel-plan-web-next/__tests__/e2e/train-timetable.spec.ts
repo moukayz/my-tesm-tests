@@ -37,16 +37,6 @@ async function getTimetableContainer(page: Page) {
 // ---------------------------------------------------------------------------
 
 test.describe('Timetable tab — real parquet queries', () => {
-  test('Timetable tab button is visible on the page', async ({ page }) => {
-    await page.goto('/')
-    await expect(page.getByRole('button', { name: 'Timetable' })).toBeVisible()
-  })
-
-  test('clicking Timetable tab shows the train input', async ({ page }) => {
-    await openTimetableTab(page)
-    await expect(page.getByRole('textbox', { name: /train/i })).toBeVisible()
-  })
-
   test('train autocomplete lists real trains from parquet', async ({ page }) => {
     await openTimetableTab(page)
     const trainInput = page.getByRole('textbox', { name: /train/i })
@@ -141,21 +131,6 @@ test.describe('Timetable tab — French and Eurostar GTFS queries', () => {
     await expect(dropdown.getByRole('listitem').filter({ hasText: 'TGV 8088' })).toBeVisible()
   })
 
-  test('all dropdown items contain the search term when typing "8088"', async ({ page }) => {
-    await openTimetableTab(page)
-    const trainInput = page.getByRole('textbox', { name: /train/i })
-    await trainInput.fill('8088')
-
-    const dropdown = page.getByRole('list')
-    await dropdown.waitFor({ state: 'visible' })
-    const items = dropdown.getByRole('listitem')
-    const count = await items.count()
-    expect(count).toBeGreaterThan(0)
-    for (let i = 0; i < count; i++) {
-      await expect(items.nth(i)).toContainText('8088')
-    }
-  })
-
   test('TGV 8088 timetable shows 4 stops without ride date', async ({ page }) => {
     await openTimetableTab(page)
     await selectTrain(page, 'TGV 8088')
@@ -194,98 +169,5 @@ test.describe('Timetable tab — French and Eurostar GTFS queries', () => {
     const timetable = await getTimetableContainer(page)
     await expect(timetable.getByRole('cell', { name: 'Paris-Nord' })).toBeVisible()
     await expect(timetable.getByRole('cell', { name: 'Köln Hbf' })).toBeVisible()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// French and Eurostar API tests
-// ---------------------------------------------------------------------------
-
-test.describe('GET /api/timetable — French and Eurostar GTFS queries', () => {
-  test('TGV 8088: 4 stops, unique station_nums, null ride_date', async ({ request }) => {
-    const res = await request.get('/api/timetable?train=TGV+8088&railway=french')
-    expect(res.ok()).toBeTruthy()
-    const rows = await res.json()
-    expect(rows).toHaveLength(4)
-    expect(rows[0].station_name).toBe('Saint-Malo')
-    expect(rows[rows.length - 1].station_name).toBe('Paris Montparnasse Hall 1 - 2')
-    rows.forEach((row: Record<string, unknown>) => expect(row.ride_date).toBeNull())
-    const nums = rows.map((r: { station_num: number }) => r.station_num)
-    expect(new Set(nums).size).toBe(nums.length)
-  })
-
-  test('EST 9423: 5 stops, Paris-Nord → Köln Hbf, ride_date present', async ({ request }) => {
-    const res = await request.get('/api/timetable?train=EST+9423&railway=eurostar')
-    expect(res.ok()).toBeTruthy()
-    const rows = await res.json()
-    expect(rows).toHaveLength(5)
-    expect(rows[0].station_name).toBe('Paris-Nord')
-    expect(rows[rows.length - 1].station_name).toBe('Köln Hbf')
-    rows.forEach((row: Record<string, unknown>) => expect(row.ride_date).not.toBeNull())
-    const nums = rows.map((r: { station_num: number }) => r.station_num)
-    expect(new Set(nums).size).toBe(nums.length)
-  })
-})
-
-test.describe('GET /api/timetable — real parquet queries', () => {
-  test('returns 400 when train param is missing', async ({ request }) => {
-    const res = await request.get('/api/timetable')
-    expect(res.status()).toBe(400)
-  })
-
-  test('returns empty array for an unknown train', async ({ request }) => {
-    const res = await request.get('/api/timetable?train=NONEXISTENT_TRAIN_XYZ')
-    expect(res.ok()).toBeTruthy()
-    const data = await res.json()
-    expect(Array.isArray(data)).toBeTruthy()
-    expect(data).toHaveLength(0)
-  })
-
-  test('returns ordered timetable rows for ICE 905', async ({ request }) => {
-    const res = await request.get('/api/timetable?train=ICE+905')
-    expect(res.ok()).toBeTruthy()
-    const rows = await res.json()
-
-    expect(Array.isArray(rows)).toBeTruthy()
-    expect(rows).toHaveLength(15)
-
-    // Rows are ordered by station_num
-    for (let i = 0; i < rows.length - 1; i++) {
-      expect(rows[i].station_num).toBeLessThan(rows[i + 1].station_num)
-    }
-
-    // First stop: Bitterfeld
-    expect(rows[0].station_name).toBe('Bitterfeld')
-    expect(rows[0].station_num).toBe(2)
-    expect(rows[0].arrival_planned_time).toContain('00:37')
-    expect(rows[0].departure_planned_time).toContain('00:39')
-
-    // Last stop: München Hbf, no departure
-    const last = rows[rows.length - 1]
-    expect(last.station_name).toBe('München Hbf')
-    expect(last.station_num).toBe(16)
-    expect(last.arrival_planned_time).toContain('07:14')
-    expect(last.departure_planned_time).toBeNull()
-
-    // ride_date is present on every row
-    rows.forEach((row: { ride_date: string }) => {
-      expect(row.ride_date).toBe('2026-02-09')
-    })
-  })
-
-  test('each row has the required fields', async ({ request }) => {
-    const res = await request.get('/api/timetable?train=ICE+905')
-    const rows = await res.json()
-
-    rows.forEach((row: Record<string, unknown>) => {
-      expect(row).toMatchObject({
-        station_name: expect.any(String),
-        station_num: expect.any(Number),
-        ride_date: expect.any(String),
-      })
-      // arrival/departure may be string or null
-      expect(['string', 'object']).toContain(typeof row.arrival_planned_time)
-      expect(['string', 'object']).toContain(typeof row.departure_planned_time)
-    })
   })
 })

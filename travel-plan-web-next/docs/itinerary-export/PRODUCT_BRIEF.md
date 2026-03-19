@@ -95,7 +95,7 @@ flowchart TD
 | PDF error rate | < 2% of PDF export attempts |
 | Markdown generation (p99) | < 100 ms |
 | PDF generation (p95) | < 3 s |
-| Unit test coverage on transform logic | 100% |
+| Export formatting validation pass rate | 100% for core Markdown and PDF output checks |
 
 ---
 
@@ -112,8 +112,8 @@ flowchart TD
 | Role | Responsibility |
 |------|---------------|
 | Chief Tech Lead | PDF library choice, dynamic-import strategy, File System Access API wrapper contract |
-| Frontend Tech Lead | Component placement, format picker spec, export utility interface, test strategy |
-| Frontend Developer | Implementation per LLD; Jest unit tests for transforms; Playwright E2E for export flows |
-| QA | Cross-browser E2E (Chrome/Firefox/Safari); fallback-path and PDF integrity checks |
+| Frontend Tech Lead | Component placement, format picker spec, export utility interface, validation approach |
+| Frontend Developer | Implementation per LLD; feature validation for export formatting, fallback behaviour, and regression safety |
+| QA | Cross-browser validation for export flows, fallback behaviour, and PDF integrity |
 
 *Handoff: Ready for Chief Tech Lead and Frontend Tech Lead to begin HLD/LLD planning.*

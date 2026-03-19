@@ -40,6 +40,7 @@ Owns cross-end quality validation, E2E coverage, and regression testing based on
 - Test reports and runbook updates are Markdown and stored in the repository.
 - Keep docs precise and brief; avoid long narrative descriptions.
 - Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
+- Do not write detailed code-level test case lists in docs; keep testing coverage at scenario/acceptance level.
 
 ## E2E and Regression Requirements
 - Regression suite (FE + BE together):

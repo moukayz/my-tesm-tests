@@ -40,6 +40,7 @@ Implements backend code based on approved backend low-level design and contracts
 - Use Mermaid if a diagram is required.
 - Keep docs precise and brief; avoid long narrative descriptions.
 - Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
+- Do not write detailed code-level test case lists in docs; keep testing coverage at scenario/acceptance level.
 
 ## Backend Bootstrapping (Non-Interactive Examples)
 - Prefer fully non-interactive commands or documented defaults.

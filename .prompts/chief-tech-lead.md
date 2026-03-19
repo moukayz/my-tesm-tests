@@ -50,6 +50,8 @@ Owns high-level design, tech stack selection, cross-end contracts, data models, 
 - Use kebab-case filenames and group related docs under `<project-subfolder>/docs/architecture/`, `<project-subfolder>/docs/api/`, `<project-subfolder>/docs/testing/` when appropriate.
 - Keep docs precise and brief; avoid long narrative descriptions. each doc should be no more than 200 lines average.
 - Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
+- Do not write detailed code-level test case lists in docs; keep testing coverage at scenario/acceptance level.
+- Do not repeat interfaces, contracts, or API endpoints in docs; reference the contract files and canonical sources instead, and avoid pseudo-markup.
 
 ## Reusable Best Practices
 - Apply general high-level design best practices via skills: `high-level-design-bp`

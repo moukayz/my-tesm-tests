@@ -108,7 +108,7 @@ TravelPlanProps {
 )}
 ```
 
-> **Note on `hidden` attribute vs Tailwind class:** The existing tabs use `className={tab === X ? '' : 'hidden'}`. The new panels must use the same pattern for consistency. The existing `ItineraryTab` mock in `TravelPlan.test.tsx` checks `parentElement` class — preserve that behavior by using the same Tailwind `hidden` class pattern.
+> **Note on `hidden` attribute vs Tailwind class:** The existing tabs use `className={tab === X ? '' : 'hidden'}`. The new panels must use the same pattern for consistency.
 
 ---
 
@@ -123,7 +123,7 @@ interface ItineraryTabProps {
 }
 ```
 
-> `tabKey` is a required prop (no default). Tests that render `ItineraryTab` directly must supply it. This is a **breaking change** to the component API — all existing test call sites must be updated to pass `tabKey="route"`.
+> `tabKey` is a required prop (no default). This is a **breaking change** to the component API, so every direct consumer must supply it explicitly.
 
 **State additions:**
 
@@ -439,17 +439,7 @@ interface ItineraryTabProps {
 }
 ```
 
-`data-testid` additions:
-
-| Element | `data-testid` |
-|---------|--------------|
-| Itinerary (Test) tab panel wrapper | `itinerary-test-tab` |
-| Stay pencil button (stay n) | `stay-edit-btn-{stayIndex}` |
-| Stay input (stay n) | `stay-edit-input-{stayIndex}` |
-| Stay confirm button | `stay-edit-confirm-{stayIndex}` |
-| Stay cancel button | `stay-edit-cancel-{stayIndex}` |
-| Inline error | `stay-edit-error-{stayIndex}` |
-| Stay edit error toast | `stay-edit-error-toast` |
+Automation hooks should stay stable enough for browser validation, but specific selector names are implementation details and should be maintained with the component code rather than this design doc.
 
 ### 7.3 `StayEditControl` — full interface
 
@@ -535,86 +525,32 @@ sequenceDiagram
 
 ---
 
-## 9. Test Strategy
+## 9. Validation Strategy
 
 ### Tier 0 — Lint & Types
 
 - `next lint` and `tsc --noEmit` run on every PR.
-- `ItineraryTabProps.tabKey` is required: TypeScript will catch any call sites missing the prop.
-- `StayEditControlProps` is fully typed; no `any`.
+- `ItineraryTabProps.tabKey` remains required so missing consumers fail at compile time.
+- `StayEditControlProps` stays fully typed; no `any`.
 
-### Tier 1 — Unit / Component Tests (Jest + RTL)
+### Tier 1 — Component behavior
 
-#### `TravelPlan.test.tsx` — additions
+- Validate dual-tab visibility rules for authenticated vs unauthenticated sessions.
+- Validate `StayEditControl` read, edit, validation, saving, and error-announcement states.
+- Validate `ItineraryTab` forwards `tabKey`, preserves isolation between the two itinerary instances, and keeps stay editing aligned with optimistic UX.
 
-| Test | Assertion |
-|------|-----------|
-| Both itinerary tabs render when logged in | `getByTestId('itinerary-tab')` and `getByTestId('itinerary-test-tab')` both in DOM |
-| "Itinerary (Test)" button visible when logged in | `getByRole('button', { name: /itinerary \(test\)/i })` |
-| "Itinerary (Test)" panel hidden by default | `itinerary-test-tab` parent has `hidden` class |
-| Clicking "Itinerary (Test)" shows that panel | panel no longer has `hidden`; other itinerary panel does |
-| Neither itinerary tab visible when not logged in | both `queryByTestId('itinerary-tab')` and `queryByTestId('itinerary-test-tab')` are null |
-| `tabKey="route"` passed to first ItineraryTab mock | mock captures prop; assert `tabKey === 'route'` |
-| `tabKey="route-test"` passed to second mock | assert `tabKey === 'route-test'` |
+### Tier 2 — Integration flows
 
-> Update the `ItineraryTab` mock in `TravelPlan.test.tsx` to capture and expose `tabKey` prop for assertion.
+- Validate shrink and extend flows against contract-shaped responses.
+- Validate revert-on-error behavior for both server and network failures.
+- Validate plan-update and stay-update requests always include the correct `tabKey`.
+- Validate concurrent-edit prevention while a stay save is in flight.
 
-#### `StayEditControl.test.tsx` — new file
+### Tier 3 — Browser journeys
 
-| Test | Assertion |
-|------|-----------|
-| Renders null for last stay | `isLast=true` → no pencil button in DOM |
-| Renders pencil button for non-last stay | pencil button present |
-| Clicking pencil shows input form | number input visible; pencil hidden |
-| Input initialized with `currentNights` | `input.value === String(currentNights)` |
-| Enter key triggers `onConfirm` with parsed value | `onConfirm` called with `(stayIndex, 3)` |
-| Escape key triggers `onCancel` | `onCancel` called |
-| Value below 1 shows validation error | error text "at least 1 night" visible; `onConfirm` not called |
-| Value exceeding `currentNights + maxAdditionalNights` shows error | error text "no nights left to borrow" visible |
-| `isSaving=true` disables confirm button | confirm button `disabled` |
-| Inline error has `role="alert"` | `getByRole('alert')` matches error text |
-| Pencil has correct `aria-label` | `aria-label="Edit stay duration for Paris"` |
-| Edit group has `role="group"` | group present with aria-label |
-
-#### `ItineraryTab.test.tsx` — additions
-
-All **existing** tests must pass `tabKey="route"` (breaking prop change).
-
-New tests:
-
-| Test | Assertion |
-|------|-----------|
-| Overnight cells show `StayEditControl` pencil buttons | `getAllByRole('button', { name: /edit stay duration/i })` length equals non-last-stay count |
-| Last stay has no pencil button | no button for last overnight group |
-| Stay edit confirm calls `POST /api/stay-update` with correct body | `fetch` called with `{ tabKey:'route', stayIndex:0, newNights:2 }` |
-| Optimistic update renders immediately | cell value changes before `fetch` resolves |
-| API 500 reverts to original values | after mock 500, cell reverts; toast visible |
-| Error toast has `data-testid="stay-edit-error-toast"` | toast in DOM |
-| `plan-update` calls include `tabKey` | existing inline-edit test: assert `tabKey:'route'` in body |
-| `tabKey="route-test"` forwarded to `stay-update` | second instance test: assert `tabKey:'route-test'` |
-
-### Tier 2 — Integration Tests (Jest, mocked fetch)
-
-| Test | Scenario | Assertion |
-|------|---------|-----------|
-| Shrink: local state after confirm + 200 | `stayIndex=0, newNights=2` (was 4) | nights column updated; next stay shows old+2 |
-| Extend: local state after confirm + 200 | `stayIndex=0, newNights=6` (was 4, next has 4) | stay A=6, stay B=2 |
-| Revert on 500 | optimistic then 500 | state equals pre-edit snapshot |
-| Revert on network error | optimistic then `fetch` rejects | state equals pre-edit snapshot; toast shown |
-| Double edit guard | second pencil click while `stayEditSaving=true` | input for that stay cannot open |
-| `tabKey` isolation: `route-test` instance | render `tabKey="route-test"`, edit stay | `fetch` body contains `tabKey:"route-test"` |
-
-### Tier 3 — E2E (Playwright)
-
-Defined in `implementation-plan.md §S4`. FE is responsible for ensuring these selectors are stable:
-
-| E2E selector anchor | Provided by |
-|---------------------|-------------|
-| `data-testid="stay-edit-btn-{n}"` | `StayEditControl` |
-| `data-testid="stay-edit-input-{n}"` | `StayEditControl` |
-| `data-testid="stay-edit-confirm-{n}"` | `StayEditControl` |
-| `data-testid="stay-edit-error-toast"` | `ItineraryTab` |
-| `role="button" name=/itinerary \(test\)/i` | `TravelPlan` tab button |
+- Validate the primary authenticated journey across both itinerary tabs.
+- Validate keyboard editing, cancel, confirm, and error recovery in the browser.
+- Validate selectors and semantics remain stable enough for QA automation without coupling this doc to concrete implementation names.
 
 ---
 
@@ -642,14 +578,6 @@ components/
 
 app/lib/
   stayUtils.ts              ← NEW (BE-authored) — getStays, applyStayEditOptimistic
-
-__tests__/components/
-  TravelPlan.test.tsx       ← extend with test-tab assertions
-  ItineraryTab.test.tsx     ← add tabKey to existing; add stay-edit tests
-  StayEditControl.test.tsx  ← NEW
-
-__tests__/e2e/
-  stay-edit.spec.ts         ← NEW (QA-authored; see implementation-plan S4)
 ```
 
 ---
@@ -673,7 +601,7 @@ __tests__/e2e/
 |---|------|-----------------------|
 | R-1 | Two `ItineraryTab` instances each run their own `useEffect` for timetable schedule fetching on mount, doubling requests at page load | Both panels are mounted simultaneously (keep-alive pattern). Mitigation: fetch is deduplicated by key; second instance fetches same trains. Long-term: lift schedule fetching to parent. **Accepted for MVP.** |
 | R-2 | `days` state initialized from `initialData` prop diverges if `initialData` prop changes (e.g., hot reload). | `useState(() => initialData)` is only initialized once. This is consistent with existing `planOverrides` pattern. Accepted. |
-| R-3 | `tabKey` is a new required prop on `ItineraryTab`; all existing test call sites must be updated | Tier 0 (TypeScript) will catch at compile time. Update all `ItineraryTab` test usages as part of S1-FE-4. |
+| R-3 | `tabKey` is a new required prop on `ItineraryTab`; all direct consumers must be updated | Tier 0 (TypeScript) will catch missing usage at compile time. |
 | R-4 | Making `applyStayEditOptimistic` available to FE requires BE `stayUtils.ts` to avoid server-only imports | Must be confirmed with BE before S3 starts. If blocked, FE re-implements the pure function locally in `components/stayUtils.client.ts`. |
 | R-5 | Edit form inside `<td rowSpan>` may overflow cell height in narrow viewports | `StayEditControl` input group uses `flex-col`; cell does not constrain height. Verify in mobile viewport. |
 

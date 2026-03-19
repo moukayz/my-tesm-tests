@@ -15,7 +15,7 @@
 - Extend `POST /api/plan-update` to accept an optional `tabKey` field (backward-compatible default `"route"`).
 - Implement `POST /api/stay-update` — new endpoint for stay-boundary mutations.
 - Implement `stayUtils.ts` — pure domain functions for stay computation and mutation.
-- Unit and integration test specifications for all new and modified backend modules.
+- Backend validation strategy for the new write flow, domain rules, and storage isolation.
 
 ### Non-Goals
 
@@ -388,105 +388,40 @@ New `stay-update` uses `{ error: "<code_string>" }` for 400s rather than prose m
 
 ---
 
-## 9. Backend Test Strategy
+## 9. Backend Validation Strategy
 
 ### Tier 0 — Lint & Typecheck
 
-- `next lint` and `tsc --noEmit` must pass after every change.
-- `TabKey` type and `StayEditErrorCode` must be fully exhaustive (TypeScript compile-time guarantee).
+- Linting and type-checking remain the first gate for route contracts, shared types, and config-driven backend selection.
+- Exhaustiveness should be preserved for tab-key allowlists and typed stay-edit error codes so unsupported states fail at compile time.
 
 ---
 
-### Tier 1 — Unit Tests
+### Tier 1 — Domain & Persistence Validation
 
-#### `stayUtils.test.ts` (new)
-
-All tests are pure; no mocks needed.
-
-| Test case | Input | Expected |
-|-----------|-------|----------|
-| `getStays` — single stay | 3 days, same overnight | 1 stay, nights=3 |
-| `getStays` — two stays | 4+3 days | 2 stays, correct startIndex |
-| `getStays` — empty array | `[]` | `[]` |
-| `validateStayEdit` — valid shrink | stayIndex=0, newNights=2 (was 4) | `null` |
-| `validateStayEdit` — valid extend | stayIndex=0, newNights=3 (was 2) | `null` |
-| `validateStayEdit` — newNights=0 | | `'invalid_new_nights'` |
-| `validateStayEdit` — newNights=-1 | | `'invalid_new_nights'` |
-| `validateStayEdit` — newNights not integer | | `'invalid_new_nights'` |
-| `validateStayEdit` — stayIndex is last | | `'invalid_stay_index'` |
-| `validateStayEdit` — stayIndex out of range | stayIndex=99 | `'invalid_stay_index'` |
-| `validateStayEdit` — next stay would reach 0 | next=1, extend by 1 | `'next_stay_exhausted'` |
-| `applyStayEdit` — shrink A, B grows | A=4→2, B=3→5 | correct overnight fields; total unchanged |
-| `applyStayEdit` — extend A, B shrinks | A=2→4, B=4→2 | correct overnight fields; total unchanged |
-| `applyStayEdit` — min nights for B | A=1→1, B=1 (no change) | no mutation |
-| `applyStayEdit` — conservation invariant | any valid edit | `sum(result) === days.length` |
-| `applyStayEdit` — throws on conservation failure | (inject bad mutation) | throws `'day_conservation_violated'` |
-| `applyStayEdit` — non-consecutive overnights preserved | 3 cities | middle city boundaries intact |
-
-#### `routeStore.test.ts` — Additions (Tier 1)
-
-| Test case | Expected |
-|-----------|----------|
-| `getRouteStore('route')` — FileStore uses `ROUTE_DATA_PATH` default | reads `data/route.json` |
-| `getRouteStore('route-test')` — FileStore uses `ROUTE_TEST_DATA_PATH` env | reads configured path |
-| `getRouteStore('route-test')` — FileStore seeds from `route.json` when test file absent | copies seed, returns data |
-| `getRouteStore('route-test')` — FileStore does NOT seed when test file exists | reads test file directly |
-| `getRouteStore('route')` — UpstashStore uses `ROUTE_REDIS_KEY` | `redis.get('route')` |
-| `getRouteStore('route-test')` — UpstashStore uses `ROUTE_TEST_REDIS_KEY` | `redis.get('route-test')` |
-| `getRouteStore('route-test')` — Upstash seeds from `route.json` when empty | `redis.set('route-test', …)` |
-| `updateDays` — FileStore writes full array | `fs.writeFileSync` called with full array |
-| `updateDays` — UpstashStore writes full array | `redis.set(key, days)` |
-| Isolated writes: write to `'route-test'` → `'route'` store unaffected | separate mock instances |
+- Pure domain validation should cover stay grouping, stay-boundary mutations, allowed edit ranges, and the day-conservation invariant.
+- Persistence validation should confirm store selection remains isolated by `tabKey`, full-array writes stay atomic at the storage abstraction, and seeded fallback behavior remains correct for both local-file and Redis-backed execution.
 
 ---
 
-### Tier 2 — Integration Tests (mocked store / auth)
+### Tier 2 — API Contract Validation
 
-#### `api-plan-update.test.ts` — Additions
-
-| Test case | Expected |
-|-----------|----------|
-| Body with `tabKey: 'route-test'` → `getRouteStore` called with `'route-test'` | store mock receives correct key |
-| Body without `tabKey` → `getRouteStore` called with `'route'` | default preserved |
-| Body with `tabKey: 'invalid'` → 400 `"invalid_tab_key"` | existing callers unaffected |
-
-#### `api-stay-update.test.ts` (new)
-
-Mock `auth`, `getRouteStore`, and `stayUtils` where noted.
-
-| Test case | Request | Expected status | Expected body |
-|-----------|---------|-----------------|---------------|
-| No session | any | 401 | `{ error: 'Unauthorized' }` |
-| Valid shrink, `tabKey='route'` | `{tabKey:'route', stayIndex:0, newNights:2}` | 200 | `{ updatedDays: RouteDay[] }` |
-| Valid shrink, `tabKey='route-test'` | `{tabKey:'route-test', stayIndex:0, newNights:2}` | 200 | `{ updatedDays: RouteDay[] }` |
-| `tabKey` missing | `{stayIndex:0, newNights:2}` | 400 | `{ error: 'invalid_tab_key' }` |
-| `tabKey: 'bad'` | | 400 | `{ error: 'invalid_tab_key' }` |
-| `stayIndex` missing | `{tabKey:'route', newNights:2}` | 400 | `{ error: 'invalid_stay_index' }` |
-| `stayIndex: -1` | | 400 | `{ error: 'invalid_stay_index' }` |
-| `stayIndex` is last stay | | 400 | `{ error: 'invalid_stay_index' }` |
-| `newNights: 0` | | 400 | `{ error: 'invalid_new_nights' }` |
-| `newNights: -1` | | 400 | `{ error: 'invalid_new_nights' }` |
-| `newNights` not integer (1.5) | | 400 | `{ error: 'invalid_new_nights' }` |
-| Next stay exhausted | next stay = 1, extend by 1 | 400 | `{ error: 'next_stay_exhausted' }` |
-| Store read failure | `store.getAll` throws | 500 | `{ error: 'internal_error' }` |
-| Store write failure | `store.updateDays` throws | 500 | `{ error: 'internal_error' }` |
-| Both `tabKey` stores are isolated | write to `route-test`; mock `route` store untouched | mock `route` `updateDays` never called | — |
-| Invalid JSON body | malformed body | 400 | error message |
-
-> Test setup mirrors `api-plan-update.test.ts`: `jest.mock('../../auth', ...)`, `jest.mock('../../app/lib/routeStore', ...)`, import route handler via `jest.resetModules()` + dynamic `import()`.
+- Route-level validation should cover request parsing, auth enforcement, allowlist checks, domain-rule failures, store read/write failures, and success responses for both primary and test-tab write paths.
+- Contract coverage should confirm `plan-update` keeps its backward-compatible default behavior while `stay-update` requires an explicit `tabKey` and returns a full-array replacement payload.
+- Error coverage should stay aligned with the documented envelope and status mapping in this doc and `docs/backend-lld.md`.
 
 ---
 
-### Tier 3 — E2E (Playwright, owned by QA)
+### Tier 3 — Cross-End Dependency Notes
 
-Backend constraints that E2E tests depend on:
+Backend constraints that cross-end validation depends on:
 
 | Constraint | Detail |
 |------------|--------|
-| `route` and `route-test` keys must be independently seeded in the E2E environment | Set `ROUTE_REDIS_KEY=route:e2e` and `ROUTE_TEST_REDIS_KEY=route-test:e2e` per test run |
-| `/api/stay-update` must return `updatedDays` (full array) | FE uses this to replace state atomically; partial responses are not supported |
-| Day count invariant never violated | E2E verifies `sum(nights)` after every edit |
-| Auth gate on `/api/stay-update` | 401 must be returned for unauthenticated requests; E2E auth guard spec covers this |
+| Isolated route stores | Primary and test-tab data must stay independently seeded and addressed in shared environments |
+| Full-array stay response | `/api/stay-update` must continue returning `updatedDays` so the client can replace state atomically |
+| Day-count invariant | Valid stay edits must preserve total trip length across reloads and subsequent writes |
+| Auth enforcement | Unauthenticated write attempts must continue returning `401` from the server boundary |
 
 ---
 
@@ -494,12 +429,12 @@ Backend constraints that E2E tests depend on:
 
 | ID | Risk | Mitigation |
 |----|------|-----------|
-| R-A | `UpstashRouteStore` per-request key resolution was env-global; changing to constructor injection alters the internal design | Covered by Tier 1 tests on both keys; no public interface change |
-| R-B | `FileRouteStore` auto-seed for `'route-test'` adds a filesystem side-effect not present for `'route'` | Guarded by `fs.existsSync` check; Tier 1 test covers both seed and no-seed paths |
-| R-C | `applyStayEdit` mutates `overnight` field of boundary days — a non-obvious data mutation | Documented above; pure function with comprehensive Tier 1 tests including conservation check |
+| R-A | `UpstashRouteStore` per-request key resolution was env-global; changing to constructor injection alters the internal design | Validate both storage keys and preserve the public store-selection contract |
+| R-B | `FileRouteStore` auto-seed for `'route-test'` adds a filesystem side-effect not present for `'route'` | Guard with existence checks and keep fallback-seeding behavior covered by persistence validation |
+| R-C | `applyStayEdit` mutates `overnight` field of boundary days — a non-obvious data mutation | Keep domain validation focused on boundary reassignment and total-day conservation |
 | R-D | E2E key collision across parallel CI runs (existing risk, now doubled) | Each run sets unique `ROUTE_REDIS_KEY` + `ROUTE_TEST_REDIS_KEY`; document in CI runbook |
 | R-E | `stay-update` returns full `RouteDay[]` (up to 16 rows) per request — heavier payload than `plan-update` (1 row) | Acceptable; 16 rows of RouteDay JSON is < 5 KB |
-| R-F | `updateDays` adds a new method to `RouteStore` interface — existing mock objects in tests will break unless updated | All existing mocks (`mockStore` in `api-plan-update.test.ts`, `api-train-update.test.ts`) must add `updateDays: jest.fn()` |
+| R-F | `updateDays` adds a new method to `RouteStore` interface — validation scaffolding must stay in sync with the storage contract | Treat interface drift as a test-fixture maintenance risk during backend changes |
 
 ---
 

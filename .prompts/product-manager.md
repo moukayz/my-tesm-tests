@@ -45,6 +45,7 @@ Owns problem discovery, requirement analysis, use cases, and acceptance criteria
 - All docs and contracts must be located in the project subfolder.
 - Keep docs precise and brief; avoid long narrative descriptions.
 - Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
+- Do not write detailed code-level test case lists in docs; keep testing coverage at scenario/acceptance level.
  
 ## Handoff
 After the feature analysis is ready, hand off execution planning and cross-role coordination to the project coordinator.

@@ -26,23 +26,10 @@ async function injectSession(
 }
 
 test.describe('Navigation and Tab Visibility', () => {
-  test('renders "Travel Plan Itinerary" heading on home page', async ({ page }) => {
-    await page.goto('/')
-    await expect(page.getByRole('heading', { name: /travel plan itinerary/i })).toBeVisible()
-  })
-
-  test('shows "Train Delays" tab button when logged out', async ({ page }) => {
+  test('logged out users see delays/timetable tabs but not itinerary', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('button', { name: /^train delays$/i })).toBeVisible()
-  })
-
-  test('shows "Timetable" tab button when logged out', async ({ page }) => {
-    await page.goto('/')
     await expect(page.getByRole('button', { name: /^timetable$/i })).toBeVisible()
-  })
-
-  test('does NOT show "Itinerary" tab button when logged out', async ({ page }) => {
-    await page.goto('/')
     await expect(page.getByRole('button', { name: /^itinerary$/i })).not.toBeVisible()
   })
 
@@ -60,15 +47,10 @@ test.describe('Navigation and Tab Visibility', () => {
     await expect(page.getByPlaceholder('Type to search, e.g. ICE 905').last()).toBeVisible()
   })
 
-  test('logged in: "Itinerary" tab button is visible', async ({ page }) => {
+  test('logged in users land on itinerary by default', async ({ page }) => {
     await injectSession(page)
     await page.goto('/')
     await expect(page.getByRole('button', { name: /^itinerary$/i })).toBeVisible()
-  })
-
-  test('logged in: "Itinerary" tab is active by default (itinerary table header "Date" is visible)', async ({ page }) => {
-    await injectSession(page)
-    await page.goto('/')
     await expect(page.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
   })
 })

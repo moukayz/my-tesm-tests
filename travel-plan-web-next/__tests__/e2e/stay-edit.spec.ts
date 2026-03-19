@@ -41,6 +41,8 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import { encode } from 'next-auth/jwt'
 
+test.describe.configure({ mode: 'serial' })
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const AUTH_SECRET = process.env.AUTH_SECRET || 'test-auth-secret-32chars!!!!!!!!'
@@ -151,6 +153,9 @@ test.describe('Tab visibility', () => {
 test.describe('Stay edit affordance', () => {
   test.beforeEach(async ({ page }) => {
     await injectSession(page)
+    await page.request.post('/api/stay-update', {
+      data: { tabKey: 'route', stayIndex: 0, newNights: 4 },
+    })
     await page.request.post('/api/plan-update', {
       data: {
         tabKey: 'route',

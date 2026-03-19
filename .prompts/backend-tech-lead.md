@@ -43,6 +43,8 @@ Owns backend low-level design aligned with high-level architecture and contract.
 - Use kebab-case filenames and consistent naming for sections.
 - Keep docs precise and brief; avoid long narrative descriptions.
 - Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
+- Do not write detailed code-level test case lists in docs; keep testing coverage at scenario/acceptance level.
+- Do not repeat interfaces, contracts, or API endpoints in docs; reference the contract files and canonical sources instead, and avoid pseudo-markup.
 
 ## Reusable Best Practices
 - Apply general backend LLD best practices via skill: `backend-lld-bp`.

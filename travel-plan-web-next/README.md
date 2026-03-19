@@ -378,7 +378,7 @@ npm run test:e2e:verbose  # full per-test output
 npm run test:e2e:ui       # interactive Playwright UI
 ```
 
-539 Jest tests across 33 suites + 70 Playwright E2E tests covering unit logic, API route integration, component behaviour, and Google OAuth auth (including session injection for authenticated flows). New tests include: `stayUtils` pure-domain tests (32), `routeStore` tabKey isolation tests (26), `api-stay-update` integration tests (22), and `api-plan-update` tabKey extension tests (7).
+Jest and Playwright suites cover unit logic, API route integration, component behavior, and Google OAuth auth (including session injection for authenticated flows). Backend API suites prioritize one high-signal test path per validation/error class while preserving critical domain and persistence checks.
 
 ### Merge GTFS timetables
 

@@ -154,8 +154,6 @@ See `docs/itinerary-export/CONTRACTS.md` for full typed signatures. Summary:
 | `stripMarkdown(text)` | `itineraryExport.ts` | PDF-only preprocessing |
 | `saveFile(opts)` | `fileSave.ts` | FSAA + anchor fallback; swallows `AbortError` |
 
-**`data-testid` anchors:** `export-button`, `export-format-picker`, `export-md`, `export-pdf`, `export-close`, `export-pdf-error`, `export-pdf-spinner`.
-
 ---
 
 ## 7. Accessibility
@@ -165,19 +163,11 @@ See `docs/itinerary-export/CONTRACTS.md` for full typed signatures. Summary:
 
 ---
 
-## 8. Test Strategy
+## 8. Validation Strategy
 
 Project mandates TDD — **tests before implementation** (see `CLAUDE.md`).
 
-**Tier 0:** `next lint` + `tsc --noEmit` — no new rules needed.
-
-**Tier 1 — Unit (`__tests__/unit/itineraryExport.test.ts`, `node` env):**  
-Pure function coverage for `buildPlanCell` (all-populated, empty sections, all-empty, whitespace trim), `buildTrainCell` (normalisation, multi-train, empty), `stripMarkdown` (each token type, plain-text passthrough), `buildMarkdownTable` (header row, separator, row count, no Weekday column).
-
-**Tier 1 — Component (`__tests__/components/Export*.test.tsx`):**  
-`ExportToolbar`: disabled when no data, `onOpen` called on click, `aria-haspopup` present.  
-`ExportFormatPicker`: Markdown/PDF buttons invoke callbacks; Escape + outside-click call `onClose`; `role="alert"` present/absent per `exportError`; spinner present per `isPdfGenerating`.  
-`ItineraryTab` (additions): picker opens/closes; `saveFile` + `buildPdfBlob` mocked; PDF error surfaces as `role="alert"`; recovery after error works.
-
-**Tier 2 — E2E (`__tests__/e2e/itinerary-export.spec.ts`, Playwright):**  
-Authenticated session via `injectSession` helper. Cover: button visible, picker opens/closes (Escape), Markdown download triggers `showSaveFilePicker` with `suggestedName: 'itinerary.md'` and correct headers (no Weekday), PDF download triggers with `suggestedName: 'itinerary.pdf'`, anchor fallback when `showSaveFilePicker` absent, zero network requests during export.
+- **Tier 0:** lint and type safety for the new export state, utility signatures, and client-only integration points.
+- **Tier 1:** unit and component validation for data transformation, picker behavior, success/error states, and accessibility semantics.
+- **Tier 2:** browser-level validation for the authenticated export journey, save/cancel behavior, fallback handling, and no-regression checks on adjacent itinerary interactions.
+- **Critical journeys:** authenticated export to Markdown, authenticated export to PDF, graceful PDF failure recovery, graceful save-dialog cancellation, and client-side operation without export-triggered API calls.

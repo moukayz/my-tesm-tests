@@ -109,16 +109,16 @@ pino structured logs per request: route, key params, response time (ms), row cou
 
 ---
 
-## Test Strategy
+## Validation Strategy
 
-| Tier | Tool | Scope |
+| Tier | Scope | Release gate |
 |---|---|---|
-| 0 | `next lint` + tsc | Lint, types |
-| 1 | Jest + RTL | Pure functions, RouteStore, pgdb, components |
-| 2 | Jest | API route handlers with mocked DB/auth/store |
-| 3 | Playwright | Full browser flows; 45 E2E tests |
+| 0 | Static checks for formatting, linting, and types | Required before merge |
+| 1 | Unit and component validation for shared logic and UI behavior | Required before slice completion |
+| 2 | API and persistence integration validation across auth, storage, and boundary rules | Required before cross-slice integration |
+| 3 | End-to-end validation of critical user journeys | Required before release |
 
-211 Jest tests across 21 suites. Gates: Tier 0+1 before PR merge; Tier 2 before integration; Tier 3 before release.
+Critical paths cover authenticated itinerary writes, test-tab isolation, timetable lookup, delay analytics queries, and export completion flows.
 
 ---
 

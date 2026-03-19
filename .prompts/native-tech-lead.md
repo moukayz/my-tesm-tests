@@ -47,6 +47,8 @@ Owns native low-level design for C++ modules aligned with high-level architectur
 - Use kebab-case filenames and consistent naming for sections.
 - Keep docs precise and brief; avoid long narrative descriptions.
 - Do not include implementation code in docs; prefer Mermaid flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
+- Do not write detailed code-level test case lists in docs; keep testing coverage at scenario/acceptance level.
+- Do not repeat interfaces, contracts, or API endpoints in docs; reference the contract files and canonical sources instead, and avoid pseudo-markup.
 
 ## Reusable Best Practices
 - Apply native LLD best practices via skills: `native-lld-bp`, `cpp-ood-bp`.

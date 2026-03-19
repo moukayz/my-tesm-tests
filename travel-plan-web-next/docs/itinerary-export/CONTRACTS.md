@@ -1,7 +1,7 @@
 # Contracts — Itinerary Export
 
 **Status:** Updated | **Date:** 2026-03-19 | **Author:** Frontend Tech Lead  
-**Change:** Updated for `itinerary-export-ux-pdf-fixes` — adds `FloatingExportButton`, `ExportSuccessToast`, `loadCjkFont`; removes `ExportToolbar`; migrates `export-button` testid to `export-fab`; adds new state slices to `ItineraryTab`.  
+**Change:** Updated for `itinerary-export-ux-pdf-fixes` — adds `FloatingExportButton`, `ExportSuccessToast`, `loadCjkFont`; removes `ExportToolbar`; adds new state slices to `ItineraryTab`.  
 All types are TypeScript strict-mode, compile-time only.
 
 ---
@@ -192,24 +192,7 @@ function closeFloatingPicker(): void
 
 ---
 
-## 7. Test IDs (`data-testid`)
-
-| `data-testid`          | Element                        | Condition                                           |
-|------------------------|-------------------------------|-----------------------------------------------------|
-| ~~`export-button`~~    | ~~`<button>` (ExportToolbar)~~ | **REMOVED** — ExportToolbar deleted in UX fixes     |
-| `export-fab`           | `<button>` (FloatingExportButton) | Present when `ItineraryTab` is mounted (`isLoggedIn=true`) |
-| `export-format-picker` | Root `<div>` (picker)          | Present when `floatingPickerOpen=true` (unchanged)  |
-| `export-md`            | `<button>`                     | Always present in open picker (unchanged)           |
-| `export-pdf`           | `<button>`                     | Always present in open picker (unchanged)           |
-| `export-close`         | `<button>`                     | Always present in open picker (unchanged)           |
-| `export-pdf-error`     | `<p role="alert">`             | Only when `exportError` non-null (unchanged)        |
-| `export-pdf-spinner`   | `<span role="status">`         | Only when `isPdfGenerating` true (unchanged)        |
-| `export-success-toast` | `<div role="status">`          | Present when `exportSuccess=true`                   |
-| `export-toast-dismiss` | `<button>` inside toast        | Present when `export-success-toast` is visible      |
-
----
-
-## 8. Error Messages (User-Facing)
+## 7. Error Messages (User-Facing)
 
 | Condition | Message | Element |
 |-----------|---------|---------|

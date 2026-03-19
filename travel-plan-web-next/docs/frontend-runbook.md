@@ -35,57 +35,19 @@ App opens at [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## 2. Running Frontend Tests
+## 2. Frontend Validation
 
-### Unit + component + integration tests (Jest)
+Use the standard project scripts to validate frontend changes before merge:
 
 ```bash
-# All Jest tests (silent dot reporter)
+# Frontend unit, component, and integration validation
 npm test
 
-# Verbose output (test names visible)
-npm run test:verbose
-
-# Watch mode
-npm run test:watch
-
-# Coverage report
-npm run test:coverage
-```
-
-**Expected output:** 539 tests, 33 suites, 0 failures.
-
-### Run only export-feature tests
-
-```bash
-# Unit tests for transform logic
-npm test -- "itineraryExport"
-
-# Unit tests for fileSave utility
-npm test -- "fileSave"
-
-# Component tests for ExportToolbar
-npm test -- "ExportToolbar"
-
-# Component tests for ExportFormatPicker
-npm test -- "ExportFormatPicker"
-
-# Integration tests (export flows inside ItineraryTab)
-npm test -- "ItineraryTab"
-```
-
-### E2E tests (Playwright)
-
-```bash
-# Cloud mode (requires .env.local with MotherDuck + Neon creds)
+# Browser-level regression validation
 npm run test:e2e
-
-# Local mode (requires Docker + GTFS data loaded)
-npm run test:e2e:local
-
-# Interactive Playwright UI
-npm run test:e2e:ui
 ```
+
+Targeted local debugging is acceptable, but this runbook intentionally avoids feature-specific commands and file-pattern guidance. Focus on validating the affected journey end to end, then finish with the standard full-suite scripts above.
 
 ---
 
@@ -103,7 +65,7 @@ Build must pass with zero TypeScript and lint errors before merging.
 
 ### How it works
 
-The "Export to files…" button is rendered in a toolbar above the itinerary table (inside `ItineraryTab`). It is always present for authenticated users (the Itinerary tab is only rendered when authenticated).
+The export affordance is rendered inside each authenticated itinerary panel as a floating action button managed by `ItineraryTab`.
 
 **User flow:**
 1. User clicks "Export to files…" → format picker opens.
@@ -119,8 +81,10 @@ The "Export to files…" button is rendered in a toolbar above the itinerary tab
 |---|---|
 | `app/lib/itineraryExport.ts` | Pure transform functions: `buildPlanCell`, `buildTrainCell`, `stripMarkdown`, `toExportRows`, `buildMarkdownTable`, `buildPdfBlob` |
 | `app/lib/fileSave.ts` | `saveFile()`: File System Access API → anchor fallback |
-| `components/ExportToolbar.tsx` | Presentational toolbar with the trigger button |
+| `app/lib/cjkFontLoader.ts` | Lazy font loading for PDF export |
+| `components/FloatingExportButton.tsx` | Export trigger owned by each itinerary panel |
 | `components/ExportFormatPicker.tsx` | Format picker popover (Markdown / PDF) |
+| `components/ExportSuccessToast.tsx` | Success feedback after completed export |
 
 ### PDF library
 
@@ -164,40 +128,18 @@ The export uses the **effective** `RouteDay[]` — i.e., `planOverrides` and `tr
 ### `showSaveFilePicker` throws `AbortError`
 - User cancelled the native dialog. This is silently swallowed — no error is shown. This is correct behaviour.
 
-### Test mocking
-- In Jest tests, `app/lib/fileSave` and `app/lib/itineraryExport` are mocked at the test file level using `jest.mock()`. Tests in `ItineraryTab.test.tsx` → `ItineraryTab - Export Feature` describe block use these mocks. If you add a new test that needs the real implementation, use `jest.unmock()` or create a separate test file.
+---
+
+## 6. Validation Focus (itinerary-export)
+
+- Validate both export formats from the authenticated itinerary view.
+- Confirm the picker opens, closes cleanly, and surfaces user-facing PDF errors without blocking Markdown export.
+- Confirm browser-specific save behavior degrades gracefully when native save APIs are unavailable or cancelled.
+- Confirm export remains client-side and does not regress itinerary editing, drag-and-drop, or train JSON editing flows.
 
 ---
 
-## 6. Test Coverage Summary (itinerary-export)
-
-| Test file | Tests | What it covers |
-|---|---|---|
-| `__tests__/unit/itineraryExport.test.ts` | 48 | `buildPlanCell`, `buildTrainCell`, `stripMarkdown`, `buildMarkdownTable`, `toExportRows`, `buildPdfBlob` CJK integration |
-| `__tests__/unit/fileSave.test.ts` | 10 | `saveFile` — File System Access API path + anchor fallback path |
-| `__tests__/unit/cjkFontLoader.test.ts` | 8 | `loadCjkFont` singleton, fetch, VFS registration, error propagation |
-| `__tests__/components/ExportToolbar.test.tsx` | 10 | Legacy export button (component kept for reference) |
-| `__tests__/components/ExportSuccessToast.test.tsx` | 10 | Toast render, auto-dismiss timer, manual dismiss, timer cleanup |
-| `__tests__/components/FloatingExportButton.test.tsx` | 11 | FAB states (enabled/disabled), aria attributes, click handler |
-| `__tests__/components/ExportFormatPicker.test.tsx` | 16 | Format buttons, Escape/outside-click dismiss, spinner, error banner |
-| `__tests__/components/ItineraryTab.test.tsx` (export section) | 24 | Integration: FAB testid migration, open picker, Markdown/PDF export, toast states, error/abort cases |
-
-### Running export-specific tests (copy-paste ready)
-
-```bash
-# Unit/component tests only
-cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="ExportSuccessToast|FloatingExportButton|cjkFontLoader|itineraryExport|ItineraryTab"
-
-# Full Jest suite
-cd travel-plan-web-next && npm test -- --no-coverage
-
-# E2E itinerary-export tests (Chromium)
-cd travel-plan-web-next && npm run test:e2e -- --project=chromium --grep="itinerary-export"
-```
-
----
-
-## 8. Editable Itinerary Stays (`editable-itinerary-stays`)
+## 7. Editable Itinerary Stays (`editable-itinerary-stays`)
 
 ### How it works
 
@@ -233,35 +175,16 @@ POST /api/plan-update (extended)
 { dayIndex: number, plan: PlanSections, tabKey: 'route' | 'route-test' }
 ```
 
-### Running stay-edit-specific tests (copy-paste ready)
+### Validation focus for stay edits
 
-```bash
-# StayEditControl unit tests
-cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="StayEditControl"
-
-# ItineraryTab stay edit integration tests
-cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="ItineraryTab"
-
-# TravelPlan dual-tab tests
-cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="TravelPlan"
-
-# stayUtils pure function tests
-cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="stayUtils"
-
-# stay-update API integration tests
-cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="api-stay-update"
-
-# All feature-related tests at once
-cd travel-plan-web-next && npm test -- --no-coverage --testPathPatterns="TravelPlan|StayEditControl|ItineraryTab|stayUtils|api-stay-update"
-
-# TypeScript gate
-cd travel-plan-web-next && npx tsc --noEmit
-```
+- Confirm both itinerary tabs stay isolated and preserve their own edits.
+- Confirm optimistic updates, server reconciliation, and revert-on-error behavior remain intact.
+- Confirm keyboard editing and auth-gated tab visibility still behave correctly.
 
 ### Troubleshooting stay edits
 
 #### Error toast appears after edit
-- The error toast (`data-testid="stay-edit-error-toast"`) is shown when `POST /api/stay-update` returns a non-2xx or network error.
+- The error toast is shown when `POST /api/stay-update` returns a non-2xx or network error.
 - The edit reverts to the pre-edit snapshot automatically.
 - Dismiss the toast with the ✕ button; it clears `stayEditError` state.
 
@@ -274,7 +197,7 @@ cd travel-plan-web-next && npx tsc --noEmit
 - Check that `auth()` returns a valid session in `app/page.tsx`.
 
 #### `tabKey` not forwarded in plan-update body
-- The `handleEditBlur` and `autoSavePlan` functions both include `tabKey` in the request body (confirmed by test `"plan-update calls include tabKey in the request body"`).
+- The `handleEditBlur` and `autoSavePlan` functions both include `tabKey` in the request body.
 - If this is missing in production, check that the `ItineraryTab` instance received its `tabKey` prop from `TravelPlan`.
 
 #### Double edit prevention
@@ -283,26 +206,24 @@ cd travel-plan-web-next && npx tsc --noEmit
 
 ---
 
-## 7. Troubleshooting — `itinerary-export-ux-pdf-fixes`
+## 8. Troubleshooting — `itinerary-export-ux-pdf-fixes`
 
-### CJK font (PDF): `export-pdf-error` shows "could not load font"
+### CJK font (PDF): inline export error shows "could not load font"
 - Check that `public/fonts/NotoSansSC-subset.ttf` is present in the repository and served correctly.
 - In development: navigate to `http://localhost:3000/fonts/NotoSansSC-subset.ttf` — expect a binary download, not a 404.
 - The font is loaded lazily only when the user triggers PDF export. If the font file is missing, PDF generation will fail with a user-visible error banner.
-- In tests: `cjkFontLoader.test.ts` mocks `fetch` — the actual file is not needed for unit tests to pass.
 
 ### Floating export button (FAB): not visible
 - The FAB uses `position: fixed; top: 50%; right: 1rem; z-index: 40` via Tailwind CSS.
-- It is rendered inside each `ItineraryTab` subtree so panel-scoped selectors can find the correct button instance (`route` vs `route-test`).
-- If the FAB is missing, check that the expected itinerary panel is active and visible (`data-testid="itinerary-tab"` or `data-testid="itinerary-test-tab"`).
+- It is rendered inside each `ItineraryTab` subtree so the active itinerary panel owns its own export controls.
+- If the FAB is missing, check that the expected itinerary panel is active and visible.
 
 ### Success toast: not appearing after export
 - The toast is rendered conditionally when `exportSuccess === true` in `ItineraryTab`.
 - `exportSuccess` is set to `true` ONLY in the success branch of `handleExportMarkdown` / `handleExportPdf` — AFTER `saveFile()` resolves without error.
 - If the user cancels the native save dialog (`AbortError`) or if PDF generation fails, no toast is shown (by design).
-- In tests: `ItineraryTab.test.tsx` → `ItineraryTab - Export Feature` mocks `saveFile` to resolve successfully by default.
 
 ### Font file size (deviation from LLD target)
 - The LLD targets ≤200 KB for the font subset. The actual committed file (`NotoSansSC-subset.ttf`) is ~4.9 MB.
 - This is because the CJK Unified Ideographs block (`U+4E00–U+9FFF`) contains ~20K glyphs; it cannot be compressed below ~3–5 MB in a standard TTF with full glyph coverage.
-- Mitigation: the font is loaded lazily (only on PDF export, not on page load). The `E2E-S2-01` test confirms zero font requests on initial page load.
+- Mitigation: the font is loaded lazily only when the user triggers PDF export, not on initial page load.

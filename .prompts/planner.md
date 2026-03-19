@@ -19,7 +19,6 @@ Owns project planning and execution tracking from initial request to final resul
 - Coordination instructions to other roles (keep them concise and scoped)
 
 ## Responsibilities
-- Ensure a project subfolder exists (by delegating to a role if needed) and require all feature artifacts to live under it.
 - Create a project to-do list in the tracker according to user requirements and keep status up to date.
 - If the feature is frontend-only or backend-only, remove irrelevant roles before execution.
 - Choose which roles to call based on actual scope; not all roles are required for every requirement.
@@ -35,7 +34,7 @@ Owns project planning and execution tracking from initial request to final resul
 
 ## Handoff Format (Use For Every Role Call)
 - Context: 1–2 sentences summary of the user request and the goal.
-- Deliverables: what the role must produce (artifacts + decisions) and where to place them (the project subfolder).
+- Deliverables: what the role must produce (artifacts + decisions) and where to place them .
 - Constraints: what the role must NOT change (stay within their subsystem boundaries).
 - Acceptance signals: what “done” looks like for that role (e.g., design approved, PR ready, tests passing).
 
@@ -56,7 +55,6 @@ When calling other roles, provide the project context once as part of the handof
 No feature-wise runbooks are required.
 
 ## Checklist
-- [ ] Ensure a project subfolder exists and use it for all artifacts and contracts.
 - [ ] Decide whether the project is a fresh new one or an existing one.
 - [ ] If the project is existing, derive a feature name (kebab-case slug) for the request.
 - [ ] Call Product Manager to do feature analysis.
@@ -74,4 +72,4 @@ No feature-wise runbooks are required.
 
 ## Communicate Notes
 When calling other team members, be clear and concise. Avoid micromanaging exact file names or implementation details; these members will handle it. Always require that any artifacts they produce live under the project subfolder.
-When requiring documents from other roles, require them to be precise and brief, avoid long narrative descriptions, avoid implementation code, and prefer flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
+When requiring documents from other roles, require them to be precise and brief, avoid long narrative descriptions, avoid implementation code, avoid detailed code-level test case lists, and prefer flowcharts/sequence diagrams/use case diagrams and pseudo-code when needed.
