@@ -1,41 +1,51 @@
 # E2E Test Runbook — Travel Plan Web (Next.js)
 
-**Last updated:** 2026-03-19 (QA pass — `itinerary-export-ux-pdf-fixes`)
-**Coverage:** auth, navigation, itinerary, train delays, timetable, train schedule editor, itinerary export (UX + PDF fixes)
+**Last updated:** 2026-03-19
+**Scope:** operational setup, execution, reporting, and high-level debugging for Playwright E2E runs
 
 ---
 
 ## 1. Quick Start
 
 ```bash
-# Install dependencies (first time only)
+# Install dependencies
 npm install
 
-# Run all E2E tests (local mode — no MotherDuck token required)
-npm run test:e2e:local
+# Start local PostgreSQL
+docker-compose up -d
 
-# Run all E2E tests (cloud mode — requires .env.local with MotherDuck + Neon creds)
-npm run test:e2e
+# Initialise schema
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railway npm run db:init
+
+# Load local railway data used by E2E
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railway npm run db:german:load
+
+# Run E2E in local mode
+npm run test:e2e:local
 ```
+
+Use `npm run test:e2e` when validating against cloud-backed data sources configured in `.env.local`.
 
 ---
 
 ## 2. Prerequisites
 
-### 2.1 Node.js & npm
+### 2.1 Required tools
 
 - Node.js 18+
-- `npm install` completed (installs Playwright browsers automatically via `@playwright/test`)
+- npm
+- Docker / Docker Compose
 
 ### 2.2 Environment files
 
 | File | Purpose |
 |------|---------|
-| `.env.test` | Auth secret, test route data path, test DB URL — **committed to repo** |
-| `.env.local` | Local overrides (Google OAuth, MotherDuck token, Neon DB URL) — **gitignored** |
+| `.env.test` | Shared test auth and test-safe defaults used by Playwright |
+| `.env.local` | Local developer overrides and cloud credentials; gitignored |
 
-`.env.test` contents:
-```
+Expected local test values:
+
+```dotenv
 AUTH_SECRET=test-auth-secret-32chars!!!!!!!!
 AUTH_TRUST_HOST=true
 ROUTE_DATA_PATH=data/route.e2e.json
@@ -43,199 +53,102 @@ ROUTE_REDIS_KEY=route:e2e
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railway
 ```
 
-### 2.3 Local data sources (for `test:e2e:local`)
+### 2.3 Local services and data
 
-Docker + local GTFS parquet files:
-```bash
-# Start local PostgreSQL (for auth / plan persistence)
-docker-compose up -d
+Local mode depends on:
 
-# Initialise DB schema
-npm run db:init
-
-# Load German railway GTFS data (required for timetable / delay tests)
-npm run db:german:load
-```
-
-The app will use local parquet files under `german-railway-timetable/`, `french-railway-timetable/`, and `eurostar-railway-timetable/`.
+- PostgreSQL from `docker-compose`
+- Initial schema from `npm run db:init`
+- German railway data from `npm run db:german:load`
+- Local timetable/parquet assets already present in the repository data directories
 
 ---
 
-## 3. Running E2E Tests
+## 3. Running E2E
 
-### 3.1 All tests (dot reporter — CI-friendly)
-
-```bash
-npm run test:e2e         # cloud mode
-npm run test:e2e:local   # local mode (no cloud credentials required)
-```
-
-### 3.2 All tests (verbose list output)
+### 3.1 Standard commands
 
 ```bash
+# Local data sources; no cloud credentials required
+npm run test:e2e:local
+
+# Cloud-backed mode; reads `.env.local`
+npm run test:e2e
+
+# Verbose terminal output
 npm run test:e2e:verbose
-```
 
-### 3.3 Interactive Playwright UI (recommended for local debugging)
-
-```bash
+# Interactive Playwright UI for debugging
 npm run test:e2e:ui
 ```
 
-### 3.4 Run a specific spec file
+### 3.2 Recommended execution flow
 
-```bash
-# Run only itinerary export tests
-npx playwright test __tests__/e2e/itinerary-export.spec.ts --reporter=list
-
-# Run only auth tests
-npx playwright test __tests__/e2e/auth.spec.ts --reporter=list
-```
-
-### 3.5 Run tests matching a grep pattern
-
-```bash
-# All export-related tests
-npx playwright test --grep "Itinerary Export" --reporter=list
-
-# All auth tests
-npx playwright test --grep "Authentication" --reporter=list
-```
+1. Start Docker services.
+2. Ensure schema and railway data are loaded.
+3. Run `npm run test:e2e:local` for routine validation.
+4. Use `npm run test:e2e:ui` when reproducing or stepping through a failure.
 
 ---
 
-## 4. One-Stop Local Dev Launch
+## 4. Local Manual Validation
 
-To manually test the app locally with all features working:
+Use this setup when you need the app running locally outside the Playwright runner:
 
 ```bash
-# Terminal 1: Start Docker (PostgreSQL)
+# Terminal 1
 docker-compose up -d
 
-# Terminal 2: Start the Next.js dev server (local data sources)
+# Terminal 2
 npm run dev:local
 ```
 
-App opens at [http://localhost:3000](http://localhost:3000).
+The app is available at `http://localhost:3000`.
 
-To log in during manual testing, either:
-- Configure Google OAuth credentials in `.env.local` and use Sign in with Google.
-- Or use the JWT session-injection technique from the E2E tests (browser DevTools → cookie injection).
+For authenticated manual checks, use the project's configured local auth setup from `.env.local`.
 
 ---
 
-## 7. Playwright Configuration
+## 5. CI Usage
 
-Config file: `playwright.config.ts`
-
-Key settings:
-
-| Setting | Value |
-|---------|-------|
-| `testDir` | `./__tests__/e2e` |
-| `baseURL` | `http://localhost:3001` |
-| `projects` | `chromium` only |
-| `webServer.command` | `npm run dev -- -p 3001` (local) / `npm run build && npm start -- -p 3001` (cloud) |
-| `timeout` | 30 000 ms (local) / 120 000 ms (MotherDuck) |
-| `retries` | 0 |
-| `fullyParallel` | `true` (local) / `false` (MotherDuck) |
-| `reporter` | `list`, `html`, `json` |
-
-HTML report is generated at `playwright-report/index.html`.  
-JSON results at `test-results.json`.
-
----
-
-## 8. Session Injection Helper
-
-All E2E tests that require authentication use the `injectSession` helper to bypass Google OAuth:
-
-```ts
-import { encode } from 'next-auth/jwt'
-
-const AUTH_SECRET = process.env.AUTH_SECRET || 'test-auth-secret-32chars!!!!!!!!'
-const COOKIE_NAME = 'authjs.session-token'
-
-async function injectSession(page: Page, user = { email: 'test@gmail.com', name: 'Test User' }) {
-  const token = await encode({
-    token: { email: user.email, name: user.name, sub: user.email },
-    secret: AUTH_SECRET,
-    salt: COOKIE_NAME,
-  })
-  await page.context().addCookies([{
-    name: COOKIE_NAME, value: token, domain: 'localhost',
-    path: '/', httpOnly: true, sameSite: 'Lax',
-  }])
-}
-```
-
-This must be called **before** `page.goto('/')` (or cookies must be set before navigation).
-
----
-
-## 9. Export Feature Test Mocking
-
-The export E2E tests mock `window.showSaveFilePicker` via `page.addInitScript()` to:
-- Prevent actual file dialogs from blocking the test.
-- Capture written file content for assertion.
-
-```ts
-const INJECT_SAVE_FILE_PICKER_MOCK = `
-  (() => {
-    const capture = { calls: [], chunks: [] }
-    window.__exportCapture = capture
-    window.showSaveFilePicker = (opts) => {
-      capture.calls.push({ suggestedName: opts && opts.suggestedName })
-      const writable = {
-        write: (chunk) => { capture.chunks.push(chunk); return Promise.resolve() },
-        close: () => Promise.resolve(),
-      }
-      return Promise.resolve({ createWritable: () => Promise.resolve(writable) })
-    }
-  })()
-`
-```
-
-To read captured file content in a test:
-```ts
-const content = await page.evaluate(async () => {
-  const cap = window.__exportCapture
-  const parts = await Promise.all(cap.chunks.map(c =>
-    c instanceof Blob ? c.text() : Promise.resolve(String(c))
-  ))
-  return parts.join('')
-})
-```
-
-To test anchor fallback (no `showSaveFilePicker`):
-```ts
-await page.addInitScript(`
-  delete window.showSaveFilePicker
-  window.__anchorClicks = []
-  const origCreate = document.createElement.bind(document)
-  document.createElement = function(tag, ...args) {
-    const el = origCreate(tag, ...args)
-    if (tag.toLowerCase() === 'a') {
-      el.click = function() { window.__anchorClicks.push({ download: el.download }) }
-    }
-    return el
-  }
-`)
-```
-
----
-
-## 10. CI Integration
-
-The E2E tests are suitable for CI gating. Recommended CI command:
+Preferred CI command:
 
 ```bash
 npm run test:e2e:local
 ```
 
-This runs without any cloud credentials. Requires:
-1. Docker PostgreSQL service running.
-2. DB initialised (`npm run db:init`).
-3. Railway data loaded (`npm run db:german:load`).
+CI requirements:
 
-Set `DATABASE_URL` and `AUTH_SECRET` in CI environment variables (match `.env.test` values for the test-secret values).
+1. Docker PostgreSQL service is available.
+2. Database schema is initialized before the E2E step.
+3. Local railway data is loaded before the E2E step.
+4. `AUTH_SECRET` and `DATABASE_URL` are set to the test-safe values used by the local run.
+
+Use cloud mode in CI only when the pipeline intentionally validates external credentials and services from `.env.local`-equivalent secrets.
+
+---
+
+## 6. Reports and Artifacts
+
+- HTML report: `travel-plan-web-next/playwright-report/index.html`
+- JSON results: `travel-plan-web-next/test-results.json`
+- Failure screenshots and traces: generated by Playwright on failed or retried runs under the standard test output directories
+
+Open the HTML report after a run to review failed steps, screenshots, and trace links.
+
+---
+
+## 7. High-Level Troubleshooting
+
+- `App failed to start`: confirm dependencies are installed and the Playwright-managed web server can bind to port `3001`.
+- `Database/auth failures`: verify `DATABASE_URL` and `AUTH_SECRET` match the local test values expected by `.env.test`.
+- `Missing railway results`: rerun `npm run db:german:load` and confirm local timetable assets are present.
+- `Cloud-mode slowness`: prefer `npm run test:e2e:local` for routine validation; use cloud mode only when that dependency is the thing being verified.
+- `Need deeper debugging`: rerun with `npm run test:e2e:ui`, then inspect the HTML report and Playwright trace output.
+
+---
+
+## 8. Notes
+
+- Playwright uses `playwright.config.ts` for server startup, reporter output, and environment loading.
+- Keep this runbook focused on execution and debugging workflow; detailed test inventory belongs in the test suite, not in operational docs.

@@ -17,6 +17,15 @@ import { formatTime } from '../app/lib/trainTimetable'
 import { renderMarkdown } from '../app/lib/markdown'
 import { buildMarkdownTable /*, buildPdfBlob — temporarily disabled */ } from '../app/lib/itineraryExport'
 import { saveFile } from '../app/lib/fileSave'
+import {
+  createEmptyTrainScheduleDraftRow,
+  moveDraftRow,
+  parseTrainScheduleForDraft,
+  serializeDraftRows,
+  validateTrainScheduleDraftRows,
+  type TrainScheduleDraftRow,
+  type TrainScheduleDraftRowErrors,
+} from '../app/lib/trainScheduleDraft'
 import FloatingExportButton from './FloatingExportButton'
 import ExportFormatPicker from './ExportFormatPicker'
 import ExportSuccessToast from './ExportSuccessToast'
@@ -62,11 +71,18 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [savingDndDayIndex, setSavingDndDayIndex] = useState<number | null>(null)
   const [dndError, setDndError] = useState<Record<number, string>>({})
-  const [trainJsonModal, setTrainJsonModal] = useState<{ dayIndex: number; json: string } | null>(null)
-  const [trainJsonEditValue, setTrainJsonEditValue] = useState('')
-  const [trainJsonSaving, setTrainJsonSaving] = useState(false)
-  const [trainJsonError, setTrainJsonError] = useState<string | null>(null)
+  const [trainEditorDayIndex, setTrainEditorDayIndex] = useState<number | null>(null)
+  const [trainEditorRows, setTrainEditorRows] = useState<TrainScheduleDraftRow[]>([])
+  const [trainEditorRowErrors, setTrainEditorRowErrors] = useState<Record<string, TrainScheduleDraftRowErrors>>({})
+  const [trainEditorLegacyError, setTrainEditorLegacyError] = useState<string | null>(null)
+  const [trainEditorSaving, setTrainEditorSaving] = useState(false)
+  const [trainEditorSaveError, setTrainEditorSaveError] = useState<string | null>(null)
+  const [trainEditorAnnouncement, setTrainEditorAnnouncement] = useState('')
+  const [trainEditorDragSourceRowId, setTrainEditorDragSourceRowId] = useState<string | null>(null)
+  const [trainEditorDragOverRowId, setTrainEditorDragOverRowId] = useState<string | null>(null)
   const [trainOverrides, setTrainOverrides] = useState<Record<number, RouteDay['train']>>({})
+  const trainEditorTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const trainEditorInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   // ── Export state ────────────────────────────────────────────────────────────
   const [floatingPickerOpen, setFloatingPickerOpen] = useState(false)
@@ -278,47 +294,182 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
     }
   }
 
-  const handleTrainJsonSave = async () => {
-    if (!trainJsonModal) return
-    setTrainJsonSaving(true)
-    setTrainJsonError(null)
+  const closeTrainEditor = (force = false) => {
+    if (trainEditorSaving && !force) return
+    setTrainEditorDayIndex(null)
+    setTrainEditorRows([])
+    setTrainEditorRowErrors({})
+    setTrainEditorLegacyError(null)
+    setTrainEditorSaveError(null)
+    setTrainEditorAnnouncement('')
+    setTrainEditorDragSourceRowId(null)
+    setTrainEditorDragOverRowId(null)
+    setTimeout(() => trainEditorTriggerRef.current?.focus(), 0)
+  }
+
+  const openTrainEditor = (
+    index: number,
+    trainData: RouteDay['train'],
+    triggerButton: HTMLButtonElement
+  ) => {
+    trainEditorTriggerRef.current = triggerButton
+    const parsed = parseTrainScheduleForDraft(trainOverrides[index] ?? trainData)
+    setTrainEditorDayIndex(index)
+    setTrainEditorRowErrors({})
+    setTrainEditorSaveError(null)
+    setTrainEditorAnnouncement('')
+
+    if (!parsed.ok) {
+      setTrainEditorLegacyError(parsed.error)
+      setTrainEditorRows([])
+      return
+    }
+
+    setTrainEditorLegacyError(null)
+    setTrainEditorRows(parsed.rows)
+  }
+
+  const setTrainEditorField = (
+    rowId: string,
+    field: 'trainId' | 'start' | 'end',
+    value: string
+  ) => {
+    setTrainEditorRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)))
+    setTrainEditorSaveError(null)
+    setTrainEditorRowErrors((prev) => {
+      if (!prev[rowId]) return prev
+      const rowErrors = { ...prev[rowId] }
+      if (field === 'trainId') {
+        delete rowErrors.trainId
+      }
+      if (field === 'start' || field === 'end') {
+        delete rowErrors.stationPair
+      }
+      const next = { ...prev }
+      if (!rowErrors.trainId && !rowErrors.stationPair) {
+        delete next[rowId]
+      } else {
+        next[rowId] = rowErrors
+      }
+      return next
+    })
+  }
+
+  const addTrainEditorRow = () => {
+    setTrainEditorRows((prev) => [...prev, createEmptyTrainScheduleDraftRow()])
+    setTrainEditorSaveError(null)
+  }
+
+  const removeTrainEditorRow = (rowId: string) => {
+    setTrainEditorRows((prev) => prev.filter((row) => row.id !== rowId))
+    setTrainEditorRowErrors((prev) => {
+      const next = { ...prev }
+      delete next[rowId]
+      return next
+    })
+    setTrainEditorSaveError(null)
+  }
+
+  const handleTrainEditorRowDragStart = (rowId: string, e: React.DragEvent) => {
+    setTrainEditorDragSourceRowId(rowId)
+    setTrainEditorDragOverRowId(null)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData?.('text/plain', rowId)
+  }
+
+  const handleTrainEditorRowDragOver = (rowId: string, e: React.DragEvent) => {
+    e.preventDefault()
+    if (!trainEditorDragSourceRowId || trainEditorDragSourceRowId === rowId) return
+    setTrainEditorDragOverRowId(rowId)
+  }
+
+  const handleTrainEditorRowDrop = (targetRowId: string, e: React.DragEvent) => {
+    e.preventDefault()
+    if (!trainEditorDragSourceRowId || trainEditorDragSourceRowId === targetRowId) {
+      setTrainEditorDragSourceRowId(null)
+      setTrainEditorDragOverRowId(null)
+      return
+    }
+
+    setTrainEditorRows((prev) => {
+      const fromIndex = prev.findIndex((row) => row.id === trainEditorDragSourceRowId)
+      const toIndex = prev.findIndex((row) => row.id === targetRowId)
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+        return prev
+      }
+      setTrainEditorAnnouncement(`Moved row ${fromIndex + 1} to position ${toIndex + 1}.`)
+      return moveDraftRow(prev, fromIndex, toIndex)
+    })
+    setTrainEditorSaveError(null)
+    setTrainEditorDragSourceRowId(null)
+    setTrainEditorDragOverRowId(null)
+  }
+
+  const handleTrainEditorRowDragEnd = () => {
+    setTrainEditorDragSourceRowId(null)
+    setTrainEditorDragOverRowId(null)
+  }
+
+  const handleTrainEditorSave = async () => {
+    if (trainEditorDayIndex === null || trainEditorLegacyError) return
+
+    const validation = validateTrainScheduleDraftRows(trainEditorRows)
+    setTrainEditorRowErrors(validation.errors)
+    if (!validation.isValid) {
+      if (validation.firstInvalidField) {
+        const refKey = `${validation.firstInvalidField.rowId}:${validation.firstInvalidField.field}`
+        trainEditorInputRefs.current[refKey]?.focus()
+      }
+      return
+    }
+
+    setTrainEditorSaving(true)
+    setTrainEditorSaveError(null)
+
     try {
       const res = await fetch('/api/train-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dayIndex: trainJsonModal.dayIndex, trainJson: trainJsonEditValue }),
+        body: JSON.stringify({
+          dayIndex: trainEditorDayIndex,
+          trainJson: serializeDraftRows(trainEditorRows),
+          tabKey,
+        }),
       })
+
       if (!res.ok) {
         const data = await res.json()
-        setTrainJsonError(data.error || 'Failed to save')
+        setTrainEditorSaveError(data.error || 'Could not save train schedule. Your edits are still open.')
       } else {
         const updatedDay = await res.json()
-        setTrainOverrides((prev) => ({ ...prev, [trainJsonModal.dayIndex]: updatedDay.train }))
-        setTrainJsonModal(null)
+        setTrainOverrides((prev) => ({ ...prev, [trainEditorDayIndex]: updatedDay.train }))
+        closeTrainEditor(true)
       }
     } catch {
-      setTrainJsonError('Network error. Please try again.')
+      setTrainEditorSaveError('Could not save train schedule. Your edits are still open.')
     } finally {
-      setTrainJsonSaving(false)
+      setTrainEditorSaving(false)
     }
   }
 
-  const openTrainJsonModal = (index: number, trainData: RouteDay['train']) => {
-    const json = JSON.stringify(trainOverrides[index] ?? trainData, null, 2)
-    setTrainJsonModal({ dayIndex: index, json })
-    setTrainJsonEditValue(json)
-    setTrainJsonError(null)
-  }
-
-  // Close modal on Escape key
   useEffect(() => {
-    if (!trainJsonModal) return
+    if (trainEditorDayIndex === null || trainEditorSaving) return
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setTrainJsonModal(null)
+      if (e.key === 'Escape') {
+        setTrainEditorDayIndex(null)
+        setTrainEditorRows([])
+        setTrainEditorRowErrors({})
+        setTrainEditorLegacyError(null)
+        setTrainEditorSaveError(null)
+        setTrainEditorAnnouncement('')
+        setTrainEditorDragSourceRowId(null)
+        setTrainEditorDragOverRowId(null)
+        setTimeout(() => trainEditorTriggerRef.current?.focus(), 0)
+      }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [trainJsonModal])
+  }, [trainEditorDayIndex, trainEditorSaving])
 
   // Fetch train schedules for DB trains
   useEffect(() => {
@@ -504,9 +655,9 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
                 <td className="px-6 py-4 border-b border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0 relative">
                   <button
                     data-testid={`train-json-edit-btn-${index}`}
-                    onClick={() => openTrainJsonModal(index, day.train)}
+                    onClick={(e) => openTrainEditor(index, day.train, e.currentTarget)}
                     className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
-                    aria-label="View train JSON"
+                    aria-label="Edit train schedule"
                   >
                     <Pencil size={14} />
                   </button>
@@ -583,44 +734,178 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
         </tbody>
       </table>
 
-      {trainJsonModal !== null && (
+      {trainEditorDayIndex !== null && (
         <div
-          data-testid="train-json-modal"
+          data-testid="train-schedule-editor-modal"
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
         >
           <div
             role="dialog"
-            aria-label="Train schedule JSON"
-            className="bg-white rounded-xl shadow-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-auto"
+            aria-modal="true"
+            aria-label="Edit train schedule"
+            className="bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[85vh] overflow-auto"
           >
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Train Schedule JSON</h2>
-            <textarea
-              data-testid="train-json-content"
-              value={trainJsonEditValue}
-              onChange={(e) => { setTrainJsonEditValue(e.target.value); setTrainJsonError(null) }}
-              rows={10}
-              className="w-full text-xs font-mono bg-gray-50 rounded p-3 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 resize-y"
-            />
-            {trainJsonError && (
-              <p data-testid="train-json-error" className="text-red-600 text-xs mt-1">{trainJsonError}</p>
+            <h2 className="text-lg font-semibold text-gray-900">Edit train schedule</h2>
+            <p className="text-sm text-gray-500 mt-1 mb-4">
+              Day {processedData[trainEditorDayIndex].dayNum} · {processedData[trainEditorDayIndex].date}
+            </p>
+
+            {trainEditorLegacyError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {trainEditorLegacyError}
+              </div>
+            ) : (
+              <>
+                <div className="sr-only" aria-live="polite">{trainEditorAnnouncement}</div>
+
+                {trainEditorRows.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600 space-y-3">
+                    <p>No trains added for this day yet.</p>
+                    <button
+                      type="button"
+                      data-testid="train-editor-add-row"
+                      onClick={addTrainEditorRow}
+                      disabled={trainEditorSaving}
+                      className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Add train
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {trainEditorRows.map((row, rowIndex) => (
+                      <div
+                        key={row.id}
+                        data-testid={`train-editor-row-${rowIndex + 1}`}
+                        draggable={!trainEditorSaving}
+                        onDragStart={(e) => handleTrainEditorRowDragStart(row.id, e)}
+                        onDragOver={(e) => handleTrainEditorRowDragOver(row.id, e)}
+                        onDrop={(e) => handleTrainEditorRowDrop(row.id, e)}
+                        onDragEnd={handleTrainEditorRowDragEnd}
+                        className={`rounded-lg border border-gray-200 p-3 space-y-2 cursor-grab
+                          ${trainEditorDragSourceRowId === row.id ? 'opacity-40' : ''}
+                          ${trainEditorDragOverRowId === row.id ? 'ring-2 ring-blue-400 bg-blue-50' : ''}
+                          ${trainEditorSaving ? 'cursor-wait' : ''}
+                        `}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-gray-700">Train {rowIndex + 1}</p>
+                          <span aria-label="Drag to reorder trains" className="text-gray-300 shrink-0">
+                            <GripVertical size={14} />
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
+                          <div>
+                            <label htmlFor={`train-id-${row.id}`} className="block text-xs font-medium text-gray-600 mb-1">
+                              Train ID
+                            </label>
+                            <input
+                              id={`train-id-${row.id}`}
+                              type="text"
+                              aria-label={`Train ID for row ${rowIndex + 1}`}
+                              value={row.trainId}
+                              onChange={(e) => setTrainEditorField(row.id, 'trainId', e.target.value)}
+                              disabled={trainEditorSaving}
+                              ref={(el) => { trainEditorInputRefs.current[`${row.id}:trainId`] = el }}
+                              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              autoFocus={rowIndex === 0}
+                            />
+                            {trainEditorRowErrors[row.id]?.trainId && (
+                              <p className="text-xs text-red-600 mt-1">{trainEditorRowErrors[row.id].trainId}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label htmlFor={`train-start-${row.id}`} className="block text-xs font-medium text-gray-600 mb-1">
+                              Start station
+                            </label>
+                            <input
+                              id={`train-start-${row.id}`}
+                              type="text"
+                              aria-label={`Start station for row ${rowIndex + 1}`}
+                              value={row.start}
+                              onChange={(e) => setTrainEditorField(row.id, 'start', e.target.value)}
+                              disabled={trainEditorSaving}
+                              ref={(el) => { trainEditorInputRefs.current[`${row.id}:start`] = el }}
+                              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label htmlFor={`train-end-${row.id}`} className="block text-xs font-medium text-gray-600 mb-1">
+                              End station
+                            </label>
+                            <input
+                              id={`train-end-${row.id}`}
+                              type="text"
+                              aria-label={`End station for row ${rowIndex + 1}`}
+                              value={row.end}
+                              onChange={(e) => setTrainEditorField(row.id, 'end', e.target.value)}
+                              disabled={trainEditorSaving}
+                              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <button
+                              type="button"
+                              data-testid={`train-editor-delete-${rowIndex + 1}`}
+                              onClick={() => removeTrainEditorRow(row.id)}
+                              disabled={trainEditorSaving}
+                              className="h-[34px] px-2 py-1 text-xs rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              aria-label={`Delete row ${rowIndex + 1}`}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+
+                        {trainEditorRowErrors[row.id]?.stationPair && (
+                          <p className="text-xs text-red-600">{trainEditorRowErrors[row.id].stationPair}</p>
+                        )}
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      data-testid="train-editor-add-row"
+                      onClick={addTrainEditorRow}
+                      disabled={trainEditorSaving}
+                      className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Add train
+                    </button>
+                  </div>
+                )}
+
+                {trainEditorSaveError && (
+                  <p data-testid="train-editor-save-error" role="alert" className="text-sm text-red-600 mt-3">
+                    {trainEditorSaveError}
+                  </p>
+                )}
+              </>
             )}
+
             <div className="flex justify-end gap-2 mt-4">
               <button
-                data-testid="train-json-close"
-                onClick={() => setTrainJsonModal(null)}
-                disabled={trainJsonSaving}
+                data-testid="train-editor-cancel"
+                onClick={() => closeTrainEditor()}
+                disabled={trainEditorSaving}
                 className="px-4 py-2 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
-                Cancel
+                {trainEditorLegacyError ? 'Close' : 'Cancel'}
               </button>
-              <button
-                data-testid="train-json-save"
-                onClick={handleTrainJsonSave}
-                disabled={trainJsonSaving}
-                className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {trainJsonSaving ? 'Saving…' : 'Save'}
-              </button>
+              {!trainEditorLegacyError && (
+                <button
+                  data-testid="train-editor-save"
+                  onClick={handleTrainEditorSave}
+                  disabled={trainEditorSaving}
+                  className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {trainEditorSaving ? 'Saving…' : 'Save'}
+                </button>
+              )}
             </div>
           </div>
         </div>

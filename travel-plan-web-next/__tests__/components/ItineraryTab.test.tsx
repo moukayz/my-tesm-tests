@@ -895,7 +895,7 @@ describe('ItineraryTab - Markdown Rendering', () => {
   })
 })
 
-describe('ItineraryTab - Train JSON viewer', () => {
+describe('ItineraryTab - Train Schedule Editor', () => {
   afterEach(() => jest.restoreAllMocks())
 
   it('renders edit button for each day', async () => {
@@ -907,147 +907,115 @@ describe('ItineraryTab - Train JSON viewer', () => {
     }
   })
 
-  it('modal is closed by default', async () => {
+  it('editor dialog is closed by default', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
 
-    expect(screen.queryByTestId('train-json-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('train-schedule-editor-modal')).not.toBeInTheDocument()
   })
 
-  it('clicking edit button opens modal', async () => {
+  it('clicking edit button opens structured train editor dialog', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
 
-    expect(screen.getByTestId('train-json-modal')).toBeInTheDocument()
+    expect(screen.getByTestId('train-schedule-editor-modal')).toBeInTheDocument()
+    expect(screen.queryByTestId('train-json-content')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: /edit train schedule/i })).toBeInTheDocument()
   })
 
-  it('modal shows correct JSON for clicked day', async () => {
+  it('editor shows existing row fields for clicked day', async () => {
+    setupFetchWithPlanUpdate()
+    await renderAndAwaitSchedules()
+
+    await userEvent.click(screen.getByTestId('train-json-edit-btn-2'))
+    expect(screen.getByDisplayValue('ICE 123')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('augsburg')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('munich')).toBeInTheDocument()
+  })
+
+  it('cancel button closes editor dialog', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
+    expect(screen.getByTestId('train-schedule-editor-modal')).toBeInTheDocument()
 
-    const jsonContent = screen.getByTestId('train-json-content') as HTMLTextAreaElement
-    expect(jsonContent.value).toBe(JSON.stringify(mockRouteData[0].train, null, 2))
+    await userEvent.click(screen.getByTestId('train-editor-cancel'))
+    expect(screen.queryByTestId('train-schedule-editor-modal')).not.toBeInTheDocument()
   })
 
-  it('cancel button closes modal', async () => {
+  it('Escape key closes editor dialog', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-    expect(screen.getByTestId('train-json-modal')).toBeInTheDocument()
-
-    await userEvent.click(screen.getByTestId('train-json-close'))
-    expect(screen.queryByTestId('train-json-modal')).not.toBeInTheDocument()
-  })
-
-  it('Escape key closes modal', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-    expect(screen.getByTestId('train-json-modal')).toBeInTheDocument()
+    expect(screen.getByTestId('train-schedule-editor-modal')).toBeInTheDocument()
 
     fireEvent.keyDown(document, { key: 'Escape' })
 
     await waitFor(() => {
-      expect(screen.queryByTestId('train-json-modal')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('train-schedule-editor-modal')).not.toBeInTheDocument()
     })
   })
 
-  it('shows empty array JSON for day with no trains', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    // mockRouteData[0] has train: []
-    await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-
-    const jsonContent = screen.getByTestId('train-json-content') as HTMLTextAreaElement
-    expect(jsonContent.value).toBe('[]')
-  })
-
-  it('modal shows JSON for correct day when clicking different day button', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    // Click day 2 (index 2 has train with train_id and start/end)
-    await userEvent.click(screen.getByTestId('train-json-edit-btn-2'))
-
-    const jsonContent = screen.getByTestId('train-json-content') as HTMLTextAreaElement
-    expect(jsonContent.value).toBe(JSON.stringify(mockRouteData[2].train, null, 2))
-  })
-
-  it('modal content matches day 0 train data after clicking btn-0', async () => {
+  it('shows empty state for day with no trains and supports add row', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-
-    const jsonContent = screen.getByTestId('train-json-content') as HTMLTextAreaElement
-    // mockRouteData[0].train is [], not mockRouteData[1].train or mockRouteData[2].train
-    expect(jsonContent.value).not.toBe(JSON.stringify(mockRouteData[1].train, null, 2))
-    expect(jsonContent.value).not.toBe(JSON.stringify(mockRouteData[2].train, null, 2))
-    expect(jsonContent.value).toBe(JSON.stringify(mockRouteData[0].train, null, 2))
+    expect(screen.getByText(/no trains added for this day/i)).toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('train-editor-add-row'))
+    expect(screen.getByLabelText(/train id for row 1/i)).toBeInTheDocument()
   })
 
-  it('modal has correct accessibility attributes', async () => {
+  it('dialog has accessibility attributes', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
 
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveAttribute('aria-label', 'Train schedule JSON')
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
   })
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // New tests for editable modal + save flow
-  // ──────────────────────────────────────────────────────────────────────────
-
-  it('textarea is editable - typing new content updates value', async () => {
+  it('validates blank train_id before save', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-    const textarea = screen.getByTestId('train-json-content') as HTMLTextAreaElement
+    await userEvent.click(screen.getByTestId('train-editor-add-row'))
+    await userEvent.click(screen.getByTestId('train-editor-save'))
 
-    fireEvent.change(textarea, { target: { value: '[{"train_id":"NEW123"}]' } })
-
-    expect(textarea.value).toBe('[{"train_id":"NEW123"}]')
+    expect(screen.getByText(/train id is required/i)).toBeInTheDocument()
+    const calls = (global.fetch as jest.Mock).mock.calls.filter((c) => c[0] === '/api/train-update')
+    expect(calls).toHaveLength(0)
   })
 
-  it('Save button is present in the modal', async () => {
+  it('validates half-filled start/end pair before save', async () => {
     setupFetchWithPlanUpdate()
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
+    await userEvent.click(screen.getByTestId('train-editor-add-row'))
+    await userEvent.type(screen.getByLabelText(/train id for row 1/i), 'ICE 505')
+    await userEvent.type(screen.getByLabelText(/start station for row 1/i), 'Berlin')
+    await userEvent.click(screen.getByTestId('train-editor-save'))
 
-    expect(screen.getByTestId('train-json-save')).toBeInTheDocument()
+    expect(screen.getByText(/start and end must both be filled/i)).toBeInTheDocument()
+    const calls = (global.fetch as jest.Mock).mock.calls.filter((c) => c[0] === '/api/train-update')
+    expect(calls).toHaveLength(0)
   })
 
-  it('Cancel button is present in the modal', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-
-    expect(screen.getByTestId('train-json-close')).toBeInTheDocument()
-    expect(screen.getByTestId('train-json-close')).toHaveTextContent('Cancel')
-  })
-
-  it('Save button calls POST /api/train-update with correct payload', async () => {
+  it('save posts serialized trainJson for add flow', async () => {
     setupFetchWithPlanUpdate({ '/api/train-update': { train: [{ train_id: 'ICE999' }] } })
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-    const textarea = screen.getByTestId('train-json-content') as HTMLTextAreaElement
-
-    fireEvent.change(textarea, { target: { value: '[{"train_id":"ICE999"}]' } })
-
-    await userEvent.click(screen.getByTestId('train-json-save'))
+    await userEvent.click(screen.getByTestId('train-editor-add-row'))
+    await userEvent.type(screen.getByLabelText(/train id for row 1/i), 'ICE999')
+    await userEvent.click(screen.getByTestId('train-editor-save'))
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -1055,18 +1023,23 @@ describe('ItineraryTab - Train JSON viewer', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ dayIndex: 0, trainJson: '[{"train_id":"ICE999"}]' }),
+          body: JSON.stringify({ dayIndex: 0, trainJson: '[{"train_id":"ICE999"}]', tabKey: 'route' }),
         })
       )
     })
   })
 
-  it('successful save closes modal', async () => {
+  it('save supports reordering rows and persists new order', async () => {
     global.fetch = jest.fn((url: RequestInfo | URL) => {
       const path = url.toString().split('?')[0].replace('http://localhost', '')
       if (path === '/api/train-update') {
         return Promise.resolve({
-          json: () => Promise.resolve({ train: [{ train_id: 'ICE999' }] }),
+          json: () => Promise.resolve({
+            train: [
+              { train_id: 'ICE 200', start: 'Paris', end: 'Lyon' },
+              { train_id: 'ICE 100', start: 'Berlin', end: 'Munich' },
+            ],
+          }),
           ok: true,
           status: 200,
         } as Response)
@@ -1074,17 +1047,42 @@ describe('ItineraryTab - Train JSON viewer', () => {
       return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
     })
 
-    await renderAndAwaitSchedules()
+    const reorderData: RouteDay[] = [
+      {
+        date: '2026/9/27',
+        weekDay: '星期日',
+        dayNum: 3,
+        overnight: '科隆',
+        plan: { morning: 'm', afternoon: 'a', evening: 'e' },
+        train: [
+          { train_id: 'ICE 100', start: 'Berlin', end: 'Munich' },
+          { train_id: 'ICE 200', start: 'Paris', end: 'Lyon' },
+        ],
+      },
+    ]
+    render(<ItineraryTab initialData={reorderData} tabKey="route" />)
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-    await userEvent.click(screen.getByTestId('train-json-save'))
+    const firstRow = screen.getByTestId('train-editor-row-1')
+    const secondRow = screen.getByTestId('train-editor-row-2')
+    const dragEvent = { dataTransfer: { effectAllowed: 'move' } }
+    fireEvent.dragStart(firstRow, dragEvent)
+    fireEvent.dragOver(secondRow, dragEvent)
+    fireEvent.drop(secondRow, dragEvent)
+    await userEvent.click(screen.getByTestId('train-editor-save'))
 
     await waitFor(() => {
-      expect(screen.queryByTestId('train-json-modal')).not.toBeInTheDocument()
+      const calls = (global.fetch as jest.Mock).mock.calls
+      const saveCall = calls.find((call) => call[0] === '/api/train-update')
+      expect(saveCall).toBeDefined()
+      const body = JSON.parse(saveCall![1].body)
+      expect(body.trainJson).toBe(
+        '[{"train_id":"ICE 200","start":"Paris","end":"Lyon"},{"train_id":"ICE 100","start":"Berlin","end":"Munich"}]'
+      )
     })
   })
 
-  it('successful save updates table with new train data', async () => {
+  it('successful save closes editor and updates table with new train data', async () => {
     global.fetch = jest.fn((url: RequestInfo | URL) => {
       const path = url.toString().split('?')[0].replace('http://localhost', '')
       if (path === '/api/train-update') {
@@ -1100,23 +1098,26 @@ describe('ItineraryTab - Train JSON viewer', () => {
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-    const textarea = screen.getByTestId('train-json-content') as HTMLTextAreaElement
-    fireEvent.change(textarea, { target: { value: '[{"train_id":"ICE999","start":"berlin","end":"munich"}]' } })
-    await userEvent.click(screen.getByTestId('train-json-save'))
+    await userEvent.click(screen.getByTestId('train-editor-add-row'))
+    await userEvent.type(screen.getByLabelText(/train id for row 1/i), 'ICE999')
+    await userEvent.type(screen.getByLabelText(/start station for row 1/i), 'berlin')
+    await userEvent.type(screen.getByLabelText(/end station for row 1/i), 'munich')
+    await userEvent.click(screen.getByTestId('train-editor-save'))
 
     await waitFor(() => {
+      expect(screen.queryByTestId('train-schedule-editor-modal')).not.toBeInTheDocument()
       expect(screen.getByText('ICE 999')).toBeInTheDocument()
     })
   })
 
-  it('API error shows error message in modal', async () => {
+  it('save supports remove-all and sends empty array', async () => {
     global.fetch = jest.fn((url: RequestInfo | URL) => {
       const path = url.toString().split('?')[0].replace('http://localhost', '')
       if (path === '/api/train-update') {
         return Promise.resolve({
-          json: () => Promise.resolve({ error: 'Invalid JSON' }),
-          ok: false,
-          status: 400,
+          json: () => Promise.resolve({ train: [] }),
+          ok: true,
+          status: 200,
         } as Response)
       }
       return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
@@ -1124,21 +1125,36 @@ describe('ItineraryTab - Train JSON viewer', () => {
 
     await renderAndAwaitSchedules()
 
-    await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-    await userEvent.click(screen.getByTestId('train-json-save'))
+    await userEvent.click(screen.getByTestId('train-json-edit-btn-2'))
+    await userEvent.click(screen.getByTestId('train-editor-delete-1'))
+    await userEvent.click(screen.getByTestId('train-editor-save'))
 
     await waitFor(() => {
-      expect(screen.getByTestId('train-json-error')).toBeInTheDocument()
-      expect(screen.getByTestId('train-json-error')).toHaveTextContent('Invalid JSON')
+      const calls = (global.fetch as jest.Mock).mock.calls
+      const saveCall = calls.find((call) => call[0] === '/api/train-update')
+      expect(saveCall).toBeDefined()
+      const body = JSON.parse(saveCall![1].body)
+      expect(body.trainJson).toBe('[]')
     })
   })
 
-  it('error clears when typing in textarea', async () => {
+  it('removes legacy up/down row controls and keeps row-end delete action', async () => {
+    setupFetchWithPlanUpdate()
+    await renderAndAwaitSchedules()
+
+    await userEvent.click(screen.getByTestId('train-json-edit-btn-2'))
+
+    expect(screen.queryByTestId('train-editor-move-up-1')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('train-editor-move-down-1')).not.toBeInTheDocument()
+    expect(screen.getByTestId('train-editor-delete-1')).toBeInTheDocument()
+  })
+
+  it('API error keeps editor open and shows save error', async () => {
     global.fetch = jest.fn((url: RequestInfo | URL) => {
       const path = url.toString().split('?')[0].replace('http://localhost', '')
       if (path === '/api/train-update') {
         return Promise.resolve({
-          json: () => Promise.resolve({ error: 'Invalid JSON' }),
+          json: () => Promise.resolve({ error: 'Failed to save' }),
           ok: false,
           status: 400,
         } as Response)
@@ -1149,17 +1165,15 @@ describe('ItineraryTab - Train JSON viewer', () => {
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-    await userEvent.click(screen.getByTestId('train-json-save'))
+    await userEvent.click(screen.getByTestId('train-editor-add-row'))
+    await userEvent.type(screen.getByLabelText(/train id for row 1/i), 'ICE999')
+    await userEvent.click(screen.getByTestId('train-editor-save'))
 
     await waitFor(() => {
-      expect(screen.getByTestId('train-json-error')).toBeInTheDocument()
-    })
-
-    const textarea = screen.getByTestId('train-json-content') as HTMLTextAreaElement
-    await userEvent.type(textarea, 'x')
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('train-json-error')).not.toBeInTheDocument()
+      expect(screen.getByTestId('train-editor-save-error')).toBeInTheDocument()
+      expect(screen.getByTestId('train-editor-save-error')).toHaveTextContent('Failed to save')
+      expect(screen.getByTestId('train-schedule-editor-modal')).toBeInTheDocument()
+      expect(screen.getByDisplayValue('ICE999')).toBeInTheDocument()
     })
   })
 
@@ -1178,10 +1192,10 @@ describe('ItineraryTab - Train JSON viewer', () => {
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-    await userEvent.click(screen.getByTestId('train-json-save'))
+    await userEvent.click(screen.getByTestId('train-editor-save'))
 
     await waitFor(() => {
-      expect(screen.getByTestId('train-json-save')).toBeDisabled()
+      expect(screen.getByTestId('train-editor-save')).toBeDisabled()
     })
 
     // Clean up: resolve the pending promise
@@ -1207,10 +1221,10 @@ describe('ItineraryTab - Train JSON viewer', () => {
     await renderAndAwaitSchedules()
 
     await userEvent.click(screen.getByTestId('train-json-edit-btn-0'))
-    await userEvent.click(screen.getByTestId('train-json-save'))
+    await userEvent.click(screen.getByTestId('train-editor-save'))
 
     await waitFor(() => {
-      expect(screen.getByTestId('train-json-close')).toBeDisabled()
+      expect(screen.getByTestId('train-editor-cancel')).toBeDisabled()
     })
 
     // Clean up: resolve the pending promise

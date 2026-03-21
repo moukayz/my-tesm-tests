@@ -9,6 +9,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 - **Itinerary tab** — full trip schedule rendered as a table with merged overnight-location cells and pastel color-coding per destination
   - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away
   - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
+- **Structured train schedule editor** — click the pencil in Train Schedule to edit day-level train rows (`train_id`, optional `start`+`end`) with add, drag-and-drop reorder, row-end delete, inline validation, and single-save persistence
   - **Multi-railway timetable** — Train Schedule column auto-detects TGV (French) and EST (Eurostar) trains from the train ID prefix and fetches from the correct railway data source; German trains remain the default
   - **Export to files** — A floating action button (FAB, fixed at viewport mid-right) lets authenticated users download their itinerary as Markdown (`.md`) or PDF (`.pdf`). Uses the File System Access API where available (Chrome/Edge native save dialog), with a silent anchor-download fallback for Firefox/Safari. PDF generation is client-side only (jsPDF + jspdf-autotable, dynamically imported). CJK characters (Chinese/Japanese/Korean) render correctly in PDF via a lazily-loaded NotoSansSC font subset. A success toast confirms each export. Exported columns: Date, Day, Overnight, Plan, Train Schedule (Weekday omitted).
   - **Editable stay duration** — each non-last overnight city block shows a pencil icon; clicking it opens an inline input to set the number of nights. Reducing a stay by N days transfers those days to the following stay; extending borrows from the next. Day-conservation invariant is enforced both client-side (pre-flight) and server-side. Optimistic update with revert-on-failure and an error toast.
@@ -58,6 +59,7 @@ travel-plan-web-next/
 │   │   ├── itinerary.ts         # RouteDay/ProcessedDay types, getOvernightColor, processItinerary, getRailwayFromTrainId
 │   │   ├── routeStore.ts        # RouteStore interface + FileRouteStore + UpstashRouteStore + getRouteStore(tabKey)
 │   │   ├── stayUtils.ts         # Pure stay utilities: getStays, getStaysWithMeta, validateStayEdit, applyStayEdit, applyStayEditOptimistic
+│   │   ├── trainScheduleDraft.ts # Train editor draft parse/validate/serialize/reorder helpers
 │   │   └── trainDelay.ts        # DelayStats/TrendPoint types, formatDay, buildStatItems
 │   └── api/
 │       ├── auth/[...nextauth]/route.ts  # NextAuth.js catch-all handler (GET + POST)
@@ -157,6 +159,16 @@ Each plan row (Morning / Afternoon / Evening) supports two interaction modes:
 - **Drag-and-drop reorder** — drag the grip handle (right side of each row) to swap activity values within the same day. An optimistic update is applied immediately; on API failure the swap reverts. The time-of-day labels (icons for Morning / Afternoon / Evening) are fixed and are not draggable. Drag handles are hidden while a row is in edit mode.
 
 `planOverrides` in `ItineraryTab` is a client-side override layer (keyed by day index) that sits on top of the static `route.json` import so both interactions compose correctly without a page reload.
+
+### Itinerary Train Schedule Editing
+
+Clicking the pencil button in a day's Train Schedule cell opens a structured dialog instead of a raw JSON textarea.
+
+- Each row edits one train entry with `train_id` (required) and optional `start`/`end` as a pair.
+- Users can add rows, remove rows via a row-end Delete button, and reorder rows with drag-and-drop.
+- Validation blocks save for blank `train_id` or half-filled station pairs.
+- Save sends `POST /api/train-update` with `trainJson` (stringified array) and updates `trainOverrides[dayIndex]` from `updatedDay.train`.
+- Legacy malformed entries (unsupported keys/shapes) open in a recoverable, non-destructive error state with close-only behavior.
 
 ### Authentication
 
