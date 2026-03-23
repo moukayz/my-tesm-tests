@@ -5,6 +5,13 @@ import type { RouteDay } from '../../app/lib/itinerary'
 import type { ItineraryWorkspace as ItineraryWorkspaceType } from '../../app/lib/itinerary-store/types'
 import ItineraryWorkspace from '../../components/ItineraryWorkspace'
 
+jest.mock('../../components/ItineraryRouteMap', () => ({
+  __esModule: true,
+  default: ({ stays }: { stays: unknown[] }) => (
+    <div data-testid="route-map-mock">stays:{stays.length}</div>
+  ),
+}))
+
 jest.mock('../../components/ItineraryTab', () => ({
   __esModule: true,
   default: ({

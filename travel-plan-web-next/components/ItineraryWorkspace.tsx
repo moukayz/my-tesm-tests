@@ -5,6 +5,7 @@ import type { ItineraryWorkspace as ItineraryWorkspaceType } from '../app/lib/it
 import { applyMoveStay, deriveStays, regenerateDerivedDates } from '../app/lib/itinerary-store/domain'
 import ItineraryTab from './ItineraryTab'
 import ItineraryEmptyState from './ItineraryEmptyState'
+import ItineraryRouteMap from './ItineraryRouteMap'
 import StaySheet, { type StaySheetMode, type StaySheetSubmitInput } from './StaySheet'
 
 interface ItineraryWorkspaceProps {
@@ -210,6 +211,8 @@ export default function ItineraryWorkspace({
           </button>
         </div>
       )}
+
+      {hasDays && <ItineraryRouteMap stays={workspace.stays} />}
 
       {!hasDays ? (
         <ItineraryEmptyState
