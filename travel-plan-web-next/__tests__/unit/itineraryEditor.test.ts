@@ -25,9 +25,33 @@ describe('itinerary domain helpers', () => {
   it('deriveStays groups contiguous overnight blocks', () => {
     const stays = deriveStays([day('Paris', 1), day('Paris', 2), day('Lyon', 3), day('Rome', 4), day('Rome', 5)])
     expect(stays).toEqual([
-      { stayIndex: 0, city: 'Paris', nights: 2, startDayIndex: 0, endDayIndex: 1, isLastStay: false },
-      { stayIndex: 1, city: 'Lyon', nights: 1, startDayIndex: 2, endDayIndex: 2, isLastStay: false },
-      { stayIndex: 2, city: 'Rome', nights: 2, startDayIndex: 3, endDayIndex: 4, isLastStay: true },
+      {
+        stayIndex: 0,
+        city: 'Paris',
+        nights: 2,
+        startDayIndex: 0,
+        endDayIndex: 1,
+        isLastStay: false,
+        location: { kind: 'custom', label: 'Paris', queryText: 'Paris' },
+      },
+      {
+        stayIndex: 1,
+        city: 'Lyon',
+        nights: 1,
+        startDayIndex: 2,
+        endDayIndex: 2,
+        isLastStay: false,
+        location: { kind: 'custom', label: 'Lyon', queryText: 'Lyon' },
+      },
+      {
+        stayIndex: 2,
+        city: 'Rome',
+        nights: 2,
+        startDayIndex: 3,
+        endDayIndex: 4,
+        isLastStay: true,
+        location: { kind: 'custom', label: 'Rome', queryText: 'Rome' },
+      },
     ])
   })
 

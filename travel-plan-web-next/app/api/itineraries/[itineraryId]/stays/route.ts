@@ -16,7 +16,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   const { itineraryId } = await context.params
 
-  let body: { city?: unknown; nights?: unknown }
+  let body: { city?: unknown; nights?: unknown; location?: unknown }
   try {
     body = await request.json()
   } catch {

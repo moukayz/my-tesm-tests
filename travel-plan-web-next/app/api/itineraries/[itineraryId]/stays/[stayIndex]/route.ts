@@ -17,7 +17,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const { itineraryId, stayIndex: stayIndexParam } = await context.params
   const stayIndex = Number(stayIndexParam)
 
-  let body: { city?: unknown; nights?: unknown }
+  let body: { city?: unknown; nights?: unknown; location?: unknown }
   try {
     body = await request.json()
   } catch {

@@ -1,3 +1,5 @@
+import type { StayLocation } from './itinerary-store/types'
+
 export interface TrainRoute {
   train_id: string
   start?: string
@@ -15,6 +17,7 @@ export interface RouteDay {
   weekDay: string
   dayNum: number
   overnight: string
+  location?: StayLocation
   plan: PlanSections
   train: TrainRoute[]
 }

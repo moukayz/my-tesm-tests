@@ -110,6 +110,28 @@ export default function ItineraryTab({
   const stays = useMemo(() => getStaysWithMeta(days), [days])
   const isItineraryScopedStayEdit = Boolean(itineraryId && onRequestEditStay)
 
+  // ── Country column spans ──────────────────────────────────────────────────
+  const countrySpans = useMemo(() => {
+    const spans = new Array<number>(processedData.length).fill(0)
+    let spanStart = -1
+    let currentCountry: string | null = null
+    for (let i = 0; i <= processedData.length; i++) {
+      const day = processedData[i]
+      const country =
+        day?.location?.kind === 'resolved'
+          ? (day.location.place.country ?? day.location.place.countryCode ?? '—')
+          : '—'
+      if (i === processedData.length || country !== currentCountry) {
+        if (spanStart !== -1) spans[spanStart] = i - spanStart
+        if (i < processedData.length) {
+          currentCountry = country
+          spanStart = i
+        }
+      }
+    }
+    return spans
+  }, [processedData])
+
   // ── Stay edit handlers ────────────────────────────────────────────────────
 
   const handleStayConfirm = async (stayIndex: number, newNights: number) => {
@@ -568,7 +590,7 @@ export default function ItineraryTab({
       <table className="w-full border-collapse text-left">
         <thead className="bg-gray-50 border-b-2 border-gray-200">
           <tr>
-            {['Date', 'Weekday', 'Day', 'Overnight', 'Plan', 'Train Schedule'].map((h) => (
+            {['Date', 'Weekday', 'Day', 'Country', 'Overnight', 'Plan', 'Train Schedule'].map((h) => (
               <th
                 key={h}
                 className="px-6 py-4 font-semibold text-gray-700 uppercase text-xs tracking-wider"
@@ -597,6 +619,21 @@ export default function ItineraryTab({
                   {day.dayNum}
                 </td>
 
+                {countrySpans[index] > 0 && (() => {
+                  const countryValue = day.location?.kind === 'resolved'
+                    ? (day.location.place.country ?? day.location.place.countryCode ?? '—')
+                    : '—'
+                  return (
+                    <td
+                      rowSpan={countrySpans[index]}
+                      className="px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
+                      style={{ backgroundColor: getOvernightColor(countryValue) }}
+                    >
+                      {countryValue}
+                    </td>
+                  )
+                })()}
+
                 {day.overnightRowSpan > 0 && (
                   <td
                     rowSpan={day.overnightRowSpan}
@@ -606,7 +643,7 @@ export default function ItineraryTab({
                     {stay && isItineraryScopedStayEdit ? (
                       <div className="space-y-2">
                         <div className="flex items-center justify-center gap-2">
-                          <span>{day.overnight}</span>
+                          <span>{day.location?.kind === 'resolved' ? day.location.place.name : day.overnight}</span>
                           <button
                             type="button"
                             className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white/80 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
@@ -622,7 +659,7 @@ export default function ItineraryTab({
                       <div className="space-y-2">
                         <StayEditControl
                           stayIndex={stay.stayIndex}
-                          city={stay.overnight}
+                          city={day.location?.kind === 'resolved' ? day.location.place.name : day.overnight}
                           currentNights={stay.nights}
                           maxAdditionalNights={
                             (stays[stay.stayIndex + 1]?.nights ?? 1) - 1
@@ -635,7 +672,7 @@ export default function ItineraryTab({
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <span>{day.overnight}</span>
+                        <span>{day.location?.kind === 'resolved' ? day.location.place.name : day.overnight}</span>
                       </div>
                     )}
                   </td>

@@ -42,6 +42,11 @@ const filledWorkspace: ItineraryWorkspaceType = {
       startDayIndex: 0,
       endDayIndex: 1,
       isLastStay: true,
+      location: {
+        kind: 'custom',
+        label: 'Paris',
+        queryText: 'Paris',
+      },
     },
   ],
   days: [
@@ -122,6 +127,19 @@ describe('ItineraryWorkspace', () => {
         expect.objectContaining({ method: 'POST' })
       )
     })
+
+    const postCall = (global.fetch as jest.Mock).mock.calls.find((call) => call[0] === '/api/itineraries/iti-1/stays')
+    expect(postCall).toBeDefined()
+    expect(JSON.parse(postCall?.[1]?.body as string)).toEqual({
+      city: 'Paris',
+      nights: 2,
+      location: {
+        kind: 'custom',
+        label: 'Paris',
+        queryText: 'Paris',
+      },
+    })
+
     await waitFor(() => {
       expect(screen.getByTestId('itinerary-tab')).toBeInTheDocument()
     })
@@ -172,6 +190,18 @@ describe('ItineraryWorkspace', () => {
         '/api/itineraries/iti-1/stays/0',
         expect.objectContaining({ method: 'PATCH' })
       )
+    })
+
+    const patchCall = (global.fetch as jest.Mock).mock.calls.find((call) => call[0] === '/api/itineraries/iti-1/stays/0')
+    expect(patchCall).toBeDefined()
+    expect(JSON.parse(patchCall?.[1]?.body as string)).toEqual({
+      city: 'Lyon',
+      nights: 3,
+      location: {
+        kind: 'custom',
+        label: 'Lyon',
+        queryText: 'Lyon',
+      },
     })
   })
 

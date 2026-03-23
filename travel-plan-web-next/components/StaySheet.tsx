@@ -1,12 +1,16 @@
 'use client'
 
 import { useEffect, useId, useMemo, useState } from 'react'
+import type { StayLocation } from '../app/lib/itinerary-store/types'
+import { buildCustomStayLocation, normalizeStayLocation } from '../app/lib/stayLocation'
+import LocationAutocompleteField from './LocationAutocompleteField'
 
 type StaySheetMode = 'add-first' | 'add-next' | 'edit'
 
 interface StaySheetSubmitInput {
   city: string
   nights: number
+  location: StayLocation
 }
 
 interface StaySheetProps {
@@ -14,6 +18,7 @@ interface StaySheetProps {
   mode: StaySheetMode
   initialCity?: string
   initialNights?: number
+  initialLocation?: StayLocation
   contextCity?: string
   isSubmitting?: boolean
   formError?: string | null
@@ -38,6 +43,7 @@ export default function StaySheet({
   mode,
   initialCity,
   initialNights,
+  initialLocation,
   contextCity,
   isSubmitting = false,
   formError,
@@ -46,6 +52,7 @@ export default function StaySheet({
 }: StaySheetProps) {
   const [city, setCity] = useState(initialCity ?? '')
   const [nights, setNights] = useState(String(initialNights ?? 1))
+  const [location, setLocation] = useState<StayLocation>(buildCustomStayLocation(initialCity ?? ''))
   const [cityError, setCityError] = useState<string | null>(null)
   const [nightsError, setNightsError] = useState<string | null>(null)
   const titleId = useId()
@@ -55,9 +62,10 @@ export default function StaySheet({
     if (!isOpen) return
     setCity(initialCity ?? '')
     setNights(String(initialNights ?? 1))
+    setLocation(normalizeStayLocation(initialCity ?? '', initialLocation))
     setCityError(null)
     setNightsError(null)
-  }, [initialCity, initialNights, isOpen])
+  }, [initialCity, initialLocation, initialNights, isOpen])
 
   const helperText = useMemo(() => {
     if (mode === 'add-next' && contextCity) {
@@ -106,18 +114,17 @@ export default function StaySheet({
             }
 
             if (hasError) return
-            await onSubmit({ city: trimmedCity, nights: parsedNights })
+            await onSubmit({ city: trimmedCity, nights: parsedNights, location: normalizeStayLocation(trimmedCity, location) })
           }}
         >
           <div>
-            <label htmlFor="stay-city" className="block text-sm font-medium text-gray-700">City</label>
-            <input
-              id="stay-city"
-              name="city"
+            <LocationAutocompleteField
+              inputId="stay-city"
               value={city}
-              onChange={(event) => setCity(event.target.value)}
+              selectedLocation={location}
               disabled={isSubmitting}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              onValueChange={setCity}
+              onSelectionChange={setLocation}
             />
             {cityError && <p role="alert" className="mt-1 text-xs text-red-600">{cityError}</p>}
           </div>

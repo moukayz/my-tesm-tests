@@ -16,6 +16,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
   - **New itinerary shell** — authenticated users can create a draft itinerary (`name` optional, `startDate` required) and land on `/?tab=itinerary&itineraryId=<id>`
   - **Empty workspace guidance** — newly created itineraries render an empty state with `Add first stay` before mounting the day table
   - **Stay planning sheet** — reusable add/edit dialog supports `Add first stay`, `Add next stay`, and full `Edit stay` (city + nights) from stay cells
+  - **Stay location autocomplete** — `Add next stay` and `Edit stay` use a backend-exposed same-origin location search API that returns up to 5 normalized suggestions; selected places persist coordinates/place metadata while custom saves remain fully supported
   - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away
   - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
 - **Structured train schedule editor** — click the pencil in Train Schedule to edit day-level train rows (`train_id`, optional `start`+`end`) with add, drag-and-drop reorder, row-end delete, inline validation, and single-save persistence
@@ -257,6 +258,10 @@ GOOGLE_CLIENT_ID=your_client_id_here
 GOOGLE_CLIENT_SECRET=your_client_secret_here
 AUTH_SECRET=random_32plus_char_string
 ALLOWED_EMAIL=your.email@gmail.com   # optional: restrict to one account
+LOCATION_SEARCH_PROVIDER=geonames
+GEONAMES_USERNAME=your_geonames_username
+# GEONAMES_BASE_URL=https://api.geonames.org   # optional override
+# LOCATION_SEARCH_TIMEOUT_MS=1200
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railway
 # KV_REST_API_URL / KV_REST_API_TOKEN — omit to use local file storage (FileRouteStore)
 ```
@@ -489,6 +494,14 @@ The overnight column cells are automatically merged (rowspan) for consecutive da
 
 ## API Reference
 
+### `GET /api/locations/search?query=<text>&limit=5`
+
+Returns up to 5 backend-normalized resolved place candidates for itinerary stay entry. The frontend still composes the custom raw-text option locally.
+
+**Response:** `200 { query, results, degraded? }`
+
+---
+
 ### `GET /api/itineraries`
 
 Returns all itineraries owned by the signed-in user as summary cards, ordered by `updatedAt` descending.
@@ -517,7 +530,7 @@ Returns itinerary metadata, derived `stays`, and itinerary-scoped `days` for the
 
 Appends a new stay to the end of the itinerary and regenerates derived day fields.
 
-**Body:** `{ "city": string, "nights": number }`
+**Body:** `{ "location": StayLocationInput, "nights": number }` with legacy `city` accepted as a transitional custom-location alias.
 
 ---
 
@@ -525,7 +538,7 @@ Appends a new stay to the end of the itinerary and regenerates derived day field
 
 Edits the targeted stay city and/or nights with MVP rules (borrow/donate for non-last, guarded shrink for last).
 
-**Body:** `{ "city"?: string, "nights"?: number }`
+**Body:** `{ "location"?: StayLocationInput, "nights"?: number }` with legacy `city` accepted during the transition window.
 
 ---
 

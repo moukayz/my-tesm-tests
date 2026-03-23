@@ -208,4 +208,165 @@ describe('itinerary APIs', () => {
     expect(res.status).toBe(409)
     expect((await res.json()).error).toBe('STAY_TRAILING_DAYS_LOCKED')
   })
+
+  it('persists resolved location metadata and keeps it when patching nights only', async () => {
+    const createRoute = await import('../../app/api/itineraries/route')
+    const createRes = await createRoute.POST(await post('http://localhost/api/itineraries', { startDate: '2026-04-01' }))
+    const itineraryId = (await createRes.json()).itinerary.id as string
+
+    const appendRoute = await import('../../app/api/itineraries/[itineraryId]/stays/route')
+    const appendRes = await appendRoute.POST(
+      await post(`http://localhost/api/itineraries/${itineraryId}/stays`, {
+        nights: 2,
+        location: {
+          kind: 'resolved',
+          label: 'Paris, Ile-de-France, France',
+          queryText: 'par',
+          coordinates: { lat: 48.85, lng: 2.35 },
+          place: {
+            placeId: 'geo:2988507',
+            name: 'Paris',
+            countryCode: 'FR',
+            featureType: 'locality',
+          },
+        },
+      }),
+      { params: Promise.resolve({ itineraryId }) }
+    )
+
+    expect(appendRes.status).toBe(200)
+    const appended = await appendRes.json()
+    expect(appended.days).toHaveLength(2)
+    expect(appended.days[0].location.kind).toBe('resolved')
+    expect(appended.days[0].location.place.placeId).toBe('geo:2988507')
+
+    const patchStayRoute = await import('../../app/api/itineraries/[itineraryId]/stays/[stayIndex]/route')
+    const patchRes = await patchStayRoute.PATCH(
+      await patch(`http://localhost/api/itineraries/${itineraryId}/stays/0`, { nights: 3 }),
+      { params: Promise.resolve({ itineraryId, stayIndex: '0' }) }
+    )
+
+    expect(patchRes.status).toBe(200)
+    const patched = await patchRes.json()
+    expect(patched.days).toHaveLength(3)
+    expect(patched.days.every((day: { location: { kind: string; place: { placeId: string } } }) => day.location.kind === 'resolved')).toBe(true)
+    expect(patched.days.every((day: { location: { place: { placeId: string } } }) => day.location.place.placeId === 'geo:2988507')).toBe(true)
+  })
+
+  it('downgrades resolved stay to custom when city text is edited without location payload', async () => {
+    const createRoute = await import('../../app/api/itineraries/route')
+    const createRes = await createRoute.POST(await post('http://localhost/api/itineraries', { startDate: '2026-04-01' }))
+    const itineraryId = (await createRes.json()).itinerary.id as string
+
+    const appendRoute = await import('../../app/api/itineraries/[itineraryId]/stays/route')
+    await appendRoute.POST(
+      await post(`http://localhost/api/itineraries/${itineraryId}/stays`, {
+        nights: 1,
+        location: {
+          kind: 'resolved',
+          label: 'Paris, Ile-de-France, France',
+          queryText: 'par',
+          coordinates: { lat: 48.85, lng: 2.35 },
+          place: {
+            placeId: 'geo:2988507',
+            name: 'Paris',
+            countryCode: 'FR',
+            featureType: 'locality',
+          },
+        },
+      }),
+      { params: Promise.resolve({ itineraryId }) }
+    )
+
+    const patchStayRoute = await import('../../app/api/itineraries/[itineraryId]/stays/[stayIndex]/route')
+    const patchRes = await patchStayRoute.PATCH(
+      await patch(`http://localhost/api/itineraries/${itineraryId}/stays/0`, { city: 'Paris (custom)' }),
+      { params: Promise.resolve({ itineraryId, stayIndex: '0' }) }
+    )
+
+    expect(patchRes.status).toBe(200)
+    const patched = await patchRes.json()
+    expect(patched.days[0].location).toEqual({
+      kind: 'custom',
+      label: 'Paris (custom)',
+      queryText: 'Paris (custom)',
+    })
+  })
+
+  it('normalizes legacy city-only stored days to custom location on read', async () => {
+    const createRoute = await import('../../app/api/itineraries/route')
+    const createRes = await createRoute.POST(await post('http://localhost/api/itineraries', { startDate: '2026-04-01' }))
+    const itineraryId = (await createRes.json()).itinerary.id as string
+
+    const appendRoute = await import('../../app/api/itineraries/[itineraryId]/stays/route')
+    await appendRoute.POST(
+      await post(`http://localhost/api/itineraries/${itineraryId}/stays`, { city: 'Paris', nights: 1 }),
+      { params: Promise.resolve({ itineraryId }) }
+    )
+
+    const recordPath = path.join(tempDir, `${itineraryId}.json`)
+    const record = JSON.parse(fs.readFileSync(recordPath, 'utf-8'))
+    delete record.days[0].location
+    fs.writeFileSync(recordPath, JSON.stringify(record, null, 2))
+
+    const getRoute = await import('../../app/api/itineraries/[itineraryId]/route')
+    const getRes = await getRoute.GET(new NextRequest(`http://localhost/api/itineraries/${itineraryId}`), {
+      params: Promise.resolve({ itineraryId }),
+    })
+
+    expect(getRes.status).toBe(200)
+    const workspace = await getRes.json()
+    expect(workspace.days[0].location).toEqual({ kind: 'custom', label: 'Paris', queryText: 'Paris' })
+    expect(workspace.stays[0].location).toEqual({ kind: 'custom', label: 'Paris', queryText: 'Paris' })
+  })
+
+  it('returns 400 STAY_LOCATION_LABEL_MISMATCH when city and location label differ', async () => {
+    const createRoute = await import('../../app/api/itineraries/route')
+    const createRes = await createRoute.POST(await post('http://localhost/api/itineraries', { startDate: '2026-04-01' }))
+    const itineraryId = (await createRes.json()).itinerary.id as string
+
+    const appendRoute = await import('../../app/api/itineraries/[itineraryId]/stays/route')
+    const appendRes = await appendRoute.POST(
+      await post(`http://localhost/api/itineraries/${itineraryId}/stays`, {
+        city: 'Paris',
+        nights: 1,
+        location: {
+          kind: 'custom',
+          label: 'Lyon',
+          queryText: 'Lyon',
+        },
+      }),
+      { params: Promise.resolve({ itineraryId }) }
+    )
+
+    expect(appendRes.status).toBe(400)
+    expect((await appendRes.json()).error).toBe('STAY_LOCATION_LABEL_MISMATCH')
+  })
+
+  it('returns 400 STAY_LOCATION_INVALID for provider-specific location payloads', async () => {
+    const createRoute = await import('../../app/api/itineraries/route')
+    const createRes = await createRoute.POST(await post('http://localhost/api/itineraries', { startDate: '2026-04-01' }))
+    const itineraryId = (await createRes.json()).itinerary.id as string
+
+    const appendRoute = await import('../../app/api/itineraries/[itineraryId]/stays/route')
+    const appendRes = await appendRoute.POST(
+      await post(`http://localhost/api/itineraries/${itineraryId}/stays`, {
+        nights: 1,
+        location: {
+          kind: 'geonames',
+          label: 'Paris',
+          queryText: 'Paris',
+          coordinates: { lat: 48.85, lng: 2.35 },
+          place: {
+            geonameId: 2988507,
+            name: 'Paris',
+          },
+        },
+      }),
+      { params: Promise.resolve({ itineraryId }) }
+    )
+
+    expect(appendRes.status).toBe(400)
+    expect((await appendRes.json()).error).toBe('STAY_LOCATION_INVALID')
+  })
 })

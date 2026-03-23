@@ -1,5 +1,6 @@
 import type { RouteDay } from '../itinerary'
-import type { StaySummary } from './types'
+import type { StayLocation, StaySummary } from './types'
+import { normalizeStayLocation } from '../stayLocation'
 
 const WEEKDAY_CN = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
 
@@ -29,6 +30,7 @@ export function deriveStays(days: RouteDay[]): StaySummary[] {
         startDayIndex: start,
         endDayIndex: i - 1,
         isLastStay: false,
+        location: normalizeStayLocation(city, days[start].location),
       })
       city = nextCity
       start = i
@@ -40,20 +42,21 @@ export function deriveStays(days: RouteDay[]): StaySummary[] {
   return stays
 }
 
-function blankDay(city: string, dayNum: number): RouteDay {
+function blankDay(city: string, dayNum: number, location?: StayLocation): RouteDay {
   return {
     date: '',
     weekDay: '',
     dayNum,
     overnight: city,
+    location: normalizeStayLocation(city, location),
     plan: { morning: '', afternoon: '', evening: '' },
     train: [],
   }
 }
 
-export function applyAppendStay(days: RouteDay[], city: string, nights: number): RouteDay[] {
+export function applyAppendStay(days: RouteDay[], city: string, nights: number, location?: StayLocation): RouteDay[] {
   const startDayNum = days.length + 1
-  const appended = Array.from({ length: nights }, (_, idx) => blankDay(city, startDayNum + idx))
+  const appended = Array.from({ length: nights }, (_, idx) => blankDay(city, startDayNum + idx, location))
   return [...days, ...appended]
 }
 
@@ -68,43 +71,53 @@ export function canRemoveTrailingDays(daysToRemove: RouteDay[]): boolean {
 export function applyPatchStay(
   days: RouteDay[],
   stayIndex: number,
-  patch: { city?: string; nights?: number }
+  patch: { city?: string; nights?: number; location?: StayLocation }
 ): RouteDay[] {
-  if (patch.city === undefined && patch.nights === undefined) {
+  if (patch.city === undefined && patch.nights === undefined && patch.location === undefined) {
     throw new Error('STAY_MUTATION_INVALID')
   }
 
-  let updated = days.map((day) => ({ ...day, plan: { ...day.plan }, train: [...day.train] }))
+  let updated: RouteDay[] = days.map((day) => ({
+    ...day,
+    location: normalizeStayLocation(day.overnight, day.location),
+    plan: { ...day.plan },
+    train: [...day.train],
+  }))
 
   if (patch.nights !== undefined) {
     if (!Number.isInteger(patch.nights) || patch.nights < 1) throw new Error('STAY_NIGHTS_MIN')
 
     const stays = deriveStays(updated)
-    const target = stays[stayIndex]
-    if (!target) throw new Error('STAY_INDEX_INVALID')
+      const target = stays[stayIndex]
+      if (!target) throw new Error('STAY_INDEX_INVALID')
+      const targetLocation = normalizeStayLocation(target.city, target.location)
 
-    if (!target.isLastStay) {
-      const next = stays[stayIndex + 1]
-      const delta = patch.nights - target.nights
-      if (next.nights - delta < 1) throw new Error('STAY_MUTATION_INVALID')
+      if (!target.isLastStay) {
+        const next = stays[stayIndex + 1]
+        const nextLocation = normalizeStayLocation(next.city, next.location)
+        const delta = patch.nights - target.nights
+        if (next.nights - delta < 1) throw new Error('STAY_MUTATION_INVALID')
 
-      if (delta > 0) {
-        for (let i = next.startDayIndex; i < next.startDayIndex + delta; i++) {
-          updated[i] = { ...updated[i], overnight: target.city }
+        if (delta > 0) {
+          for (let i = next.startDayIndex; i < next.startDayIndex + delta; i++) {
+            updated[i] = { ...updated[i], overnight: target.city, location: targetLocation }
+          }
+        } else if (delta < 0) {
+          const shrink = -delta
+          const lastTargetIdx = target.endDayIndex
+          for (let i = lastTargetIdx - shrink + 1; i <= lastTargetIdx; i++) {
+            updated[i] = { ...updated[i], overnight: next.city, location: nextLocation }
+          }
         }
-      } else if (delta < 0) {
-        const shrink = -delta
-        const lastTargetIdx = target.endDayIndex
-        for (let i = lastTargetIdx - shrink + 1; i <= lastTargetIdx; i++) {
-          updated[i] = { ...updated[i], overnight: next.city }
-        }
-      }
-    } else {
-      const delta = patch.nights - target.nights
-      if (delta > 0) {
-        updated = [...updated, ...Array.from({ length: delta }, (_, idx) => blankDay(target.city, updated.length + idx + 1))]
-      } else if (delta < 0) {
-        const removeCount = -delta
+      } else {
+        const delta = patch.nights - target.nights
+        if (delta > 0) {
+          updated = [
+            ...updated,
+            ...Array.from({ length: delta }, (_, idx) => blankDay(target.city, updated.length + idx + 1, targetLocation)),
+          ]
+        } else if (delta < 0) {
+          const removeCount = -delta
         const removeStart = updated.length - removeCount
         const trailing = updated.slice(removeStart)
         if (!canRemoveTrailingDays(trailing)) throw new Error('STAY_TRAILING_DAYS_LOCKED')
@@ -113,16 +126,22 @@ export function applyPatchStay(
     }
   }
 
-  if (patch.city !== undefined) {
-    const city = patch.city.trim()
-    if (city.length === 0) throw new Error('STAY_CITY_REQUIRED')
-
+  if (patch.city !== undefined || patch.location !== undefined) {
     const stays = deriveStays(updated)
     const target = stays[stayIndex]
     if (!target) throw new Error('STAY_INDEX_INVALID')
 
+    const city = patch.city !== undefined ? patch.city.trim() : target.city
+    if (city.length === 0) throw new Error('STAY_CITY_REQUIRED')
+
+    const nextLocation = patch.location
+      ? normalizeStayLocation(city, patch.location)
+      : patch.city !== undefined && city !== target.city
+        ? normalizeStayLocation(city)
+        : normalizeStayLocation(city, target.location)
+
     for (let i = target.startDayIndex; i <= target.endDayIndex; i++) {
-      updated[i] = { ...updated[i], overnight: city }
+      updated[i] = { ...updated[i], overnight: city, location: nextLocation }
     }
   }
 

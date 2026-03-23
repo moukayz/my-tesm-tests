@@ -2,18 +2,20 @@
 
 ## System Shape
 
-Next.js 15 App Router remains the only deployable app. UI, authenticated write APIs, and storage access stay inside the same Vercel-hosted monolith.
+Next.js 15 App Router remains the only deployable app. UI, authenticated APIs, location-provider integration, and storage access stay inside the same Vercel-hosted monolith.
 
 ```mermaid
 flowchart LR
     Browser[Browser]
     Next[Next.js app\nRSC + Client Components + Route Handlers]
     Auth[NextAuth Google session]
+    Lookup[Location provider API\nbackend-internal]
     Store[ItineraryStore\nUpstash in prod / file store in local]
     PG[PostgreSQL / Neon\ntrain + analytics datasets]
 
     Browser --> Next
     Next --> Auth
+    Next --> Lookup
     Next --> Store
     Next --> PG
 ```
@@ -27,6 +29,7 @@ flowchart LR
 - Store each itinerary as metadata plus `RouteDay[]` so `ItineraryTab` can keep its current rendering and plan-edit behavior.
 - Add itinerary-scoped route handlers under `/api/itineraries*`; legacy flat write routes can be retained only as migration shims.
 - Keep deployment, auth provider, logging stack, and serverless model unchanged.
+- Keep third-party location lookup behind a backend-owned same-origin API so the frontend stays provider-agnostic.
 
 ## Component Boundaries
 
@@ -45,6 +48,9 @@ flowchart TD
     ApiStayCreate[POST /api/itineraries/:id/stays]
     ApiStayPatch[PATCH /api/itineraries/:id/stays/:stayIndex]
     ApiPlan[PATCH /api/itineraries/:id/days/:dayIndex/plan]
+    ApiLookup[GET /api/location-autocomplete]
+    SearchSvc[Location search service]
+    Provider[Provider adapter\ninternal]
     Store[ItineraryStore]
 
     Page --> TravelPlan
@@ -60,6 +66,9 @@ flowchart TD
     Workspace --> ApiRead
     Workspace --> ApiStayCreate
     Workspace --> ApiStayPatch
+    StaySheet --> ApiLookup
+    ApiLookup --> SearchSvc
+    SearchSvc --> Provider
     Tab --> ApiPlan
     ApiCreate --> Store
     ApiRead --> Store
@@ -91,4 +100,6 @@ flowchart TD
 - Legacy seeded-route access stays inside the authenticated monolith and does not change user-itinerary ownership rules.
 - Logging: structured `info/warn/error` logs with `itineraryId`, route name, user email, and validation code.
 - Metrics: request count, p95 latency, create success rate, stay mutation failure rate.
+- Third-party lookup: backend-owned location autocomplete exposed as `GET /api/location-autocomplete`; frontend adds debounce, request cancellation, max 5 results, and custom-location fallback on any failure.
+- Security: keep provider credentials server-side; frontend never receives provider usernames, keys, or provider-specific query parameters.
 - Backward compatibility: current editor data shape stays `RouteDay[]`; FE/BE migrate to itinerary-scoped APIs before removing legacy single-route flows.

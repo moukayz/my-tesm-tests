@@ -69,12 +69,117 @@ describe('ItineraryTab', () => {
     expect(screen.getByText('Date')).toBeInTheDocument()
     expect(screen.getByText('Weekday')).toBeInTheDocument()
     expect(screen.getByText('Day')).toBeInTheDocument()
+    expect(screen.getByText('Country')).toBeInTheDocument()
     expect(screen.getByText('Overnight')).toBeInTheDocument()
     expect(screen.getByText('Plan')).toBeInTheDocument()
     expect(screen.getByText('Train Schedule')).toBeInTheDocument()
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
     })
+  })
+
+  it('shows country from resolved location in country cell', async () => {
+    setupFetch()
+    const dataWithResolvedLocation: RouteDay[] = [
+      {
+        date: '2026/9/25',
+        weekDay: '星期五',
+        dayNum: 1,
+        overnight: 'Paris, Île-de-France, France',
+        location: {
+          kind: 'resolved',
+          label: 'Paris, Île-de-France, France',
+          queryText: 'Paris',
+          coordinates: { lat: 48.85, lng: 2.35 },
+          place: { placeId: 'geonames:2988507', name: 'Paris', region: 'Île-de-France', country: 'France', countryCode: 'FR', featureType: 'locality' },
+        },
+        plan: { morning: '', afternoon: '', evening: '' },
+        train: [],
+      },
+    ]
+    render(<ItineraryTab initialData={dataWithResolvedLocation} tabKey="route" />)
+    expect(screen.getByText('France')).toBeInTheDocument()
+  })
+
+  it('shows dash in country cell for custom or absent location', async () => {
+    setupFetch()
+    const dataNoLocation: RouteDay[] = [
+      {
+        date: '2026/9/25',
+        weekDay: '星期五',
+        dayNum: 1,
+        overnight: 'SomeCity',
+        plan: { morning: '', afternoon: '', evening: '' },
+        train: [],
+      },
+    ]
+    render(<ItineraryTab initialData={dataNoLocation} tabKey="route" />)
+    const dashes = screen.getAllByText('—')
+    expect(dashes.length).toBeGreaterThan(0)
+  })
+
+  it('merges country cells across consecutive stays in the same country', async () => {
+    setupFetch()
+    const makeResolved = (name: string, country: string): RouteDay['location'] => ({
+      kind: 'resolved',
+      label: `${name}, ${country}`,
+      queryText: name,
+      coordinates: { lat: 0, lng: 0 },
+      place: { placeId: `id-${name}`, name, country, featureType: 'locality' },
+    })
+    const multiCountryData: RouteDay[] = [
+      { date: '2026/9/25', weekDay: '一', dayNum: 1, overnight: 'Paris', location: makeResolved('Paris', 'France'), plan: { morning: '', afternoon: '', evening: '' }, train: [] },
+      { date: '2026/9/26', weekDay: '二', dayNum: 2, overnight: 'Rome', location: makeResolved('Rome', 'Italy'), plan: { morning: '', afternoon: '', evening: '' }, train: [] },
+      { date: '2026/9/27', weekDay: '三', dayNum: 3, overnight: 'Milan', location: makeResolved('Milan', 'Italy'), plan: { morning: '', afternoon: '', evening: '' }, train: [] },
+    ]
+    render(<ItineraryTab initialData={multiCountryData} tabKey="route" />)
+    // France appears once, Italy appears once (merged across Rome + Milan)
+    const franceCells = screen.getAllByText('France')
+    const italyCells = screen.getAllByText('Italy')
+    expect(franceCells).toHaveLength(1)
+    expect(italyCells).toHaveLength(1)
+    // Italy cell spans 2 rows
+    expect(italyCells[0].closest('td')).toHaveAttribute('rowspan', '2')
+  })
+
+  it('shows only city name in overnight cell for resolved location', async () => {
+    setupFetch()
+    const dataResolved: RouteDay[] = [
+      {
+        date: '2026/9/25',
+        weekDay: '星期五',
+        dayNum: 1,
+        overnight: 'Paris, Île-de-France, France',
+        location: {
+          kind: 'resolved',
+          label: 'Paris, Île-de-France, France',
+          queryText: 'Paris',
+          coordinates: { lat: 48.85, lng: 2.35 },
+          place: { placeId: 'geonames:2988507', name: 'Paris', region: 'Île-de-France', country: 'France', featureType: 'locality' },
+        },
+        plan: { morning: '', afternoon: '', evening: '' },
+        train: [],
+      },
+    ]
+    render(<ItineraryTab initialData={dataResolved} tabKey="route" />)
+    expect(screen.getByText('Paris')).toBeInTheDocument()
+    expect(screen.queryByText('Paris, Île-de-France, France')).not.toBeInTheDocument()
+  })
+
+  it('shows overnight string as-is for custom or absent location', async () => {
+    setupFetch()
+    const dataCustom: RouteDay[] = [
+      {
+        date: '2026/9/25',
+        weekDay: '星期五',
+        dayNum: 1,
+        overnight: 'CustomCity',
+        plan: { morning: '', afternoon: '', evening: '' },
+        train: [],
+      },
+    ]
+    render(<ItineraryTab initialData={dataCustom} tabKey="route" />)
+    expect(screen.getByText('CustomCity')).toBeInTheDocument()
   })
 
   it('exposes primary itinerary panel locator with Date column header', async () => {

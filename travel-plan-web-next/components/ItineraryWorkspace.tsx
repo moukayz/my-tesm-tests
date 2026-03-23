@@ -216,6 +216,7 @@ export default function ItineraryWorkspace({
         mode={sheetMode}
         initialCity={sheetMode === 'edit' ? selectedStay?.city : undefined}
         initialNights={sheetMode === 'edit' ? selectedStay?.nights : 1}
+        initialLocation={sheetMode === 'edit' ? selectedStay?.location : undefined}
         contextCity={workspace.stays[workspace.stays.length - 1]?.city}
         formError={sheetError}
         isSubmitting={isSheetSubmitting}

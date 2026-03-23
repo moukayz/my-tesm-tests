@@ -2,12 +2,46 @@ openapi: 3.1.0
 info:
   title: Travel Plan Web MVP Itinerary API
   version: 0.1.0
-  description: Contract-first API for itinerary shell creation and progressive stay planning.
+  description: Contract-first API for itinerary shell creation, backend-owned location autocomplete, and progressive stay planning.
 servers:
   - url: http://localhost:3000
 security:
   - sessionAuth: []
 paths:
+  /api/locations/search:
+    get:
+      summary: Search normalized location candidates for stay entry
+      description: Returns up to 5 backend-normalized resolved place suggestions. The custom raw-text option remains a frontend-local UI affordance and is intentionally outside this API.
+      operationId: searchLocations
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 80
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+            default: 5
+      responses:
+        '200':
+          description: Normalized location suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationSearchResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '500':
+          $ref: '#/components/responses/Error500'
   /api/itineraries:
     get:
       summary: List itinerary cards for the signed-in user
@@ -252,12 +286,18 @@ components:
             $ref: '#/components/schemas/ItineraryCardSummary'
     CreateStayRequest:
       type: object
-      required: [city, nights]
+      required: [nights]
+      anyOf:
+        - required: [city]
+        - required: [location]
       properties:
         city:
           type: string
           minLength: 1
           maxLength: 80
+          deprecated: true
+        location:
+          $ref: '#/components/schemas/StayLocationInput'
         nights:
           type: integer
           minimum: 1
@@ -269,9 +309,131 @@ components:
           type: string
           minLength: 1
           maxLength: 80
+          deprecated: true
+        location:
+          $ref: '#/components/schemas/StayLocationInput'
         nights:
           type: integer
           minimum: 1
+    LocationSearchResponse:
+      type: object
+      required: [query, results]
+      properties:
+        query:
+          type: string
+        results:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/ResolvedStayLocation'
+        degraded:
+          $ref: '#/components/schemas/LocationSearchDegradedState'
+    LocationSearchDegradedState:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          enum: [LOOKUP_CONFIG_MISSING, LOOKUP_UNAVAILABLE, LOOKUP_RATE_LIMITED]
+    StayLocationInput:
+      oneOf:
+        - $ref: '#/components/schemas/CustomStayLocationInput'
+        - $ref: '#/components/schemas/ResolvedStayLocationInput'
+      discriminator:
+        propertyName: kind
+    CustomStayLocationInput:
+      type: object
+      required: [kind, label, queryText]
+      properties:
+        kind:
+          type: string
+          enum: [custom]
+        label:
+          type: string
+          minLength: 1
+          maxLength: 80
+        queryText:
+          type: string
+          minLength: 1
+          maxLength: 80
+    ResolvedStayLocationInput:
+      type: object
+      required: [kind, label, queryText, coordinates, place]
+      properties:
+        kind:
+          type: string
+          enum: [resolved]
+        label:
+          type: string
+          minLength: 1
+          maxLength: 80
+        queryText:
+          type: string
+          minLength: 1
+          maxLength: 80
+        coordinates:
+          $ref: '#/components/schemas/Coordinates'
+        place:
+          $ref: '#/components/schemas/ResolvedPlace'
+    StayLocation:
+      oneOf:
+        - $ref: '#/components/schemas/CustomStayLocation'
+        - $ref: '#/components/schemas/ResolvedStayLocation'
+      discriminator:
+        propertyName: kind
+    CustomStayLocation:
+      type: object
+      required: [kind, label, queryText]
+      properties:
+        kind:
+          type: string
+          enum: [custom]
+        label:
+          type: string
+        queryText:
+          type: string
+    ResolvedStayLocation:
+      type: object
+      required: [kind, label, queryText, coordinates, place]
+      properties:
+        kind:
+          type: string
+          enum: [resolved]
+        label:
+          type: string
+        queryText:
+          type: string
+        coordinates:
+          $ref: '#/components/schemas/Coordinates'
+        place:
+          $ref: '#/components/schemas/ResolvedPlace'
+    Coordinates:
+      type: object
+      required: [lng, lat]
+      properties:
+        lng:
+          type: number
+        lat:
+          type: number
+    ResolvedPlace:
+      type: object
+      required: [placeId, name]
+      properties:
+        placeId:
+          type: string
+        name:
+          type: string
+        locality:
+          type: string
+        region:
+          type: string
+        country:
+          type: string
+        countryCode:
+          type: string
+        featureType:
+          type: string
+          enum: [locality, region, country, other]
     UpdatePlanRequest:
       type: object
       required: [plan]
@@ -326,13 +488,15 @@ components:
               minimum: 0
     StaySummary:
       type: object
-      required: [stayIndex, city, nights, startDayIndex, endDayIndex, isLastStay]
+      required: [stayIndex, city, location, nights, startDayIndex, endDayIndex, isLastStay]
       properties:
         stayIndex:
           type: integer
           minimum: 0
         city:
           type: string
+        location:
+          $ref: '#/components/schemas/StayLocation'
         nights:
           type: integer
           minimum: 1
@@ -346,7 +510,7 @@ components:
           type: boolean
     RouteDay:
       type: object
-      required: [date, weekDay, dayNum, overnight, plan, train]
+      required: [date, weekDay, dayNum, overnight, location, plan, train]
       properties:
         date:
           type: string
@@ -357,6 +521,8 @@ components:
           minimum: 1
         overnight:
           type: string
+        location:
+          $ref: '#/components/schemas/StayLocation'
         plan:
           $ref: '#/components/schemas/PlanSections'
         train:

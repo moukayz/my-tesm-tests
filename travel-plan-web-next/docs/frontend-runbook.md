@@ -1,7 +1,7 @@
 # Frontend Runbook — Travel Plan Web (Next.js)
 
-**Last updated:** 2026-03-22  
-**Feature coverage:** core itinerary UI + `itinerary-export` feature + `itinerary-export-ux-pdf-fixes` + `editable-itinerary-stays` + `itinerary-creation-and-stay-planning` + `itinerary-cards-navigation` + `itinerary-detail-ux-cleanup` + `itinerary-desktop-adjustments`
+**Last updated:** 2026-03-23  
+**Feature coverage:** core itinerary UI + `itinerary-export` feature + `itinerary-export-ux-pdf-fixes` + `editable-itinerary-stays` + `itinerary-creation-and-stay-planning` + `itinerary-cards-navigation` + `itinerary-detail-ux-cleanup` + `itinerary-desktop-adjustments` + `itinerary-location-autocomplete`
 
 ---
 
@@ -318,3 +318,31 @@ npm run test:e2e -- __tests__/e2e/itinerary-cards-navigation.spec.ts
 
 #### Main detail appears narrower than `Itinerary (Test)`
 - Verify itinerary panel/detail wrappers keep `w-full` desktop rail classes.
+
+---
+
+## 13. Itinerary Location Autocomplete (`itinerary-location-autocomplete`)
+
+### How it works
+
+- Stay location input in **Add next stay** and **Edit stay** calls backend API `GET /api/locations/search` after 2+ non-space characters.
+- Dropdown always shows a custom option first (`Use "<typed text>" as a custom location`) and up to 5 backend-normalized candidates.
+- Selecting a candidate stores resolved metadata (coordinates + normalized place fields).
+- Editing typed text after selection clears the resolved draft until a new candidate is selected.
+- Saving custom text stores only custom location text and clears stale resolved metadata.
+
+### Frontend checks for this feature
+
+```bash
+npm test -- StaySheet.test.tsx LocationAutocompleteField.test.tsx ItineraryWorkspace.test.tsx locationSearch.test.ts
+```
+
+### Troubleshooting location autocomplete
+
+#### Suggestions never appear
+- Verify backend location search route `GET /api/locations/search` is available for the signed-in session.
+- Confirm typed query has at least 2 non-space characters.
+
+#### Backend location search fails or returns no matches
+- Expected fallback: user can still save custom text with no blocking error.
+- Check browser network panel for `/api/locations/search` request status and response payload.

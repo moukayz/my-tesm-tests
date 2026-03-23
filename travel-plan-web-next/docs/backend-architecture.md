@@ -4,6 +4,7 @@
 
 - Backend stays inside the Next.js monolith: route handlers under `app/api/**`, domain and storage modules under `app/lib/**`, auth in `auth.ts`.
 - Primary itinerary backend is the itinerary-scoped stack under `/api/itineraries*`; legacy `route` and `route-test` endpoints remain compatibility paths for the older tab flows.
+- Location lookup for itinerary stay entry now runs through a backend-owned same-origin API under `/api/locations/search`; third-party providers stay behind server-side adapters.
 - This baseline doc is the canonical backend subsystem reference for feature LLDs.
 
 ## Runtime Shape
@@ -14,15 +15,21 @@ flowchart LR
     Handlers[Next.js route handlers]
     Auth[NextAuth session]
     Service[Domain and app services]
+    LSearch[LocationSearchService]
+    LProv[Provider adapters]
     IStore[ItineraryStore]
     RStore[RouteStore]
     Redis[Upstash Redis]
     File[Local JSON files]
     PG[PostgreSQL / Neon]
+    Geo[GeoNames]
 
     Browser --> Handlers
     Handlers --> Auth
     Handlers --> Service
+    Handlers --> LSearch
+    LSearch --> LProv
+    LProv --> Geo
     Service --> IStore
     Service --> RStore
     IStore --> Redis
@@ -33,9 +40,12 @@ flowchart LR
 ## Module Boundaries
 
 - `app/api/itineraries/**/route.ts`: authenticated itinerary create/read/update handlers.
+- `app/api/locations/search/route.ts`: authenticated provider-neutral place search for itinerary stay entry.
 - `app/lib/itinerary-store/service.ts`: request validation, ownership checks, error mapping, workspace shaping.
 - `app/lib/itinerary-store/domain.ts`: pure stay and date-regeneration rules.
 - `app/lib/itinerary-store/store.ts`: `ItineraryStore` file/Upstash implementations for per-user itinerary records.
+- `app/lib/location-search/service.ts`: lookup orchestration, degraded success handling, and DTO normalization.
+- `app/lib/location-search/providers/*`: third-party provider adapters hidden behind a stable internal interface.
 - `app/lib/itineraryCards.ts`: server-side cards payload shaping that derives seeded starter-route metadata from legacy `route` days without writing to `ItineraryStore`.
 - `app/api/plan-update`, `app/api/stay-update`, `app/api/train-update`: legacy route-backed write paths still used by non-itinerary-scoped flows.
 - `app/lib/routeStore.ts`: file/Upstash storage for the legacy flat route tabs.
@@ -53,6 +63,7 @@ flowchart LR
 - `GET /api/itineraries`: list owned itinerary summaries ordered by `updatedAt desc`.
 - `POST /api/itineraries`: create itinerary shell.
 - `GET /api/itineraries/{itineraryId}`: load one owned itinerary workspace.
+- `GET /api/locations/search`: search normalized place candidates for itinerary stay entry.
 - `POST /api/itineraries/{itineraryId}/stays`: append a stay.
 - `PATCH /api/itineraries/{itineraryId}/stays/{stayIndex}`: update stay city and-or nights.
 - `PATCH /api/itineraries/{itineraryId}/days/{dayIndex}/plan`: update one day plan.
@@ -61,6 +72,7 @@ flowchart LR
 ## Authorization And Browser Boundary
 
 - All itinerary routes require `auth()` and authorize by `ownerEmail === session.user.email`.
+- `GET /api/locations/search` follows the same session boundary as itinerary editing routes.
 - Same-origin cookie/session behavior remains unchanged; no new CORS, CSRF, or token model is introduced.
 - Ownership failures map to `403`, missing records to `404`, validation to `400`, stale writes to `409` where supported.
 
@@ -69,16 +81,18 @@ flowchart LR
 - Local development uses JSON files under `data/itineraries`.
 - Production uses Upstash Redis JSON documents keyed by itinerary id plus a per-owner index.
 - Writes remain whole-record replacements with `updatedAt` as the optimistic concurrency token.
+- `RouteDay.location` is an additive persisted field on itinerary days; legacy days without it are normalized at the service boundary.
 - No destructive migration or storage-model change is required for read-only itinerary listing features.
 
 ## Test Baseline
 
 - Tier 0: lint, formatting, type safety, generated contract consistency.
-- Tier 1: pure itinerary domain rules, ownership-aware service logic, store ordering and concurrency behavior.
-- Tier 2: route-handler tests with authenticated and unauthenticated cases, validation mapping, and real store fixtures.
+- Tier 1: pure itinerary domain rules, ownership-aware service logic, location-provider normalization, and store ordering/concurrency behavior.
+- Tier 2: route-handler tests with authenticated and unauthenticated cases, validation mapping, degraded location-search behavior, and real store fixtures.
 
 ## Risks
 
 - Whole-record writes keep implementation simple but accept last-write-wins concurrency.
 - Redis/file dual backends require mirrored behavior for list ordering and stale-write handling.
+- Provider-backed location lookup adds upstream dependency and quota risk, so degraded success responses must keep stay save flows custom-safe.
 - The current monolith keeps scope small, but page-level read behavior and API-level read behavior must stay aligned as new read-only entry flows are added.

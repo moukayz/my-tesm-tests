@@ -1,5 +1,76 @@
 import type { RouteDay } from '../itinerary'
 
+export interface StayLocationCustom {
+  kind: 'custom'
+  label: string
+  queryText: string
+}
+
+export interface ResolvedPlace {
+  placeId: string
+  name: string
+  locality?: string
+  region?: string
+  country?: string
+  countryCode?: string
+  featureType?: 'locality' | 'region' | 'country' | 'other'
+}
+
+export interface StayLocationResolved {
+  kind: 'resolved'
+  label: string
+  queryText: string
+  coordinates: {
+    lng: number
+    lat: number
+  }
+  place: ResolvedPlace
+}
+
+export interface LegacyStayLocationMapbox {
+  kind: 'mapbox'
+  label: string
+  queryText: string
+  coordinates: {
+    lng: number
+    lat: number
+  }
+  place: {
+    mapboxId: string
+    fullName: string
+    placeType: string[]
+    locality?: string
+    region?: string
+    country?: string
+    countryCode?: string
+  }
+}
+
+export interface LegacyStayLocationGeoNames {
+  kind: 'geonames'
+  label: string
+  queryText: string
+  coordinates: {
+    lng: number
+    lat: number
+  }
+  place: {
+    geonameId: number
+    name: string
+    toponymName?: string
+    countryName?: string
+    countryCode?: string
+    adminName1?: string
+    adminName2?: string
+    featureClass?: string
+    featureCode?: string
+  }
+}
+
+export type StayLocation = StayLocationCustom | StayLocationResolved | LegacyStayLocationMapbox | LegacyStayLocationGeoNames
+
+export type StayLocationInput = StayLocation | LegacyStayLocationMapbox | LegacyStayLocationGeoNames
+
 export interface ItinerarySummary {
   id: string
   name: string
@@ -25,6 +96,7 @@ export interface StaySummary {
   startDayIndex: number
   endDayIndex: number
   isLastStay: boolean
+  location: StayLocation
 }
 
 export interface ItineraryWorkspace {
