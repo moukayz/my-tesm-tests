@@ -50,7 +50,7 @@ describe('ItineraryPanel', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('button', { name: /open itinerary paris week/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /open itinerary paris week/i }))
 
     expect(onSelectItinerary).toHaveBeenCalledWith('iti-1')
   })

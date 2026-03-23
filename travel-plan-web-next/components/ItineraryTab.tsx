@@ -4,6 +4,8 @@ import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Sunrise, Sun, Moon, GripVertical, Pencil } from 'lucide-react'
 import {
+  getCityColor,
+  getCountryColor,
   getOvernightColor,
   processItinerary,
   findMatchingStation,
@@ -52,6 +54,7 @@ interface ItineraryTabProps {
   itineraryId?: string
   onRequestAddStay?: () => void
   onRequestEditStay?: (stayIndex: number) => void
+  onMoveStay?: (stayIndex: number, direction: 'up' | 'down') => void
   onDirtyStateChange?: (isDirty: boolean) => void
 }
 
@@ -61,6 +64,7 @@ export default function ItineraryTab({
   itineraryId,
   onRequestAddStay,
   onRequestEditStay,
+  onMoveStay,
   onDirtyStateChange,
 }: ItineraryTabProps) {
   // ── Days state (mutable copy for stay edits) ─────────────────────────────
@@ -627,7 +631,7 @@ export default function ItineraryTab({
                     <td
                       rowSpan={countrySpans[index]}
                       className="px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
-                      style={{ backgroundColor: getOvernightColor(countryValue) }}
+                      style={{ backgroundColor: getCountryColor(countryValue) }}
                     >
                       {countryValue}
                     </td>
@@ -637,24 +641,51 @@ export default function ItineraryTab({
                 {day.overnightRowSpan > 0 && (
                   <td
                     rowSpan={day.overnightRowSpan}
-                    className="px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
-                    style={{ backgroundColor: getOvernightColor(day.overnight) }}
+                    className="relative group px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
+                    style={{ backgroundColor: getCityColor(
+                      day.location?.kind === 'resolved' ? day.location.place.name : day.overnight,
+                      day.location?.kind === 'resolved' ? (day.location.place.country ?? '') : ''
+                    ) }}
                   >
                     {stay && isItineraryScopedStayEdit ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-center gap-2">
+                      <>
+                        <div className="relative inline-block">
                           <span>{day.location?.kind === 'resolved' ? day.location.place.name : day.overnight}</span>
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 flex flex-row gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto">
                           <button
                             type="button"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white/80 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+                            className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                             onClick={() => onRequestEditStay?.(stay.stayIndex)}
                             aria-label={`Edit stay for ${stay.overnight}`}
                             title={`Edit stay for ${stay.overnight}`}
                           >
-                            <Pencil size={14} aria-hidden="true" />
+                            <Pencil size={12} aria-hidden="true" />
                           </button>
+                          {onMoveStay && stay.stayIndex > 0 && (
+                            <button
+                              type="button"
+                              className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                              onClick={() => onMoveStay(stay.stayIndex, 'up')}
+                              aria-label={`Move ${stay.overnight} up`}
+                              title={`Move ${stay.overnight} up`}
+                            >
+                              ▲
+                            </button>
+                          )}
+                          {onMoveStay && !stay.isLast && (
+                            <button
+                              type="button"
+                              className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                              onClick={() => onMoveStay(stay.stayIndex, 'down')}
+                              aria-label={`Move ${stay.overnight} down`}
+                              title={`Move ${stay.overnight} down`}
+                            >
+                              ▼
+                            </button>
+                          )}
+                          </div>
                         </div>
-                      </div>
+                      </>
                     ) : stay && !stay.isLast ? (
                       <div className="space-y-2">
                         <StayEditControl

@@ -18,6 +18,7 @@ interface ItineraryPanelProps {
   onSelectStarterRoute: (legacyTabKey: 'route') => void
   onBackToCards: () => void
   onRequestCreateItinerary: () => void
+  onCopyStarterRoute?: () => void
   onDirtyStateChange?: (isDirty: boolean) => void
 }
 
@@ -33,6 +34,7 @@ export default function ItineraryPanel({
   onSelectStarterRoute,
   onBackToCards,
   onRequestCreateItinerary,
+  onCopyStarterRoute,
   onDirtyStateChange,
 }: ItineraryPanelProps) {
   const [hasUnsavedInlineEdits, setHasUnsavedInlineEdits] = useState(false)
@@ -67,6 +69,7 @@ export default function ItineraryPanel({
           onOpenStarterRoute={onSelectStarterRoute}
           onOpenItinerary={onSelectItinerary}
           onCreateItinerary={onRequestCreateItinerary}
+          onCopyStarterRoute={onCopyStarterRoute}
         />
       ) : (
         <ItineraryDetailShell

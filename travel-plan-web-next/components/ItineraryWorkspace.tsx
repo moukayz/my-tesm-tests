@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { ItineraryWorkspace as ItineraryWorkspaceType } from '../app/lib/itinerary-store/types'
+import { applyMoveStay, deriveStays, regenerateDerivedDates } from '../app/lib/itinerary-store/domain'
 import ItineraryTab from './ItineraryTab'
 import ItineraryEmptyState from './ItineraryEmptyState'
 import StaySheet, { type StaySheetMode, type StaySheetSubmitInput } from './StaySheet'
@@ -89,6 +90,36 @@ export default function ItineraryWorkspace({
     if (!workspace || sheetStayIndex === null) return undefined
     return workspace.stays[sheetStayIndex]
   }, [sheetStayIndex, workspace])
+
+  async function handleMoveStay(stayIndex: number, direction: 'up' | 'down'): Promise<void> {
+    if (!workspace) return
+    const snapshot = workspace
+
+    // Optimistic update — reorder immediately for instant feedback
+    try {
+      const movedDays = applyMoveStay(workspace.days, stayIndex, direction)
+      const regenerated = regenerateDerivedDates(workspace.itinerary.startDate, movedDays)
+      setWorkspace({ ...workspace, days: regenerated, stays: deriveStays(regenerated) })
+    } catch {
+      return // boundary error (first/last stay) — buttons prevent this, ignore
+    }
+
+    try {
+      const response = await fetch(`/api/itineraries/${workspace.itinerary.id}/stays/${stayIndex}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direction }),
+      })
+      if (!response.ok) {
+        setWorkspace(snapshot)
+        return
+      }
+      const body = await response.json()
+      setWorkspace(body as ItineraryWorkspaceType)
+    } catch {
+      setWorkspace(snapshot)
+    }
+  }
 
   async function submitStay(input: StaySheetSubmitInput): Promise<void> {
     if (!workspace) return
@@ -207,6 +238,7 @@ export default function ItineraryWorkspace({
             setSheetError(null)
             setIsSheetOpen(true)
           }}
+          onMoveStay={handleMoveStay}
           onDirtyStateChange={onDirtyStateChange}
         />
       )}

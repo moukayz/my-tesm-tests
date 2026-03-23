@@ -27,14 +27,42 @@ export interface ProcessedDay extends RouteDay {
 }
 
 
+// FNV-1a 32-bit — better bit distribution than djb2
+function hashString(s: string): number {
+  let hash = 2166136261 // FNV offset basis
+  for (let i = 0; i < s.length; i++) {
+    hash ^= s.charCodeAt(i)
+    hash = Math.imul(hash, 16777619) // FNV prime
+    hash >>>= 0 // keep unsigned 32-bit
+  }
+  return hash
+}
+
+// Golden angle (137.508°) multiplication spreads hues maximally around the circle
+function hashToHue(s: string): number {
+  return Math.floor((hashString(s) * 137.508) % 360)
+}
+
 export function getOvernightColor(location: string): string {
   if (location === '—') return '#f5f5f5'
-  let hash = 0
-  for (let i = 0; i < location.length; i++) {
-    hash = location.charCodeAt(i) + ((hash << 5) - hash)
+  return `hsl(${hashToHue(location)}, 70%, 95%)`
+}
+
+export function getCountryColor(country: string): string {
+  if (!country || country === '—') return '#f5f5f5'
+  return `hsl(${hashToHue(country)}, 70%, 95%)`
+}
+
+export function getCityColor(city: string, country: string): string {
+  if (country === '—') return '#f5f5f5'
+  if (!country) {
+    return `hsl(${hashToHue(city)}, 70%, 95%)`
   }
-  const h = Math.abs(hash) % 360
-  return `hsl(${h}, 70%, 95%)`
+  const h = hashToHue(country)
+  const cityHash = hashString(city)
+  const s = 25 + (cityHash % 51)           // 25–75%
+  const l = 83 + ((cityHash >>> 8) % 11)   // 83–93%
+  return `hsl(${h}, ${s}%, ${l}%)`
 }
 
 export function processItinerary(data: RouteDay[]): ProcessedDay[] {

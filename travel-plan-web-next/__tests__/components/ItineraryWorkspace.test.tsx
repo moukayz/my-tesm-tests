@@ -1,16 +1,28 @@
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { RouteDay } from '../../app/lib/itinerary'
 import type { ItineraryWorkspace as ItineraryWorkspaceType } from '../../app/lib/itinerary-store/types'
 import ItineraryWorkspace from '../../components/ItineraryWorkspace'
 
 jest.mock('../../components/ItineraryTab', () => ({
   __esModule: true,
-  default: ({ onRequestEditStay }: { onRequestEditStay?: (stayIndex: number) => void }) => (
+  default: ({
+    initialData,
+    onRequestEditStay,
+    onMoveStay,
+  }: {
+    initialData: RouteDay[]
+    onRequestEditStay?: (stayIndex: number) => void
+    onMoveStay?: (stayIndex: number, direction: 'up' | 'down') => void
+  }) => (
     <div data-testid="itinerary-tab">
-      ItineraryTab
+      <span data-testid="first-overnight">{initialData[0]?.overnight ?? ''}</span>
       <button type="button" onClick={() => onRequestEditStay?.(0)}>
         Request stay edit 0
+      </button>
+      <button type="button" onClick={() => onMoveStay?.(0, 'down')}>
+        Move stay 0 down
       </button>
     </div>
   ),
@@ -66,6 +78,18 @@ const filledWorkspace: ItineraryWorkspaceType = {
       plan: { morning: '', afternoon: '', evening: '' },
       train: [],
     },
+  ],
+}
+
+const twoStayWorkspace: ItineraryWorkspaceType = {
+  itinerary: { ...emptyWorkspace.itinerary, id: 'iti-2', name: 'Two stays', startDate: '2026-04-10' },
+  stays: [
+    { stayIndex: 0, city: 'Paris', nights: 1, startDayIndex: 0, endDayIndex: 0, isLastStay: false, location: { kind: 'custom', label: 'Paris', queryText: 'Paris' } },
+    { stayIndex: 1, city: 'Lyon', nights: 1, startDayIndex: 1, endDayIndex: 1, isLastStay: true, location: { kind: 'custom', label: 'Lyon', queryText: 'Lyon' } },
+  ],
+  days: [
+    { date: '2026/4/10', weekDay: '星期五', dayNum: 1, overnight: 'Paris', plan: { morning: '', afternoon: '', evening: '' }, train: [] },
+    { date: '2026/4/11', weekDay: '星期六', dayNum: 2, overnight: 'Lyon', plan: { morning: '', afternoon: '', evening: '' }, train: [] },
   ],
 }
 
@@ -212,6 +236,58 @@ describe('ItineraryWorkspace', () => {
     expect(screen.getByText('Start date: 2026-04-10')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /add next stay/i })).toHaveLength(1)
     expect(screen.queryByRole('button', { name: /edit stay for paris/i })).not.toBeInTheDocument()
+  })
+
+  it('optimistically reorders days before API resolves', async () => {
+    let resolveFetch!: (value: Response) => void
+    global.fetch = jest.fn(
+      () => new Promise<Response>((resolve) => { resolveFetch = resolve })
+    )
+
+    render(<ItineraryWorkspace selectedItineraryId="iti-2" initialWorkspace={twoStayWorkspace} />)
+
+    expect(screen.getByTestId('first-overnight').textContent).toBe('Paris')
+
+    await userEvent.click(screen.getByRole('button', { name: /move stay 0 down/i }))
+
+    // UI updates immediately before fetch resolves
+    expect(screen.getByTestId('first-overnight').textContent).toBe('Lyon')
+
+    // Resolve fetch with authoritative response
+    resolveFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ...twoStayWorkspace,
+        days: [
+          { ...twoStayWorkspace.days[1], dayNum: 1 },
+          { ...twoStayWorkspace.days[0], dayNum: 2 },
+        ],
+      }),
+    } as Response)
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/itineraries/iti-2/stays/0/move',
+        expect.objectContaining({ method: 'POST', body: JSON.stringify({ direction: 'down' }) })
+      )
+    })
+  })
+
+  it('reverts optimistic update when API fails', async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve({ ok: false, status: 500, json: async () => ({ error: 'INTERNAL_ERROR' }) } as Response)
+    )
+
+    render(<ItineraryWorkspace selectedItineraryId="iti-2" initialWorkspace={twoStayWorkspace} />)
+
+    expect(screen.getByTestId('first-overnight').textContent).toBe('Paris')
+
+    await userEvent.click(screen.getByRole('button', { name: /move stay 0 down/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('first-overnight').textContent).toBe('Paris')
+    })
   })
 
   it('shows recoverable back action for not-found workspace errors', async () => {

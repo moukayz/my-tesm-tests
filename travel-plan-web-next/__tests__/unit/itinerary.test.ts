@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { getOvernightColor, processItinerary, getRailwayFromTrainId, type RouteDay } from '../../app/lib/itinerary'
+import { getCountryColor, getCityColor, getOvernightColor, processItinerary, getRailwayFromTrainId, type RouteDay } from '../../app/lib/itinerary'
 
 describe('getOvernightColor', () => {
   it('returns #f5f5f5 for em-dash location', () => {
@@ -26,6 +26,65 @@ describe('getOvernightColor', () => {
     const match = color.match(/hsl\((\d+),/)
     expect(Number(match![1])).toBeGreaterThanOrEqual(0)
     expect(Number(match![1])).toBeLessThan(360)
+  })
+})
+
+describe('getCountryColor', () => {
+  it('returns #f5f5f5 for em-dash', () => {
+    expect(getCountryColor('—')).toBe('#f5f5f5')
+  })
+
+  it('returns an hsl pastel for a real country', () => {
+    expect(getCountryColor('France')).toMatch(/^hsl\(\d+, 70%, 95%\)$/)
+  })
+
+  it('is deterministic for the same country', () => {
+    expect(getCountryColor('France')).toBe(getCountryColor('France'))
+  })
+
+  it('returns different colors for different countries', () => {
+    expect(getCountryColor('France')).not.toBe(getCountryColor('Italy'))
+  })
+})
+
+describe('getCityColor', () => {
+  it('returns #f5f5f5 when country is em-dash', () => {
+    expect(getCityColor('Paris', '—')).toBe('#f5f5f5')
+  })
+
+  it('is deterministic for the same city+country', () => {
+    expect(getCityColor('Paris', 'France')).toBe(getCityColor('Paris', 'France'))
+  })
+
+  it('city hue matches country hue exactly', () => {
+    const countryColor = getCountryColor('France')
+    const countryHue = Number(countryColor.match(/hsl\((\d+),/)![1])
+    const cityColor = getCityColor('Paris', 'France')
+    const cityHue = Number(cityColor.match(/hsl\((\d+),/)![1])
+    expect(cityHue).toBe(countryHue)
+  })
+
+  it('two cities in the same country have different colors', () => {
+    expect(getCityColor('Paris', 'France')).not.toBe(getCityColor('Lyon', 'France'))
+  })
+
+  it('saturation is in range 25–75%', () => {
+    const color = getCityColor('Paris', 'France')
+    const s = Number(color.match(/hsl\(\d+, (\d+)%,/)![1])
+    expect(s).toBeGreaterThanOrEqual(25)
+    expect(s).toBeLessThanOrEqual(75)
+  })
+
+  it('lightness is in range 83–93%', () => {
+    const color = getCityColor('Paris', 'France')
+    const l = Number(color.match(/hsl\(\d+, \d+%, (\d+)%/)![1])
+    expect(l).toBeGreaterThanOrEqual(83)
+    expect(l).toBeLessThanOrEqual(93)
+  })
+
+  it('falls back to city-only hash when no country provided', () => {
+    const color = getCityColor('CustomCity', '')
+    expect(color).toMatch(/^hsl\(\d+, 70%, 95%\)$/)
   })
 })
 

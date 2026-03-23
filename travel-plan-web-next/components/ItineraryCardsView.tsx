@@ -17,6 +17,7 @@ interface ItineraryCardsViewProps {
   onOpenStarterRoute: (legacyTabKey: 'route') => void
   onOpenItinerary: (itineraryId: string) => void
   onCreateItinerary: () => void
+  onCopyStarterRoute?: () => void
 }
 
 const MAX_VISIBLE_ITINERARIES = 12
@@ -43,6 +44,7 @@ export default function ItineraryCardsView({
   onOpenStarterRoute,
   onOpenItinerary,
   onCreateItinerary,
+  onCopyStarterRoute,
 }: ItineraryCardsViewProps) {
   const [renderItineraryList, setRenderItineraryList] = useState(false)
   const visibleItineraries = itineraries.slice(0, MAX_VISIBLE_ITINERARIES)
@@ -75,19 +77,34 @@ export default function ItineraryCardsView({
     <div data-testid="itinerary-cards-rail" className="w-full space-y-8">
       {starterRouteCard && (
         <CardSection title="Starter route">
-          <button
-            type="button"
-            onClick={() => onOpenStarterRoute(starterRouteCard.legacyTabKey)}
-            className="w-full rounded-2xl border border-gray-200 bg-white p-6 text-left transition hover:border-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-            aria-label={`Open itinerary ${starterRouteCard.name}`}
+          <div
+            className="w-full rounded-2xl border border-gray-200 bg-white p-6 text-left transition hover:border-blue-300 hover:shadow-md"
             data-testid="itinerary-card-starter-route"
           >
-            <p className="text-xl font-semibold text-gray-900">{starterRouteCard.name}</p>
-            <p className="mt-2 text-sm text-gray-600">Start date: {starterRouteCard.startDate}</p>
-            <p className="mt-3 text-sm text-gray-500">
-              {starterRouteCard.dayCount} days · {starterRouteCard.stayCount} stays
-            </p>
-          </button>
+            <button
+              type="button"
+              onClick={() => onOpenStarterRoute(starterRouteCard.legacyTabKey)}
+              className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              aria-label={`Open itinerary ${starterRouteCard.name}`}
+            >
+              <p className="text-xl font-semibold text-gray-900">{starterRouteCard.name}</p>
+              <p className="mt-2 text-sm text-gray-600">Start date: {starterRouteCard.startDate}</p>
+              <p className="mt-3 text-sm text-gray-500">
+                {starterRouteCard.dayCount} days · {starterRouteCard.stayCount} stays
+              </p>
+            </button>
+            {onCopyStarterRoute && (
+              <div className="mt-4 border-t border-gray-100 pt-3">
+                <button
+                  type="button"
+                  onClick={onCopyStarterRoute}
+                  className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                >
+                  Copy to my itineraries
+                </button>
+              </div>
+            )}
+          </div>
         </CardSection>
       )}
 

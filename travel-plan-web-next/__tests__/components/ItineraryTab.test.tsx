@@ -2023,3 +2023,103 @@ describe('ItineraryTab - Itinerary Scoped API wiring', () => {
     })
   })
 })
+
+describe('ItineraryTab move stay buttons', () => {
+  function daySimple(overnight: string, dayNum: number): RouteDay {
+    return {
+      date: `2026/4/${dayNum}`,
+      weekDay: '星期一',
+      dayNum,
+      overnight,
+      plan: { morning: '', afternoon: '', evening: '' },
+      train: [],
+    }
+  }
+
+  const threeCityDays: RouteDay[] = [
+    daySimple('Paris', 1),
+    daySimple('Paris', 2),
+    daySimple('Lyon', 3),
+    daySimple('Rome', 4),
+  ]
+
+  afterEach(() => jest.restoreAllMocks())
+
+  it('first stay has no move-up button and has move-down button', () => {
+    render(
+      <ItineraryTab
+        initialData={threeCityDays}
+        itineraryId="iti-1"
+        onRequestEditStay={jest.fn()}
+        onMoveStay={jest.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: /move paris up/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /move paris down/i })).toBeInTheDocument()
+  })
+
+  it('last stay has move-up button and no move-down button', () => {
+    render(
+      <ItineraryTab
+        initialData={threeCityDays}
+        itineraryId="iti-1"
+        onRequestEditStay={jest.fn()}
+        onMoveStay={jest.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: /move rome up/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /move rome down/i })).not.toBeInTheDocument()
+  })
+
+  it('middle stay has both move-up and move-down buttons', () => {
+    render(
+      <ItineraryTab
+        initialData={threeCityDays}
+        itineraryId="iti-1"
+        onRequestEditStay={jest.fn()}
+        onMoveStay={jest.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: /move lyon up/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /move lyon down/i })).toBeInTheDocument()
+  })
+
+  it('clicking move-down calls onMoveStay with correct stayIndex and direction', async () => {
+    const onMoveStay = jest.fn()
+    render(
+      <ItineraryTab
+        initialData={threeCityDays}
+        itineraryId="iti-1"
+        onRequestEditStay={jest.fn()}
+        onMoveStay={onMoveStay}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: /move paris down/i }))
+    expect(onMoveStay).toHaveBeenCalledWith(0, 'down')
+  })
+
+  it('clicking move-up calls onMoveStay with correct stayIndex and direction', async () => {
+    const onMoveStay = jest.fn()
+    render(
+      <ItineraryTab
+        initialData={threeCityDays}
+        itineraryId="iti-1"
+        onRequestEditStay={jest.fn()}
+        onMoveStay={onMoveStay}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: /move lyon up/i }))
+    expect(onMoveStay).toHaveBeenCalledWith(1, 'up')
+  })
+
+  it('move buttons not rendered when onMoveStay prop is absent', () => {
+    render(
+      <ItineraryTab
+        initialData={threeCityDays}
+        itineraryId="iti-1"
+        onRequestEditStay={jest.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: /move paris/i })).not.toBeInTheDocument()
+  })
+})

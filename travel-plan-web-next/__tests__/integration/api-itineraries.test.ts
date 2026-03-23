@@ -44,6 +44,7 @@ describe('itinerary APIs', () => {
 
   afterEach(() => {
     delete process.env.ITINERARY_DATA_DIR
+    delete process.env.ROUTE_DATA_PATH
     fs.rmSync(tempDir, { recursive: true, force: true })
   })
 
@@ -341,6 +342,159 @@ describe('itinerary APIs', () => {
 
     expect(appendRes.status).toBe(400)
     expect((await appendRes.json()).error).toBe('STAY_LOCATION_LABEL_MISMATCH')
+  })
+
+  it('POST .../stays/0/move with direction=down swaps first and second stay', async () => {
+    const createRoute = await import('../../app/api/itineraries/route')
+    const createRes = await createRoute.POST(await post('http://localhost/api/itineraries', { startDate: '2026-04-01' }))
+    const itineraryId = (await createRes.json()).itinerary.id as string
+
+    const appendRoute = await import('../../app/api/itineraries/[itineraryId]/stays/route')
+    await appendRoute.POST(await post(`http://localhost/api/itineraries/${itineraryId}/stays`, { city: 'Paris', nights: 2 }), { params: Promise.resolve({ itineraryId }) })
+    await appendRoute.POST(await post(`http://localhost/api/itineraries/${itineraryId}/stays`, { city: 'Lyon', nights: 1 }), { params: Promise.resolve({ itineraryId }) })
+
+    const moveRoute = await import('../../app/api/itineraries/[itineraryId]/stays/[stayIndex]/move/route')
+    const moveRes = await moveRoute.POST(
+      await post(`http://localhost/api/itineraries/${itineraryId}/stays/0/move`, { direction: 'down' }),
+      { params: Promise.resolve({ itineraryId, stayIndex: '0' }) }
+    )
+
+    expect(moveRes.status).toBe(200)
+    const body = await moveRes.json()
+    expect(body.stays[0].city).toBe('Lyon')
+    expect(body.stays[0].nights).toBe(1)
+    expect(body.stays[1].city).toBe('Paris')
+    expect(body.stays[1].nights).toBe(2)
+  })
+
+  it('POST .../stays/0/move with direction=up returns 400 STAY_SWAP_BOUNDARY', async () => {
+    const createRoute = await import('../../app/api/itineraries/route')
+    const createRes = await createRoute.POST(await post('http://localhost/api/itineraries', { startDate: '2026-04-01' }))
+    const itineraryId = (await createRes.json()).itinerary.id as string
+
+    const appendRoute = await import('../../app/api/itineraries/[itineraryId]/stays/route')
+    await appendRoute.POST(await post(`http://localhost/api/itineraries/${itineraryId}/stays`, { city: 'Paris', nights: 1 }), { params: Promise.resolve({ itineraryId }) })
+    await appendRoute.POST(await post(`http://localhost/api/itineraries/${itineraryId}/stays`, { city: 'Lyon', nights: 1 }), { params: Promise.resolve({ itineraryId }) })
+
+    const moveRoute = await import('../../app/api/itineraries/[itineraryId]/stays/[stayIndex]/move/route')
+    const res = await moveRoute.POST(
+      await post(`http://localhost/api/itineraries/${itineraryId}/stays/0/move`, { direction: 'up' }),
+      { params: Promise.resolve({ itineraryId, stayIndex: '0' }) }
+    )
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('STAY_SWAP_BOUNDARY')
+  })
+
+  it('POST .../stays/0/move with invalid direction returns 400 STAY_MOVE_DIRECTION_INVALID', async () => {
+    const createRoute = await import('../../app/api/itineraries/route')
+    const createRes = await createRoute.POST(await post('http://localhost/api/itineraries', { startDate: '2026-04-01' }))
+    const itineraryId = (await createRes.json()).itinerary.id as string
+
+    const appendRoute = await import('../../app/api/itineraries/[itineraryId]/stays/route')
+    await appendRoute.POST(await post(`http://localhost/api/itineraries/${itineraryId}/stays`, { city: 'Paris', nights: 1 }), { params: Promise.resolve({ itineraryId }) })
+
+    const moveRoute = await import('../../app/api/itineraries/[itineraryId]/stays/[stayIndex]/move/route')
+    const res = await moveRoute.POST(
+      await post(`http://localhost/api/itineraries/${itineraryId}/stays/0/move`, { direction: 'sideways' }),
+      { params: Promise.resolve({ itineraryId, stayIndex: '0' }) }
+    )
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('STAY_MOVE_DIRECTION_INVALID')
+  })
+
+  it('POST .../stays/99/move returns 404 STAY_INDEX_INVALID', async () => {
+    const createRoute = await import('../../app/api/itineraries/route')
+    const createRes = await createRoute.POST(await post('http://localhost/api/itineraries', { startDate: '2026-04-01' }))
+    const itineraryId = (await createRes.json()).itinerary.id as string
+
+    const appendRoute = await import('../../app/api/itineraries/[itineraryId]/stays/route')
+    await appendRoute.POST(await post(`http://localhost/api/itineraries/${itineraryId}/stays`, { city: 'Paris', nights: 1 }), { params: Promise.resolve({ itineraryId }) })
+
+    const moveRoute = await import('../../app/api/itineraries/[itineraryId]/stays/[stayIndex]/move/route')
+    const res = await moveRoute.POST(
+      await post(`http://localhost/api/itineraries/${itineraryId}/stays/99/move`, { direction: 'down' }),
+      { params: Promise.resolve({ itineraryId, stayIndex: '99' }) }
+    )
+
+    expect(res.status).toBe(404)
+    expect((await res.json()).error).toBe('STAY_INDEX_INVALID')
+  })
+
+  it('POST .../stays/0/move returns 401 UNAUTHORIZED when no session', async () => {
+    mockAuth.mockResolvedValue(null)
+    const moveRoute = await import('../../app/api/itineraries/[itineraryId]/stays/[stayIndex]/move/route')
+    const res = await moveRoute.POST(
+      await post('http://localhost/api/itineraries/any/stays/0/move', { direction: 'down' }),
+      { params: Promise.resolve({ itineraryId: 'any', stayIndex: '0' }) }
+    )
+    expect(res.status).toBe(401)
+  })
+
+  it('POST /api/itineraries/seed creates a new itinerary seeded from route data', async () => {
+    const routeData = [
+      {
+        date: '2026/9/25',
+        weekDay: '星期五',
+        dayNum: 1,
+        overnight: '巴黎',
+        plan: { morning: '巴黎圣母院', afternoon: '凯旋门', evening: '卢浮宫' },
+        train: [],
+      },
+      {
+        date: '2026/9/26',
+        weekDay: '星期六',
+        dayNum: 2,
+        overnight: '巴黎',
+        plan: { morning: '', afternoon: '', evening: '' },
+        train: [],
+      },
+    ]
+    const routeFile = path.join(tempDir, 'route.json')
+    fs.writeFileSync(routeFile, JSON.stringify(routeData))
+    process.env.ROUTE_DATA_PATH = path.relative(process.cwd(), routeFile)
+
+    const seedRoute = await import('../../app/api/itineraries/seed/route')
+    const res = await seedRoute.POST()
+
+    expect(res.status).toBe(201)
+    const body = await res.json()
+    expect(body.itinerary.name).toBe('Original seeded route')
+    expect(body.itinerary.startDate).toBe('2026-09-25')
+    expect(body.workspaceUrl).toContain(body.itinerary.id)
+
+    const getRoute = await import('../../app/api/itineraries/[itineraryId]/route')
+    const getRes = await getRoute.GET(
+      new NextRequest(`http://localhost/api/itineraries/${body.itinerary.id}`),
+      { params: Promise.resolve({ itineraryId: body.itinerary.id }) }
+    )
+    expect(getRes.status).toBe(200)
+    const workspace = await getRes.json()
+    expect(workspace.days).toHaveLength(2)
+    expect(workspace.days[0].overnight).toBe('巴黎')
+    expect(workspace.days[0].plan.morning).toBe('巴黎圣母院')
+    expect(workspace.stays[0].city).toBe('巴黎')
+    expect(workspace.stays[0].nights).toBe(2)
+  })
+
+  it('POST /api/itineraries/seed returns 401 when unauthenticated', async () => {
+    mockAuth.mockResolvedValue(null)
+    const seedRoute = await import('../../app/api/itineraries/seed/route')
+    const res = await seedRoute.POST()
+    expect(res.status).toBe(401)
+    expect((await res.json()).error).toBe('UNAUTHORIZED')
+  })
+
+  it('POST /api/itineraries/seed returns 404 SEED_EMPTY when route data is empty', async () => {
+    const routeFile = path.join(tempDir, 'empty-route.json')
+    fs.writeFileSync(routeFile, JSON.stringify([]))
+    process.env.ROUTE_DATA_PATH = path.relative(process.cwd(), routeFile)
+
+    const seedRoute = await import('../../app/api/itineraries/seed/route')
+    const res = await seedRoute.POST()
+    expect(res.status).toBe(404)
+    expect((await res.json()).error).toBe('SEED_EMPTY')
   })
 
   it('returns 400 STAY_LOCATION_INVALID for provider-specific location payloads', async () => {

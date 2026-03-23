@@ -1,5 +1,5 @@
-import type { PlanSections } from '../itinerary'
-import { applyAppendStay, applyPatchStay, deriveStays, regenerateDerivedDates } from './domain'
+import type { PlanSections, RouteDay } from '../itinerary'
+import { applyAppendStay, applyMoveStay, applyPatchStay, deriveStays, regenerateDerivedDates } from './domain'
 import { getItineraryStore } from './store'
 import type { ItineraryRecord, ItinerarySummary, ItineraryWorkspace, ListItinerariesResponse, StayLocation } from './types'
 import { normalizeStayLocation } from '../stayLocation'
@@ -205,6 +205,22 @@ async function requireOwnedItinerary(itineraryId: string, ownerEmail: string): P
   return record
 }
 
+export async function seedItinerary(
+  ownerEmail: string,
+  days: RouteDay[],
+  name: string,
+  startDate: string
+): Promise<{ itinerary: ItinerarySummary; workspaceUrl: string }> {
+  const store = getItineraryStore()
+  const created = await store.createShell({ ownerEmail, name, startDate })
+  const saved = await store.replaceDays(created.id, created.updatedAt, days)
+  if (!saved) throw new ItineraryApiError(500, 'INTERNAL_ERROR')
+  return {
+    itinerary: toSummary(saved),
+    workspaceUrl: `/?tab=itinerary&itineraryId=${saved.id}`,
+  }
+}
+
 export async function createItineraryShell(ownerEmail: string, payload: { name?: unknown; startDate?: unknown }) {
   const startDate = parseDateOrThrow(payload.startDate)
   const name = parseNameOrThrow(payload.name, startDate)
@@ -299,6 +315,33 @@ export async function patchStay(
     ) {
       throw new ItineraryApiError(400, code)
     }
+    throw new ItineraryApiError(500, 'INTERNAL_ERROR')
+  }
+
+  const regenerated = regenerateDerivedDates(record.startDate, mutatedDays)
+  const store = getItineraryStore()
+  const saved = await store.replaceDays(record.id, record.updatedAt, regenerated)
+  if (!saved) throw new ItineraryApiError(409, 'WORKSPACE_STALE')
+  return toWorkspace(saved)
+}
+
+export async function moveStay(
+  itineraryId: string,
+  stayIndex: number,
+  ownerEmail: string,
+  direction: 'up' | 'down'
+): Promise<ItineraryWorkspace> {
+  if (!Number.isInteger(stayIndex) || stayIndex < 0) throw new ItineraryApiError(404, 'STAY_INDEX_INVALID')
+  if (direction !== 'up' && direction !== 'down') throw new ItineraryApiError(400, 'STAY_MOVE_DIRECTION_INVALID')
+
+  const record = await requireOwnedItinerary(itineraryId, ownerEmail)
+  let mutatedDays
+  try {
+    mutatedDays = applyMoveStay(record.days, stayIndex, direction)
+  } catch (error) {
+    const code = error instanceof Error ? error.message : 'STAY_MUTATION_INVALID'
+    if (code === 'STAY_INDEX_INVALID') throw new ItineraryApiError(404, code)
+    if (code === 'STAY_SWAP_BOUNDARY') throw new ItineraryApiError(400, code)
     throw new ItineraryApiError(500, 'INTERNAL_ERROR')
   }
 

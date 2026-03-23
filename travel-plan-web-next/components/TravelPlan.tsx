@@ -247,6 +247,23 @@ export default function TravelPlan({
               if (hasUnsavedInlineEdits) return
               setIsCreateModalOpen(true)
             }}
+            onCopyStarterRoute={async () => {
+              try {
+                const res = await fetch('/api/itineraries/seed', { method: 'POST' })
+                if (!res.ok) return
+                const body = (await res.json()) as CreateItineraryResponse
+                const nextId = body.itinerary.id
+                setItinerarySummaries((current) => [
+                  body.itinerary,
+                  ...current.filter((item) => item.id !== body.itinerary.id),
+                ])
+                setSelectedItineraryId(nextId)
+                setSelectedLegacyTabKey(undefined)
+                setSearchParams('itinerary', { kind: 'itinerary', itineraryId: nextId }, true)
+              } catch {
+                // silently ignore network errors
+              }
+            }}
           />
         </div>
       )}

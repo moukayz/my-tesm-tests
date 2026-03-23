@@ -51,6 +51,32 @@ describe('ItineraryCardsView', () => {
     expect(onOpenItinerary).toHaveBeenCalledTimes(1)
   })
 
+  it('copy to my itineraries button calls onCopyStarterRoute', async () => {
+    const onCopyStarterRoute = jest.fn()
+
+    render(
+      <ItineraryCardsView
+        itineraries={[]}
+        starterRouteCard={{
+          legacyTabKey: 'route',
+          name: 'Original seeded route',
+          startDate: '2026/9/25',
+          dayCount: 16,
+          stayCount: 4,
+        }}
+        onOpenStarterRoute={jest.fn()}
+        onOpenItinerary={jest.fn()}
+        onCreateItinerary={jest.fn()}
+        onCopyStarterRoute={onCopyStarterRoute}
+      />
+    )
+
+    const copyBtn = screen.getByRole('button', { name: /copy to my itineraries/i })
+    expect(copyBtn).toBeInTheDocument()
+    await userEvent.click(copyBtn)
+    expect(onCopyStarterRoute).toHaveBeenCalledTimes(1)
+  })
+
   it('shows empty-state create action when no cards exist', async () => {
     const onCreateItinerary = jest.fn()
 

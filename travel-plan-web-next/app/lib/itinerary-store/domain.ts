@@ -93,21 +93,17 @@ export function applyPatchStay(
       const targetLocation = normalizeStayLocation(target.city, target.location)
 
       if (!target.isLastStay) {
-        const next = stays[stayIndex + 1]
-        const nextLocation = normalizeStayLocation(next.city, next.location)
         const delta = patch.nights - target.nights
-        if (next.nights - delta < 1) throw new Error('STAY_MUTATION_INVALID')
-
         if (delta > 0) {
-          for (let i = next.startDayIndex; i < next.startDayIndex + delta; i++) {
-            updated[i] = { ...updated[i], overnight: target.city, location: targetLocation }
-          }
+          const insertAt = target.endDayIndex + 1
+          const newDays = Array.from({ length: delta }, () => blankDay(target.city, 0, targetLocation))
+          updated = [...updated.slice(0, insertAt), ...newDays, ...updated.slice(insertAt)]
         } else if (delta < 0) {
           const shrink = -delta
-          const lastTargetIdx = target.endDayIndex
-          for (let i = lastTargetIdx - shrink + 1; i <= lastTargetIdx; i++) {
-            updated[i] = { ...updated[i], overnight: next.city, location: nextLocation }
-          }
+          const removeStart = target.endDayIndex - shrink + 1
+          const toRemove = updated.slice(removeStart, target.endDayIndex + 1)
+          if (!canRemoveTrailingDays(toRemove)) throw new Error('STAY_TRAILING_DAYS_LOCKED')
+          updated = [...updated.slice(0, removeStart), ...updated.slice(target.endDayIndex + 1)]
         }
       } else {
         const delta = patch.nights - target.nights
@@ -146,6 +142,25 @@ export function applyPatchStay(
   }
 
   return updated
+}
+
+export function applyMoveStay(days: RouteDay[], stayIndex: number, direction: 'up' | 'down'): RouteDay[] {
+  const stays = deriveStays(days)
+  const target = stays[stayIndex]
+  if (!target) throw new Error('STAY_INDEX_INVALID')
+
+  const neighborIndex = direction === 'up' ? stayIndex - 1 : stayIndex + 1
+  const neighbor = stays[neighborIndex]
+  if (!neighbor) throw new Error('STAY_SWAP_BOUNDARY')
+
+  const [first, second] = direction === 'up' ? [neighbor, target] : [target, neighbor]
+
+  return [
+    ...days.slice(0, first.startDayIndex),
+    ...days.slice(second.startDayIndex, second.endDayIndex + 1),
+    ...days.slice(first.startDayIndex, first.endDayIndex + 1),
+    ...days.slice(second.endDayIndex + 1),
+  ]
 }
 
 export function regenerateDerivedDates(startDate: string, days: RouteDay[]): RouteDay[] {
