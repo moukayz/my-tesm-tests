@@ -48,13 +48,28 @@ interface TimetableRow {
 
 interface ItineraryTabProps {
   initialData: RouteDay[]
-  tabKey: 'route' | 'route-test'
+  tabKey?: 'route' | 'route-test'
+  itineraryId?: string
+  onRequestAddStay?: () => void
+  onRequestEditStay?: (stayIndex: number) => void
+  onDirtyStateChange?: (isDirty: boolean) => void
 }
 
-export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps) {
+export default function ItineraryTab({
+  initialData,
+  tabKey = 'route',
+  itineraryId,
+  onRequestAddStay,
+  onRequestEditStay,
+  onDirtyStateChange,
+}: ItineraryTabProps) {
   // ── Days state (mutable copy for stay edits) ─────────────────────────────
   const [days, setDays] = useState<RouteDay[]>(() => initialData)
   const processedData = useMemo(() => processItinerary(days), [days])
+
+  useEffect(() => {
+    setDays(initialData)
+  }, [initialData])
 
   // ── Stay edit state ───────────────────────────────────────────────────────
   const [stayEditingIndex, setStayEditingIndex] = useState<number | null>(null)
@@ -93,6 +108,7 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
 
   // ── Derived stays (for stay edit controls) ────────────────────────────────
   const stays = useMemo(() => getStaysWithMeta(days), [days])
+  const isItineraryScopedStayEdit = Boolean(itineraryId && onRequestEditStay)
 
   // ── Stay edit handlers ────────────────────────────────────────────────────
 
@@ -108,12 +124,19 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
     setStayEditSaving(true)
 
     try {
-      const response = await fetch('/api/stay-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        keepalive: true,
-        body: JSON.stringify({ tabKey, stayIndex, newNights }),
-      })
+      const response = itineraryId
+        ? await fetch(`/api/itineraries/${itineraryId}/stays/${stayIndex}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true,
+            body: JSON.stringify({ nights: newNights }),
+          })
+        : await fetch('/api/stay-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true,
+            body: JSON.stringify({ tabKey, stayIndex, newNights }),
+          })
 
       if (!response.ok) {
         // Revert optimistic update
@@ -122,7 +145,8 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
       } else {
         const data = await response.json()
         // Replace state with authoritative server response
-        setDays(data.updatedDays)
+        const nextDays = (data.updatedDays ?? data.days) as RouteDay[] | undefined
+        if (nextDays) setDays(nextDays)
         setStayEditSnapshot(null)
       }
     } catch {
@@ -136,6 +160,21 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
 
   const handleStayCancel = () => {
     setStayEditingIndex(null)
+  }
+
+  const savePlanUpdate = async (dayIndex: number, plan: PlanSections) => {
+    if (itineraryId) {
+      return fetch(`/api/itineraries/${itineraryId}/days/${dayIndex}/plan`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      })
+    }
+    return fetch('/api/plan-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dayIndex, plan, tabKey }),
+    })
   }
 
   // ── Export helpers ──────────────────────────────────────────────────────────
@@ -202,11 +241,7 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
     setPlanOverrides((prev) => ({ ...prev, [dayIndex]: newPlan }))
 
     try {
-      const response = await fetch('/api/plan-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dayIndex, plan: newPlan, tabKey }),
-      })
+      const response = await savePlanUpdate(dayIndex, newPlan)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -275,11 +310,7 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
     })
 
     try {
-      const response = await fetch('/api/plan-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dayIndex, plan: newPlan, tabKey }),
-      })
+      const response = await savePlanUpdate(dayIndex, newPlan)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -471,13 +502,17 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [trainEditorDayIndex, trainEditorSaving])
 
+  useEffect(() => {
+    onDirtyStateChange?.(editingRowId !== null || stayEditingIndex !== null)
+  }, [editingRowId, onDirtyStateChange, stayEditingIndex])
+
   // Fetch train schedules for DB trains
   useEffect(() => {
     const fetchSchedules = async () => {
       setSchedulesLoading(true)
       const schedules: Record<string, TrainStopsResult | null> = {}
 
-      for (const day of initialData) {
+      for (const day of days) {
         for (const trainEntry of day.train) {
           if (!('start' in trainEntry) || !trainEntry.start || !trainEntry.end) continue
 
@@ -523,7 +558,7 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
     }
 
     fetchSchedules()
-  }, [initialData])
+  }, [days])
 
   return (
     <div
@@ -568,21 +603,40 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
                     className="px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
                     style={{ backgroundColor: getOvernightColor(day.overnight) }}
                   >
-                    {stay && !stay.isLast ? (
-                      <StayEditControl
-                        stayIndex={stay.stayIndex}
-                        city={stay.overnight}
-                        currentNights={stay.nights}
-                        maxAdditionalNights={
-                          (stays[stay.stayIndex + 1]?.nights ?? 1) - 1
-                        }
-                        isLast={false}
-                        isSaving={stayEditSaving}
-                        onConfirm={handleStayConfirm}
-                        onCancel={handleStayCancel}
-                      />
+                    {stay && isItineraryScopedStayEdit ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-center gap-2">
+                          <span>{day.overnight}</span>
+                          <button
+                            type="button"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white/80 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+                            onClick={() => onRequestEditStay?.(stay.stayIndex)}
+                            aria-label={`Edit stay for ${stay.overnight}`}
+                            title={`Edit stay for ${stay.overnight}`}
+                          >
+                            <Pencil size={14} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : stay && !stay.isLast ? (
+                      <div className="space-y-2">
+                        <StayEditControl
+                          stayIndex={stay.stayIndex}
+                          city={stay.overnight}
+                          currentNights={stay.nights}
+                          maxAdditionalNights={
+                            (stays[stay.stayIndex + 1]?.nights ?? 1) - 1
+                          }
+                          isLast={false}
+                          isSaving={stayEditSaving}
+                          onConfirm={handleStayConfirm}
+                          onCancel={handleStayCancel}
+                        />
+                      </div>
                     ) : (
-                      day.overnight
+                      <div className="space-y-2">
+                        <span>{day.overnight}</span>
+                      </div>
                     )}
                   </td>
                 )}
@@ -913,7 +967,7 @@ export default function ItineraryTab({ initialData, tabKey }: ItineraryTabProps)
 
       {/* Floating export button. Keep it inside this panel so panel-scoped locators can find it. */}
       <FloatingExportButton
-        hasData={initialData.length > 0}
+        hasData={days.length > 0}
         isPickerOpen={floatingPickerOpen}
         onOpen={openFloatingPicker}
         buttonRef={floatingButtonRef}

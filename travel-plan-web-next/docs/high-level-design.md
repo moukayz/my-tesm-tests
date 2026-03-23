@@ -49,7 +49,7 @@ Shared Server Libs (app/lib/)
 | Auth | NextAuth.js v5 — Google OAuth |
 | Relational DB | PostgreSQL (Docker local) / Neon serverless (production) |
 | KV Store | Local JSON file (dev) / Upstash Redis (production) |
-| Analytics DB | DuckDB local parquets / MotherDuck — optional; active app uses PostgreSQL/Neon |
+| Analytics DB | DuckDB local parquets |
 | Logging | pino |
 | Testing | Jest 30 + React Testing Library + Playwright |
 | Deployment | Vercel (serverless) |
@@ -98,7 +98,7 @@ All routes return `application/json`. Errors: `{ "error": "<message>" }`.
 
 - **Production:** Vercel serverless. `@neondatabase/serverless` (HTTP) for PostgreSQL; Upstash Redis via REST. No persistent in-process state.
 - **Local dev (`dev:local`):** Docker PostgreSQL + local parquets + FileRouteStore.
-- **Local dev (`dev:cloud`):** Neon + MotherDuck + Upstash (via `.env.local`).
+- **Local dev (`dev:cloud`):** Neon + optional Upstash (via `.env.local`) + local DuckDB parquets.
 - `serverExternalPackages: ['pg', 'pino', 'pino-pretty']` — not bundled by webpack.
 
 ---
@@ -128,7 +128,7 @@ Critical paths cover authenticated itinerary writes, test-tab isolation, timetab
 |---|---|---|
 | R-01 | Delay data is a static snapshot — historical only, not live | Medium / accepted |
 | R-02 | GTFS data goes stale when carrier schedules change; requires manual re-run of `merge_gtfs.py` | Medium / manual |
-| R-03 | MotherDuck cold-start ~80s; mitigated by `/api/warmup` in E2E; production risk accepted | Medium |
+| R-03 | Large parquet scans can increase query latency in local/dev workflows | Medium |
 | R-04 | `pg.Pool` unsafe on Vercel — mitigated by `@neondatabase/serverless` when `VERCEL=1` | High / mitigated |
 | R-05 | No mechanism to reset Redis itinerary to a new `route.json` without direct key edit | Low / open (test tab adds `route-test` key; reset still out of scope) |
 | R-06 | Login rate-limit tested but no deployed Edge middleware rate limiter | Medium / open |

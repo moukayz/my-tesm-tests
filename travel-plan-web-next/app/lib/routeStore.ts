@@ -34,6 +34,13 @@ function resolveSeedFilePath(): string {
   return path.join(process.cwd(), process.env.ROUTE_DATA_PATH ?? 'data/route.json')
 }
 
+function writeJsonAtomic(filePath: string, value: unknown): void {
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
+  const serialized = JSON.stringify(value, null, 2)
+  fs.writeFileSync(tempPath, serialized)
+  fs.renameSync(tempPath, filePath)
+}
+
 // ── FileRouteStore ────────────────────────────────────────────────────────────
 
 /** Local filesystem implementation — used in development and test environments. */
@@ -52,7 +59,7 @@ class FileRouteStore implements RouteStore {
     // Auto-seed for the test tab if the test file does not exist yet
     if (this.isTestTab && !fs.existsSync(this.filePath)) {
       const seed = fs.readFileSync(this.seedFilePath, 'utf-8')
-      fs.writeFileSync(this.filePath, seed)
+      writeJsonAtomic(this.filePath, JSON.parse(seed) as RouteDay[])
     }
     return JSON.parse(fs.readFileSync(this.filePath, 'utf-8'))
   }
@@ -60,19 +67,19 @@ class FileRouteStore implements RouteStore {
   async updatePlan(dayIndex: number, plan: PlanSections): Promise<RouteDay> {
     const data = await this.getAll()
     data[dayIndex].plan = plan
-    fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2))
+    writeJsonAtomic(this.filePath, data)
     return data[dayIndex]
   }
 
   async updateTrain(dayIndex: number, train: TrainRoute[]): Promise<RouteDay> {
     const data = await this.getAll()
     data[dayIndex].train = train
-    fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2))
+    writeJsonAtomic(this.filePath, data)
     return data[dayIndex]
   }
 
   async updateDays(days: RouteDay[]): Promise<RouteDay[]> {
-    fs.writeFileSync(this.filePath, JSON.stringify(days, null, 2))
+    writeJsonAtomic(this.filePath, days)
     return days
   }
 }

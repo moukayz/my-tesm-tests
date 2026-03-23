@@ -50,7 +50,7 @@ test.describe('Navigation and Tab Visibility', () => {
   test('logged in users land on itinerary by default', async ({ page }) => {
     await injectSession(page)
     await page.goto('/')
-    await expect(page.getByRole('button', { name: /^itinerary$/i })).toBeVisible()
-    await expect(page.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+    await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
+    await expect(page.getByTestId('itinerary-card-starter-route')).toBeVisible()
   })
 })

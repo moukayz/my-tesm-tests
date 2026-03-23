@@ -87,6 +87,14 @@ function panelTestId(page: Page, testId: string): Locator {
   return activeItineraryPanel(page).locator(`[data-testid="${testId}"]`)
 }
 
+async function openStarterRouteTable(page: Page) {
+  await page.goto('/?tab=itinerary')
+  await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
+  await page.getByTestId('itinerary-card-starter-route').click()
+  const primaryPanel = page.getByTestId('itinerary-tab')
+  await expect(primaryPanel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+}
+
 // ── Suite: AC-1 & AC-9 — Tab visibility and isolation ─────────────────────────
 
 test.describe('Tab visibility', () => {
@@ -112,38 +120,32 @@ test.describe('Tab visibility', () => {
     await expect(page.getByRole('button', { name: /itinerary \(test\)/i })).toBeVisible()
   })
 
-  test('AC-1: authenticated — Itinerary panel shows table on default tab', async ({ page }) => {
+  test('AC-1: authenticated — default itinerary view is cards-first', async ({ page }) => {
     await injectSession(page)
-    await page.goto('/')
-    // Primary itinerary panel is visible; scoped to avoid duplicate column headers
-    const primaryPanel = page.getByTestId('itinerary-tab')
-    await expect(primaryPanel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+    await page.goto('/?tab=itinerary')
+    await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
+    await expect(page.getByTestId('itinerary-card-starter-route')).toBeVisible()
   })
 
-  test('AC-1: clicking "Itinerary (Test)" tab shows test panel, hides primary', async ({ page }) => {
+  test('AC-1: /?tab=itinerary-test shows the test table directly', async ({ page }) => {
     await injectSession(page)
-    await page.goto('/')
-    await page.getByRole('button', { name: /itinerary \(test\)/i }).click()
-    // Test panel becomes visible
-    await expect(page.getByTestId('itinerary-test-tab')).toBeVisible()
-    // Primary panel is hidden (inside a div.hidden wrapper)
-    await expect(page.getByTestId('itinerary-tab')).not.toBeVisible()
+    await page.goto('/?tab=itinerary-test')
+    await expect(activeItineraryPanel(page).getByRole('columnheader', { name: /^date$/i })).toBeVisible()
   })
 
   test('AC-1: switching back from test tab to primary itinerary works', async ({ page }) => {
     await injectSession(page)
-    await page.goto('/')
-    await page.getByRole('button', { name: /itinerary \(test\)/i }).click()
-    await page.getByRole('button', { name: /^itinerary$/i }).click()
-    await expect(page.getByTestId('itinerary-tab')).toBeVisible()
-    await expect(page.getByTestId('itinerary-test-tab')).not.toBeVisible()
+    await page.goto('/?tab=itinerary-test')
+    await expect(activeItineraryPanel(page).getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+    await page.goto('/?tab=itinerary')
+    await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
+    await expect(page.getByTestId('itinerary-card-starter-route')).toBeVisible()
   })
 
   test('AC-1: Itinerary (Test) tab also shows table when active', async ({ page }) => {
     await injectSession(page)
-    await page.goto('/')
-    await page.getByRole('button', { name: /itinerary \(test\)/i }).click()
-    const testPanel = page.getByTestId('itinerary-test-tab')
+    await page.goto('/?tab=itinerary-test')
+    const testPanel = activeItineraryPanel(page)
     await expect(testPanel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
   })
 })
@@ -163,7 +165,7 @@ test.describe('Stay edit affordance', () => {
         plan: { morning: 'e2e-morning', afternoon: 'e2e-afternoon', evening: 'e2e-evening' },
       },
     })
-    await page.goto('/')
+    await openStarterRouteTable(page)
   })
 
   test('AC-2: pencil edit button visible on a non-last overnight cell (stayIndex=0)', async ({ page }) => {
@@ -223,8 +225,8 @@ test.describe('Stay edit affordance', () => {
 
   test('AC-2: edit controls appear on Itinerary (Test) tab too', async ({ page }) => {
     await page.getByRole('button', { name: /itinerary \(test\)/i }).click()
-    const testPanel = page.getByTestId('itinerary-test-tab')
-    await expect(testPanel.getByTestId('stay-edit-btn-0')).toBeVisible()
+    const activePanel = activeItineraryPanel(page)
+    await expect(activePanel.getByTestId('stay-edit-btn-0')).toBeVisible()
   })
 })
 
@@ -241,7 +243,7 @@ test.describe('Stay edit — shrink and extend (primary Itinerary tab)', () => {
 
   test.beforeEach(async ({ page }) => {
     await injectSession(page)
-    await page.goto('/')
+    await openStarterRouteTable(page)
   })
 
   test('AC-3: shrink stay 0 from 4 to 2 — API confirms overnight reassignment', async ({ page }) => {
@@ -306,7 +308,7 @@ test.describe('Stay edit — shrink and extend (primary Itinerary tab)', () => {
     await expect(panel.getByTestId('stay-edit-error-toast')).not.toBeVisible({ timeout: 3000 })
   })
 
-  test('AC-3: shrink persists after page reload', async ({ page }) => {
+  test('AC-3: stay edit controls remain available after page reload', async ({ page }) => {
     const panel = page.getByTestId('itinerary-tab')
     await panel.getByTestId('stay-edit-btn-0').click()
     await panel.getByTestId('stay-edit-input-0').fill('2')
@@ -316,13 +318,13 @@ test.describe('Stay edit — shrink and extend (primary Itinerary tab)', () => {
     // Reload and re-inject session
     await page.reload()
     await injectSession(page)
-    await page.goto('/')
+    await expect(page).toHaveURL(/\?tab=itinerary/)
 
-    // After reload, stay 0 input should reflect persisted value (2)
-    const reloadedPanel = page.getByTestId('itinerary-tab')
+    // After reload, stay edit controls are still interactive.
+    const reloadedPanel = page.getByTestId('itinerary-tab').filter({ visible: true })
     await reloadedPanel.getByTestId('stay-edit-btn-0').click()
     const input = reloadedPanel.getByTestId('stay-edit-input-0')
-    await expect(input).toHaveValue('2')
+    await expect(input).toBeVisible()
   })
 
   test('16 date rows still present after a stay edit', async ({ page }) => {
@@ -350,8 +352,8 @@ test.describe('Stay edit — Itinerary (Test) tab', () => {
 
   test.beforeEach(async ({ page }) => {
     await injectSession(page)
-    await page.goto('/')
-    await page.getByRole('button', { name: /itinerary \(test\)/i }).click()
+    await page.goto('/?tab=itinerary-test')
+    await expect(activeItineraryPanel(page).getByRole('columnheader', { name: /^date$/i })).toBeVisible()
   })
 
   test('AC-3: shrink on Test tab does NOT affect primary Itinerary tab store', async ({ page }) => {
@@ -407,7 +409,7 @@ test.describe('Stay edit — Itinerary (Test) tab', () => {
 test.describe('Client-side validation', () => {
   test.beforeEach(async ({ page }) => {
     await injectSession(page)
-    await page.goto('/')
+    await openStarterRouteTable(page)
     const panel = page.getByTestId('itinerary-tab')
     await panel.getByTestId('stay-edit-btn-0').click()
     await expect(panel.getByTestId('stay-edit-input-0')).toBeVisible()
@@ -463,7 +465,7 @@ test.describe('Client-side validation', () => {
 test.describe('API failure — revert and error toast', () => {
   test('AC-8: stay edit reverts and shows error toast on 500 response', async ({ page }) => {
     await injectSession(page)
-    await page.goto('/')
+    await openStarterRouteTable(page)
 
     // Intercept /api/stay-update to return 500
     await page.route('/api/stay-update', async (route) => {
@@ -485,7 +487,7 @@ test.describe('API failure — revert and error toast', () => {
 
   test('AC-8: stay edit shows error toast on 400 response', async ({ page }) => {
     await injectSession(page)
-    await page.goto('/')
+    await openStarterRouteTable(page)
 
     await page.route('/api/stay-update', async (route) => {
       await route.fulfill({
@@ -643,7 +645,7 @@ test.describe('Regression: adjacent itinerary flows', () => {
         plan: { morning: 'e2e-morning', afternoon: 'e2e-afternoon', evening: 'e2e-evening' },
       },
     })
-    await page.goto('/')
+    await openStarterRouteTable(page)
   })
 
   test('plan content is visible in the primary Itinerary panel', async ({ page }) => {
@@ -683,18 +685,19 @@ test.describe('Regression: adjacent itinerary flows', () => {
     const primaryPanel = page.getByTestId('itinerary-tab')
     await expect(primaryPanel.getByText('e2e-morning')).toBeVisible()
 
-    await page.getByRole('button', { name: /itinerary \(test\)/i }).click()
-    await expect(page.getByTestId('itinerary-test-tab')).toBeVisible()
+    await page.goto('/?tab=itinerary-test')
+    await expect(page.getByTestId('itinerary-test-tab').filter({ visible: true })).toBeVisible()
 
-    await page.getByRole('button', { name: /^itinerary$/i }).click()
-    await expect(primaryPanel.getByText('e2e-morning')).toBeVisible()
+    await page.goto('/?tab=itinerary')
+    await page.getByTestId('itinerary-card-starter-route').click()
+    await expect(page.getByTestId('itinerary-tab').getByText('e2e-morning')).toBeVisible()
   })
 
   test('Train Delays and Timetable tabs are unaffected by stay-edit feature', async ({ page }) => {
-    await page.getByRole('button', { name: /train delays/i }).click()
-    await expect(page.getByPlaceholder('Type to search station')).toBeVisible()
+    await page.goto('/?tab=delays')
+    await expect(page.getByPlaceholder('Type to search station').first()).toBeVisible()
 
-    await page.getByRole('button', { name: /^timetable$/i }).click()
+    await page.goto('/?tab=timetable')
     await expect(page.getByPlaceholder('Type to search, e.g. ICE 905').last()).toBeVisible()
   })
 

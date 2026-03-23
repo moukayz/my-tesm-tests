@@ -1844,3 +1844,77 @@ describe('ItineraryTab - Stay Edit Feature', () => {
     })
   })
 })
+
+describe('ItineraryTab - Itinerary Scoped API wiring', () => {
+  afterEach(() => jest.restoreAllMocks())
+
+  it('does not render a table-top Add next stay strip in itinerary-scoped mode', () => {
+    setupFetchForStayEdit()
+    const onRequestAddStay = jest.fn()
+
+    render(
+      <ItineraryTab
+        initialData={stayMockData}
+        itineraryId="iti-1"
+        onRequestAddStay={onRequestAddStay}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: /^add next stay$/i })).not.toBeInTheDocument()
+  })
+
+  it('renders one icon-triggered full Edit stay control in itinerary-scoped mode', async () => {
+    setupFetchForStayEdit()
+    render(<ItineraryTab initialData={stayMockData} itineraryId="iti-1" onRequestEditStay={jest.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /edit stay for paris/i })).toHaveLength(1)
+      expect(screen.getAllByRole('button', { name: /edit stay for cologne/i })).toHaveLength(1)
+      expect(screen.queryByTestId('stay-edit-btn-0')).not.toBeInTheDocument()
+      expect(screen.queryByText(/^edit stay$/i)).not.toBeInTheDocument()
+    })
+  })
+
+  it('routes itinerary-scoped overnight pencil clicks to onRequestEditStay', async () => {
+    setupFetchForStayEdit()
+    const onRequestEditStay = jest.fn()
+    render(<ItineraryTab initialData={stayMockData} itineraryId="iti-1" onRequestEditStay={onRequestEditStay} />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /edit stay for paris/i }))
+
+    expect(onRequestEditStay).toHaveBeenCalledWith(0)
+    expect(global.fetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/itineraries/iti-1/stays/0'),
+      expect.anything()
+    )
+  })
+
+  it('uses itinerary day plan PATCH endpoint when itineraryId is provided', async () => {
+    global.fetch = jest.fn((url: RequestInfo | URL) => {
+      const path = url.toString().split('?')[0].replace('http://localhost', '')
+      if (path === '/api/itineraries/iti-1/days/0/plan') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ ...mockRouteData[0] }),
+        } as Response)
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => null } as Response)
+    })
+
+    render(<ItineraryTab initialData={mockRouteData} itineraryId="iti-1" />)
+
+    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
+    const editor = await screen.findByRole('textbox')
+    await userEvent.clear(editor)
+    await userEvent.type(editor, 'Scoped update')
+    fireEvent.blur(editor)
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/itineraries/iti-1/days/0/plan',
+        expect.objectContaining({ method: 'PATCH' })
+      )
+    })
+  })
+})

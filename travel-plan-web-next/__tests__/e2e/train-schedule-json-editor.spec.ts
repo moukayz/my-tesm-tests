@@ -25,6 +25,14 @@ async function injectSession(
   ])
 }
 
+async function openStarterRouteTable(page: import('@playwright/test').Page) {
+  await page.goto('/?tab=itinerary')
+  await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
+  await page.getByTestId('itinerary-card-starter-route').click()
+  const primaryPanel = page.getByTestId('itinerary-tab')
+  await expect(primaryPanel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+}
+
 test.describe.configure({ mode: 'serial' })
 
 test.describe('Train Schedule Editor', () => {
@@ -47,9 +55,7 @@ test.describe('Train Schedule Editor', () => {
   test.beforeEach(async ({ page }) => {
     await injectSession(page)
     await resetDayTrain(page)
-    await page.goto('/')
-    const primaryPanel = page.getByTestId('itinerary-tab')
-    await expect(primaryPanel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+    await openStarterRouteTable(page)
   })
 
   test.afterEach(async ({ page }) => {

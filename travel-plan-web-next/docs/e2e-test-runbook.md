@@ -1,6 +1,6 @@
 # E2E Test Runbook — Travel Plan Web (Next.js)
 
-**Last updated:** 2026-03-19
+**Last updated:** 2026-03-22
 **Scope:** operational setup, execution, reporting, and high-level debugging for Playwright E2E runs
 
 ---
@@ -152,3 +152,94 @@ Open the HTML report after a run to review failed steps, screenshots, and trace 
 
 - Playwright uses `playwright.config.ts` for server startup, reporter output, and environment loading.
 - Keep this runbook focused on execution and debugging workflow; detailed test inventory belongs in the test suite, not in operational docs.
+
+---
+
+## 9. Feature Smoke: `itinerary-creation-and-stay-planning`
+
+Use an isolated itinerary file-store directory so MVP workspace creation tests do not reuse local manual data:
+
+```bash
+ITINERARY_DATA_DIR=data/itineraries-qa npm run test:e2e -- itinerary-creation-workspace.spec.ts
+```
+
+What this smoke covers:
+
+- authenticated shell creation from **New itinerary**
+- landing on the empty itinerary workspace
+- add first stay + add next stay
+- full stay edit (city + nights)
+- quick inline nights edit
+- reload into the same itinerary workspace
+
+Artifacts for failures remain in the standard Playwright locations:
+
+- `travel-plan-web-next/playwright-report/index.html`
+- `travel-plan-web-next/test-results/`
+
+---
+
+## 10. Feature Smoke: `itinerary-cards-navigation`
+
+Use an isolated itinerary file-store directory so cards-list and create-flow checks do not reuse local manual data:
+
+```bash
+ITINERARY_DATA_DIR="data/itineraries-qa-cards-$(date +%s)" npm run test:e2e:local -- itinerary-cards-navigation.spec.ts itinerary-creation-workspace.spec.ts
+```
+
+What this smoke covers:
+
+- cards-first default entry on `/?tab=itinerary`
+- multiple saved itineraries rendered as recoverable cards
+- click-through from card to existing workspace
+- in-app `Back to all itineraries` return path
+- `New itinerary` create flow landing on the empty workspace
+
+Artifacts for failures remain in the standard Playwright locations:
+
+- `travel-plan-web-next/playwright-report/index.html`
+- `travel-plan-web-next/test-results/`
+
+---
+
+## 11. Feature Smoke: `itinerary-desktop-surface-adjustments`
+
+Use an isolated itinerary file-store directory so desktop cards/detail checks do not reuse local manual data:
+
+```bash
+ITINERARY_DATA_DIR="data/itineraries-qa-desktop-surface-$(date +%s)" npm run test:e2e:local -- __tests__/e2e/itinerary-desktop-surface-adjustments.spec.ts
+```
+
+What this smoke covers:
+
+- desktop cards rail stays left-aligned with wide click targets
+- starter route remains visible as its own recoverable card
+- saved itinerary detail opens from cards with desktop-width parity against `Itinerary (Test)`
+- cards-first back navigation and core detail editing entry points remain intact
+
+Artifacts for failures remain in the standard Playwright locations:
+
+- `travel-plan-web-next/playwright-report/index.html`
+- `travel-plan-web-next/test-results/`
+
+---
+
+## 12. Feature Smoke: `itinerary-ui-adjustments`
+
+Use an isolated itinerary file-store directory so cards/detail navigation and stay-edit checks do not reuse local manual data:
+
+```bash
+ITINERARY_DATA_DIR="data/itineraries-qa-ui-adjustments-$(date +%s)" npm run test:e2e:local -- __tests__/e2e/itinerary-ui-adjustments.spec.ts
+```
+
+What this smoke covers:
+
+- icon-only back action remains the single visible in-app return affordance in detail view
+- activating the back action still returns to the itinerary cards view
+- Overnight-column pencil opens the full `Edit stay` sheet with current city + nights populated
+- no separate exact-label `Edit stay` button remains in the itinerary table before or after editing
+
+Artifacts for failures remain in the standard Playwright locations:
+
+- `travel-plan-web-next/playwright-report/index.html`
+- `travel-plan-web-next/test-results/`

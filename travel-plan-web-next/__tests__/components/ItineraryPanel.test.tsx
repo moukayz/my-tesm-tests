@@ -1,0 +1,160 @@
+import React from 'react'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ItinerarySummary, ItineraryWorkspace } from '../../app/lib/itinerary-store/types'
+import ItineraryPanel from '../../components/ItineraryPanel'
+
+jest.mock('../../components/ItineraryWorkspace', () => ({
+  __esModule: true,
+  default: ({ onDirtyStateChange }: { onDirtyStateChange?: (isDirty: boolean) => void }) => (
+    <div>
+      <div data-testid="itinerary-workspace">ItineraryWorkspace</div>
+      <button type="button" onClick={() => onDirtyStateChange?.(true)}>
+        Mark dirty
+      </button>
+    </div>
+  ),
+}))
+
+const summaries: ItinerarySummary[] = [
+  {
+    id: 'iti-1',
+    name: 'Paris Week',
+    startDate: '2026-04-01',
+    status: 'draft',
+    createdAt: '2026-03-20T00:00:00.000Z',
+    updatedAt: '2026-03-21T00:00:00.000Z',
+  },
+]
+
+const workspace: ItineraryWorkspace = {
+  itinerary: summaries[0],
+  stays: [],
+  days: [],
+}
+
+describe('ItineraryPanel', () => {
+  it('renders cards view by default and opens a selected itinerary', async () => {
+    const onSelectItinerary = jest.fn()
+
+    render(
+      <ItineraryPanel
+        selectedItineraryId={undefined}
+        selectedLegacyTabKey={undefined}
+        itinerarySummaries={summaries}
+        starterRouteCard={null}
+        onSelectItinerary={onSelectItinerary}
+        onSelectStarterRoute={jest.fn()}
+        onBackToCards={jest.fn()}
+        onRequestCreateItinerary={jest.fn()}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /open itinerary paris week/i }))
+
+    expect(onSelectItinerary).toHaveBeenCalledWith('iti-1')
+  })
+
+  it('shows empty cards state with a create action', async () => {
+    const onRequestCreateItinerary = jest.fn()
+
+    render(
+      <ItineraryPanel
+        selectedItineraryId={undefined}
+        selectedLegacyTabKey={undefined}
+        itinerarySummaries={[]}
+        starterRouteCard={null}
+        onSelectItinerary={jest.fn()}
+        onSelectStarterRoute={jest.fn()}
+        onBackToCards={jest.fn()}
+        onRequestCreateItinerary={onRequestCreateItinerary}
+      />
+    )
+
+    expect(screen.getByText(/no itineraries yet/i)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /new itinerary/i }))
+
+    expect(onRequestCreateItinerary).toHaveBeenCalled()
+  })
+
+  it('renders detail shell with back action', async () => {
+    const onBackToCards = jest.fn()
+
+    render(
+      <ItineraryPanel
+        selectedItineraryId="iti-1"
+        selectedLegacyTabKey={undefined}
+        itinerarySummaries={summaries}
+        starterRouteCard={null}
+        initialWorkspace={workspace}
+        onSelectItinerary={jest.fn()}
+        onSelectStarterRoute={jest.fn()}
+        onBackToCards={onBackToCards}
+        onRequestCreateItinerary={jest.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('itinerary-workspace')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /back to all itineraries/i }))
+
+    expect(onBackToCards).toHaveBeenCalled()
+  })
+
+  it('guards back navigation when there are unsaved edits', async () => {
+    const onBackToCards = jest.fn()
+
+    render(
+      <ItineraryPanel
+        selectedItineraryId="iti-1"
+        selectedLegacyTabKey={undefined}
+        itinerarySummaries={summaries}
+        starterRouteCard={null}
+        initialWorkspace={workspace}
+        onSelectItinerary={jest.fn()}
+        onSelectStarterRoute={jest.fn()}
+        onBackToCards={onBackToCards}
+        onRequestCreateItinerary={jest.fn()}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /mark dirty/i }))
+    await userEvent.click(screen.getByRole('button', { name: /back to all itineraries/i }))
+
+    expect(screen.getByRole('dialog', { name: /discard unsaved edits/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /keep editing/i }))
+    expect(onBackToCards).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: /back to all itineraries/i }))
+    await userEvent.click(screen.getByRole('button', { name: /leave without saving/i }))
+
+    expect(onBackToCards).toHaveBeenCalled()
+  })
+
+  it('opens starter route card when present', async () => {
+    const onSelectStarterRoute = jest.fn()
+
+    render(
+      <ItineraryPanel
+        selectedItineraryId={undefined}
+        selectedLegacyTabKey={undefined}
+        itinerarySummaries={summaries}
+        starterRouteCard={{
+          legacyTabKey: 'route',
+          name: 'Original seeded route',
+          startDate: '2026/9/25',
+          dayCount: 16,
+          stayCount: 4,
+        }}
+        onSelectItinerary={jest.fn()}
+        onSelectStarterRoute={onSelectStarterRoute}
+        onBackToCards={jest.fn()}
+        onRequestCreateItinerary={jest.fn()}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /open itinerary original seeded route/i }))
+
+    expect(onSelectStarterRoute).toHaveBeenCalledWith('route')
+  })
+})

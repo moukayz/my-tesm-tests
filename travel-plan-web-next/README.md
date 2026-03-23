@@ -6,15 +6,25 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 
 ## Features
 
-- **Itinerary tab** — full trip schedule rendered as a table with merged overnight-location cells and pastel color-coding per destination
+- **Itinerary tab** — cards-first itinerary library with click-to-open workspace + in-app back navigation
+  - **Cards-first entry** — authenticated users land on an itinerary cards view (`/?tab=itinerary`) that lists the server-shaped starter route card plus saved itineraries
+  - **Starter route handoff** — selecting `Original seeded route` opens seeded-route detail at `/?tab=itinerary&legacyTabKey=route`
+  - **Detail workspace handoff** — card selection opens the existing itinerary editor at `/?tab=itinerary&itineraryId=<id>`
+  - **Desktop width parity** — itinerary detail shell now uses the same wide desktop content rail as `Itinerary (Test)`
+  - **Desktop detail cleanup** — selected itinerary desktop view uses a compact back-only shell + one workspace metadata header (title/date once), with a single `Add next stay`
+  - **Back to cards** — detail mode shows a clear in-app `Back to all itineraries` action to return to cards without leaving the tab
+  - **New itinerary shell** — authenticated users can create a draft itinerary (`name` optional, `startDate` required) and land on `/?tab=itinerary&itineraryId=<id>`
+  - **Empty workspace guidance** — newly created itineraries render an empty state with `Add first stay` before mounting the day table
+  - **Stay planning sheet** — reusable add/edit dialog supports `Add first stay`, `Add next stay`, and full `Edit stay` (city + nights) from stay cells
   - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away
   - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
 - **Structured train schedule editor** — click the pencil in Train Schedule to edit day-level train rows (`train_id`, optional `start`+`end`) with add, drag-and-drop reorder, row-end delete, inline validation, and single-save persistence
   - **Multi-railway timetable** — Train Schedule column auto-detects TGV (French) and EST (Eurostar) trains from the train ID prefix and fetches from the correct railway data source; German trains remain the default
   - **Export to files** — A floating action button (FAB, fixed at viewport mid-right) lets authenticated users download their itinerary as Markdown (`.md`) or PDF (`.pdf`). Uses the File System Access API where available (Chrome/Edge native save dialog), with a silent anchor-download fallback for Firefox/Safari. PDF generation is client-side only (jsPDF + jspdf-autotable, dynamically imported). CJK characters (Chinese/Japanese/Korean) render correctly in PDF via a lazily-loaded NotoSansSC font subset. A success toast confirms each export. Exported columns: Date, Day, Overnight, Plan, Train Schedule (Weekday omitted).
-  - **Editable stay duration** — each non-last overnight city block shows a pencil icon; clicking it opens an inline input to set the number of nights. Reducing a stay by N days transfers those days to the following stay; extending borrows from the next. Day-conservation invariant is enforced both client-side (pre-flight) and server-side. Optimistic update with revert-on-failure and an error toast.
+- **Editable stay duration** — quick inline nights edit remains for non-last stays; full stay city+nights edits are available from one table stay-cell trigger per stay. Optimistic quick-edit with revert-on-failure is preserved.
 - **Itinerary (Test) tab** — sandboxed duplicate of the Itinerary tab backed by an independent persistence key (`route-test`). Edits here never affect the main Itinerary data. Both tabs carry full stay-editing capability.
-- Changes persist via `POST /api/plan-update` → `RouteStore` (file locally, Upstash Redis in production); stay changes persist via `POST /api/stay-update`
+- Legacy tab edits persist via `POST /api/plan-update` and `POST /api/stay-update` → `RouteStore` (file locally, Upstash Redis in production)
+- New itinerary workspace backend is available under `/api/itineraries*` with owner-scoped itinerary listing, itinerary-scoped shell creation, detail load, stay append/edit, and day-plan save backed by `ItineraryStore`
 - Server-side backend-selection logs show which persistence services are active (FileRouteStore vs Upstash Redis, local `pg` pool vs Neon serverless)
 - **Train Timetable tab** — unified search across German (DB), French (SNCF), and Eurostar trains; type any train ID and the correct data source is queried automatically — no railway selector needed
 - **Train Delays tab** — search any train and station to see delay statistics (avg, median, p75/p90/p95, max) and a daily trend chart over the last 3 months
@@ -36,6 +46,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 | Data (static) | `data/route.json` (seed / local fallback) |
 | Data (dynamic) | DuckDB (parquet) + PostgreSQL/Neon (GTFS) via Node.js API routes |
 | Route persistence | `app/lib/routeStore.ts` — `FileRouteStore` locally, `UpstashRouteStore` in production |
+| Itinerary persistence | `app/lib/itinerary-store/store.ts` — `FileItineraryStore` locally, `UpstashItineraryStore` in production |
 | Runtime | Node.js 18+ |
 | Auth | NextAuth.js v5 (Auth.js) — Google OAuth |
 | Testing | Jest 30 + React Testing Library |
@@ -58,20 +69,36 @@ travel-plan-web-next/
 │   │   ├── pgdb.ts              # pgQuery: pg.Pool locally, @neondatabase/serverless on Vercel
 │   │   ├── itinerary.ts         # RouteDay/ProcessedDay types, getOvernightColor, processItinerary, getRailwayFromTrainId
 │   │   ├── routeStore.ts        # RouteStore interface + FileRouteStore + UpstashRouteStore + getRouteStore(tabKey)
+│   │   ├── itinerary-store/
+│   │   │   ├── store.ts         # ItineraryStore interface + File/Upstash implementations
+│   │   │   ├── domain.ts        # Pure itinerary stay/day mutation helpers
+│   │   │   ├── service.ts       # API-facing orchestration + validation/error mapping
+│   │   │   └── types.ts         # Itinerary record/workspace contracts
+│   │   ├── itineraryCards.ts    # Server-side starter-route card metadata composition for itinerary cards
 │   │   ├── stayUtils.ts         # Pure stay utilities: getStays, getStaysWithMeta, validateStayEdit, applyStayEdit, applyStayEditOptimistic
 │   │   ├── trainScheduleDraft.ts # Train editor draft parse/validate/serialize/reorder helpers
 │   │   └── trainDelay.ts        # DelayStats/TrendPoint types, formatDay, buildStatItems
 │   └── api/
 │       ├── auth/[...nextauth]/route.ts  # NextAuth.js catch-all handler (GET + POST)
 │       ├── trains/route.ts      # GET /api/trains
+│       ├── trains/cache.ts      # In-memory trains cache helpers (including test reset hook)
 │       ├── stations/route.ts    # GET /api/stations?train=<name>
 │       ├── delay-stats/route.ts # GET /api/delay-stats?train=<name>&station=<name>
 │       ├── plan-update/route.ts # POST /api/plan-update (auth required; tabKey param)
 │       ├── stay-update/route.ts # POST /api/stay-update (auth required; editable stays)
+│       ├── itineraries/route.ts # POST /api/itineraries (auth required)
+│       ├── itineraries/[itineraryId]/... # GET workspace + stay/day patch routes
 │       └── train-stops/route.ts # GET /api/train-stops
 ├── components/
 │   ├── AuthHeader.tsx           # Login/logout header with session state
-│   ├── TravelPlan.tsx           # Tab switcher: Itinerary, Itinerary (Test), Train Delays, Timetable
+│   ├── TravelPlan.tsx           # Tab shell + URL query-param sync + itinerary cards/detail panel wiring
+│   ├── ItineraryPanel.tsx       # Itinerary subview switcher (cards vs detail) + unsaved back guard
+│   ├── ItineraryCardsView.tsx   # Desktop cards list with empty state + open/create actions
+│   ├── ItineraryDetailShell.tsx # Detail header with in-app back action + workspace wrapper
+│   ├── ItineraryWorkspace.tsx   # Itinerary workspace wrapper: empty state vs table + stay mutations
+│   ├── CreateItineraryModal.tsx # Name/startDate shell creation modal
+│   ├── ItineraryEmptyState.tsx  # Zero-day workspace card with Add first stay CTA
+│   ├── StaySheet.tsx            # Reusable add/edit stay dialog (city + nights)
 │   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic, inline editing, drag-and-drop, export, stay editing
 │   ├── StayEditControl.tsx      # Inline stay-duration edit widget (pencil → number input → confirm/cancel)
 │   ├── ExportToolbar.tsx        # Legacy export toolbar (superseded by FloatingExportButton)
@@ -113,7 +140,10 @@ travel-plan-web-next/
 │       ├── StayEditControl.test.tsx     # render, validation, confirm/cancel, isSaving, a11y, data-testid
 │       ├── ExportToolbar.test.tsx       # button states, disabled tooltip, aria attrs
 │       ├── ExportFormatPicker.test.tsx  # format buttons, Escape/outside-click dismiss, spinner, error
-│       └── TravelPlan.test.tsx          # includes dual-tab (Itinerary/Itinerary (Test)) assertions
+│       ├── TravelPlan.test.tsx          # tab/query sync + cards/detail URL transitions + create modal
+│       ├── ItineraryPanel.test.tsx      # cards/detail branching + back guard dialog behavior
+│       ├── CreateItineraryModal.test.tsx
+│       └── ItineraryWorkspace.test.tsx
 ├── data/
 │   └── route.json               # Static trip itinerary data (16 days)
 ├── next.config.ts
@@ -135,7 +165,7 @@ travel-plan-web-next/
 
 ### Frontend
 
-`TravelPlan` manages the active tab and renders all four tab panels simultaneously (`itinerary`, `itinerary-test`, `delays`, `timetable`), toggling Tailwind's `hidden` class to show/hide them. This keeps component state alive across tab switches. Both `ItineraryTab` instances receive a `tabKey` prop (`"route"` or `"route-test"`) that is forwarded in every API call body to isolate their data. The home route (`app/page.tsx`) is explicitly `force-dynamic` so reloads always re-read the latest itinerary state after stay/plan edits.
+`TravelPlan` manages top-level tabs and synchronizes `tab`/`itineraryId` with URL search params. The authenticated itinerary flow now enters through `ItineraryPanel`: cards view when `itineraryId` is absent, and detail shell + `ItineraryWorkspace` when present. `ItineraryTab` still powers day-level editing and quick inline nights edits; itinerary-scoped writes use `/api/itineraries/:id/...` while the sandbox `Itinerary (Test)` tab continues using legacy `tabKey` APIs. The home route (`app/page.tsx`) stays `force-dynamic` to always re-read current itinerary summaries and workspace state.
 
 ### Editable Stays
 
@@ -216,7 +246,7 @@ User types train name
 
 | File | Purpose | Tracked |
 |---|---|---|
-| `.env.local` | Local development credentials and optional MotherDuck config | No (gitignored) |
+| `.env.local` | Local development credentials | No (gitignored) |
 | `.env.test` | Fixed credentials for E2E and Jest integration tests | Yes |
 | `.env.test.local` | Local override of `.env.test` values | No (gitignored) |
 
@@ -229,17 +259,9 @@ AUTH_SECRET=random_32plus_char_string
 ALLOWED_EMAIL=your.email@gmail.com   # optional: restrict to one account
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railway
 # KV_REST_API_URL / KV_REST_API_TOKEN — omit to use local file storage (FileRouteStore)
-
-# MotherDuck (optional) — omit to use local slim parquets in db_railway_stats_slim/
-MOTHERDUCK_TOKEN=your_motherduck_token
-MOTHERDUCK_DB=my_db
-# MOTHERDUCK_DELAY_TABLE=delay_events_slim (optional, defaults to 'delay_events_slim')
-# MOTHERDUCK_STOPS_TABLE=train_latest_stops (optional, defaults to 'train_latest_stops')
 ```
 
-**Local parquet mode (default)** — omit `MOTHERDUCK_TOKEN` to query `db_railway_stats_slim/*.parquet` locally via DuckDB.
-
-**MotherDuck mode** — set `MOTHERDUCK_TOKEN` and `MOTHERDUCK_DB` to query slim parquets stored in MotherDuck cloud. Get a token from [app.motherduck.com/settings/tokens](https://app.motherduck.com/settings/tokens).
+German analytics APIs read `db_railway_stats_slim/*.parquet` locally via DuckDB.
 
 **Vercel production** — add an Upstash Redis integration to your project, then set:
 
@@ -331,7 +353,7 @@ Two modes — pick one based on your data sources:
 | Command | German data | PostgreSQL |
 |---|---|---|
 | `npm run dev:local` | Local parquets (`db_railway_stats_slim/`) | Docker (`localhost:5432`) |
-| `npm run dev:cloud` | MotherDuck (requires `MOTHERDUCK_TOKEN` in `.env.local`) | Neon (requires Neon `DATABASE_URL` in `.env.local`) |
+| `npm run dev:cloud` | Local parquets (`db_railway_stats_slim/`) | Neon (requires Neon `DATABASE_URL` in `.env.local`) |
 
 ```bash
 # Local mode — requires Docker running with GTFS data loaded
@@ -339,7 +361,7 @@ docker compose up -d
 npm run db:load   # only needed once
 npm run dev:local
 
-# Cloud mode — requires MOTHERDUCK_TOKEN + Neon DATABASE_URL in .env.local
+# Cloud mode — requires Neon DATABASE_URL in .env.local
 npm run dev:cloud
 ```
 
@@ -372,14 +394,14 @@ E2E tests support the same two data-source modes as the dev server:
 | Command | German data | PostgreSQL |
 |---|---|---|
 | `npm run test:e2e:local` | Local parquets (`db_railway_stats_slim/`) | Docker (`localhost:5432`) |
-| `npm run test:e2e` | MotherDuck (from `.env.local`) | Neon (from `.env.local`) |
+| `npm run test:e2e` | Local parquets (`db_railway_stats_slim/`) | Neon (from `.env.local`) |
 
 ```bash
 # Local mode — requires Docker running with GTFS data loaded
 docker compose up -d
 npm run test:e2e:local
 
-# Cloud mode — requires MOTHERDUCK_TOKEN + Neon DATABASE_URL in .env.local
+# Cloud mode — requires Neon DATABASE_URL in .env.local
 npm run test:e2e
 ```
 
@@ -467,6 +489,52 @@ The overnight column cells are automatically merged (rowspan) for consecutive da
 
 ## API Reference
 
+### `GET /api/itineraries`
+
+Returns all itineraries owned by the signed-in user as summary cards, ordered by `updatedAt` descending.
+
+**Response:** `{ "items": ItinerarySummary[] }`
+
+---
+
+### `POST /api/itineraries`
+
+Creates an itinerary shell for the signed-in user.
+
+**Body:** `{ "name"?: string, "startDate": "YYYY-MM-DD" }`
+
+**Response:** `201 { itinerary, workspaceUrl }`
+
+---
+
+### `GET /api/itineraries/{itineraryId}`
+
+Returns itinerary metadata, derived `stays`, and itinerary-scoped `days` for the owner.
+
+---
+
+### `POST /api/itineraries/{itineraryId}/stays`
+
+Appends a new stay to the end of the itinerary and regenerates derived day fields.
+
+**Body:** `{ "city": string, "nights": number }`
+
+---
+
+### `PATCH /api/itineraries/{itineraryId}/stays/{stayIndex}`
+
+Edits the targeted stay city and/or nights with MVP rules (borrow/donate for non-last, guarded shrink for last).
+
+**Body:** `{ "city"?: string, "nights"?: number }`
+
+---
+
+### `PATCH /api/itineraries/{itineraryId}/days/{dayIndex}/plan`
+
+Updates one day plan object and returns the updated `RouteDay`.
+
+**Body:** `{ "plan": { "morning": string, "afternoon": string, "evening": string } }`
+
 ### `GET /api/trains`
 
 Returns the combined train list from all three sources: German DB slim parquet (`train_latest_stops.parquet`), French SNCF GTFS, and Eurostar GTFS. The German `train_type` is derived from the train name via `split_part(train_name, ' ', 1)`.
@@ -493,7 +561,7 @@ Times are returned as `"HH:MM:SS"` for GTFS sources or `"YYYY-MM-DD HH:MM:SS"` f
 
 ### `GET /api/stations?train=<train_name>`
 
-Returns all stations for a given train, ordered by their position on the line. Queries the slim German parquet (`train_latest_stops.parquet`) via local DuckDB or MotherDuck.
+Returns all stations for a given train, ordered by their position on the line. Queries the slim German parquet (`train_latest_stops.parquet`) via local DuckDB.
 
 **Response:** `[{ station_name: string, station_num: number }]`
 
@@ -541,7 +609,7 @@ Adjusts the stay boundary between two adjacent city blocks. The `stayIndex` stay
 
 ### `GET /api/delay-stats?train=<train_name>&station=<station_name>`
 
-Returns delay statistics and a daily trend series for the given train/station over the last 3 months of available data. Cancelled stops are excluded. Queries the slim German parquet (`delay_events_slim.parquet`) via local DuckDB or MotherDuck.
+Returns delay statistics and a daily trend series for the given train/station over the last 3 months of available data. Cancelled stops are excluded. Queries the slim German parquet (`delay_events_slim.parquet`) via local DuckDB.
 
 **Response:**
 ```json
@@ -565,7 +633,7 @@ Returns delay statistics and a daily trend series for the given train/station ov
 
 ### `GET /api/train-stops?train=<train_name>&from=<station>&to=<station>`
 
-Returns the departure/arrival times for the given train between two stations. Queries the slim German parquet (`train_latest_stops.parquet`) via local DuckDB or MotherDuck.
+Returns the departure/arrival times for the given train between two stations. Queries the slim German parquet (`train_latest_stops.parquet`) via local DuckDB.
 
 **Response:**
 ```json

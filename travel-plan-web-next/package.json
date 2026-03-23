@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:local": "MOTHERDUCK_TOKEN= DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railway next dev",
+    "dev:local": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railway next dev",
     "dev:cloud": "next dev",
     "build": "next build",
     "start": "next start",
@@ -14,7 +14,7 @@
     "test:verbose": "jest --reporters=default",
     "test:coverage": "jest --coverage",
     "test:e2e": "playwright test --reporter=dot",
-    "test:e2e:local": "MOTHERDUCK_TOKEN= DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railway playwright test --reporter=dot",
+    "test:e2e:local": "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railway playwright test --reporter=dot",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:verbose": "playwright test --reporter=list",
     "db:init": "psql $DATABASE_URL -f scripts/init-db.sql",

@@ -1,7 +1,7 @@
 # Frontend Runbook — Travel Plan Web (Next.js)
 
-**Last updated:** 2026-03-19  
-**Feature coverage:** core itinerary UI + `itinerary-export` feature + `itinerary-export-ux-pdf-fixes` + `editable-itinerary-stays`
+**Last updated:** 2026-03-22  
+**Feature coverage:** core itinerary UI + `itinerary-export` feature + `itinerary-export-ux-pdf-fixes` + `editable-itinerary-stays` + `itinerary-creation-and-stay-planning` + `itinerary-cards-navigation` + `itinerary-detail-ux-cleanup` + `itinerary-desktop-adjustments`
 
 ---
 
@@ -18,7 +18,7 @@
 # Local data sources (Docker + local parquets)
 npm run dev:local
 
-# Cloud data sources (MotherDuck + Neon)
+# Cloud PostgreSQL data source (Neon)
 npm run dev:cloud
 ```
 
@@ -184,3 +184,137 @@ Authenticated users can edit stay duration directly in the itinerary. The main i
 ### Font file size (deviation from LLD target)
 - The CJK font asset is intentionally loaded only when PDF export is used.
 - Larger font payloads mainly affect the export action, not the initial page load.
+
+---
+
+## 9. Itinerary Creation And Stay Planning (`itinerary-creation-and-stay-planning`)
+
+### How it works
+
+Authenticated users can create itinerary shells and then build stays progressively in an itinerary-scoped workspace.
+
+**User flow:**
+1. Open the **Itinerary** tab and click **New itinerary**.
+2. Submit optional name + required start date.
+3. App navigates to `/?tab=itinerary&itineraryId=<id>`.
+4. Empty workspace appears with **Add first stay**.
+5. Add first stay (city + nights) to mount the itinerary table.
+6. Continue with **Add next stay**, quick inline nights edit, or full **Edit stay** (city + nights).
+
+### Frontend checks for this feature
+
+Run these checks in this workspace before handoff:
+
+```bash
+npm test -- CreateItineraryModal.test.tsx ItineraryWorkspace.test.tsx TravelPlan.test.tsx ItineraryTab.test.tsx
+npm test
+```
+
+### Troubleshooting itinerary workspace
+
+#### `Selected itinerary was not found` or `access denied`
+- The `itineraryId` in URL is stale or belongs to another user.
+- Use **Open latest itinerary** to recover to a valid workspace.
+
+#### Stay edit shows `Workspace changed in another session`
+- Another tab/session updated the same itinerary.
+- Retry the action from the refreshed workspace state.
+
+#### Can't start new itinerary while editing a day row
+- Unsaved inline day edits intentionally block tab switching and new shell creation.
+- Finish the inline edit (commit or cancel) and retry.
+
+---
+
+## 10. Itinerary Cards Navigation (`itinerary-cards-navigation`)
+
+### How it works
+
+Authenticated users now enter the **Itinerary** tab through a cards library view.
+
+**User flow:**
+1. Open `/?tab=itinerary`.
+2. Cards view lists saved itineraries for the signed-in user.
+3. Click a card to open `/?tab=itinerary&itineraryId=<id>` in the existing editor workspace.
+4. Use **Back to all itineraries** to return to cards view.
+
+### Frontend checks for this feature
+
+Run these checks in this workspace before handoff:
+
+```bash
+npm test -- TravelPlan.test.tsx ItineraryPanel.test.tsx ItineraryWorkspace.test.tsx
+npm run test:e2e -- itinerary-cards-navigation.spec.ts
+```
+
+### Troubleshooting cards navigation
+
+#### Itinerary tab opens detail directly instead of cards
+- Verify URL does not include `itineraryId`.
+- Use `/?tab=itinerary` for cards-first entry.
+
+#### Back action does not return to cards
+- If unsaved inline edits exist, the discard dialog blocks immediate navigation.
+- Choose **Leave without saving** to continue back navigation.
+
+#### Selected itinerary cannot be opened
+- Workspace error panel provides **Back to all itineraries** recovery.
+- Retry from cards after verifying session ownership and itinerary availability.
+
+---
+
+## 11. Itinerary Detail UX Cleanup (`itinerary-detail-ux-cleanup`)
+
+### Desktop behavior
+
+- Detail shell keeps only **Back to all itineraries** (no duplicated title/date in shell chrome).
+- Populated workspace shows one compact metadata header (title + start date once).
+- Populated workspace exposes one **Add next stay** action.
+- The above-table `Edit stay for {city}` action row is removed.
+- Full **Edit stay** remains in overnight stay cells, with quick inline nights edit preserved for eligible non-last stays.
+
+### Frontend checks for this feature
+
+```bash
+npm test -- __tests__/components/ItineraryDetailShell.test.tsx __tests__/components/ItineraryWorkspace.test.tsx __tests__/components/ItineraryTab.test.tsx
+npm run test:e2e -- __tests__/e2e/itinerary-creation-workspace.spec.ts __tests__/e2e/itinerary-cards-navigation.spec.ts
+```
+
+### Troubleshooting detail cleanup
+
+#### Duplicate `Add next stay` is visible
+- Verify the action is rendered only in `ItineraryWorkspace` populated header.
+- Confirm `ItineraryTab` does not render the legacy table-top utility strip.
+
+#### `Edit stay for {city}` appears above table
+- Verify workspace-level per-stay action chips are removed.
+- Use the stay-cell **Edit stay** trigger inside the Overnight column.
+
+---
+
+## 12. Itinerary Desktop Adjustments (`itinerary-desktop-adjustments`)
+
+### Desktop behavior
+
+- Cards rail is left-aligned with larger card click targets.
+- `Starter route` section shows `Original seeded route` as its own card.
+- Selecting starter route opens seeded detail in the same shell using `legacyTabKey=route`.
+- Main itinerary detail shell stays on a wide desktop rail aligned with `Itinerary (Test)`.
+
+### Frontend checks for this feature
+
+```bash
+npm test -- __tests__/components/ItineraryCardsView.test.tsx __tests__/components/ItineraryPanel.test.tsx __tests__/components/ItineraryDetailShell.test.tsx __tests__/components/TravelPlan.test.tsx
+npm run test:e2e -- __tests__/e2e/itinerary-cards-navigation.spec.ts
+```
+
+### Troubleshooting desktop adjustments
+
+#### Starter route card is missing
+- Verify authenticated entry is `/?tab=itinerary` and seeded route data loads.
+
+#### Starter route opens but URL lacks `legacyTabKey=route`
+- Confirm cards open handler writes `legacyTabKey` and clears `itineraryId`.
+
+#### Main detail appears narrower than `Itinerary (Test)`
+- Verify itinerary panel/detail wrappers keep `w-full` desktop rail classes.

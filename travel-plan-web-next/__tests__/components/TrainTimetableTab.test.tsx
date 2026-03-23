@@ -119,9 +119,30 @@ describe('TrainTimetableTab', () => {
   it('shows an error message when trains fail to load', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('Network error'))
     render(<TrainTimetableTab />)
-    await waitFor(() =>
-      expect(screen.getByText('Failed to load train list')).toBeInTheDocument()
-    )
+    await waitFor(() => expect(screen.getByText('Failed to load train list')).toBeInTheDocument(), {
+      timeout: 5_000,
+    })
+  })
+
+  it('retries train list fetch when initial response is empty', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ json: () => Promise.resolve([]) } as Response)
+      .mockResolvedValue({ json: () => Promise.resolve(mockTrains) } as Response)
+
+    const user = userEvent.setup()
+    render(<TrainTimetableTab />)
+
+    await waitFor(() => {
+      const trainRequests = (global.fetch as jest.Mock).mock.calls.filter(
+        ([url]) => url === '/api/trains'
+      )
+      expect(trainRequests).toHaveLength(2)
+    })
+
+    await waitFor(() => expect(screen.queryByText('Loading trains…')).not.toBeInTheDocument())
+    await user.type(screen.getByPlaceholderText(/ICE 905/i), 'ICE')
+    await waitFor(() => expect(screen.getByText('ICE 905')).toBeInTheDocument())
   })
 
   it('fetches timetable and renders table after selecting a train', async () => {

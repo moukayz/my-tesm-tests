@@ -98,7 +98,9 @@ const INJECT_SAVE_FILE_PICKER_MOCK = `
  */
 async function gotoItineraryAsAuth(page: Page) {
   await injectSession(page)
-  await page.goto('/')
+  await page.goto('/?tab=itinerary')
+  await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
+  await page.getByTestId('itinerary-card-starter-route').click()
   // Wait for the PRIMARY itinerary panel to be present
   const panel = page.getByTestId('itinerary-tab')
   await expect(panel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
@@ -383,7 +385,9 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     })
     expect(res.status()).toBe(200)
 
-    await page.goto('/')
+    await page.goto('/?tab=itinerary')
+    await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
+    await page.getByTestId('itinerary-card-starter-route').click()
     await expect(primaryPanel(page).getByRole('columnheader', { name: /^date$/i })).toBeVisible()
 
     await primaryPanel(page).getByTestId('export-fab').click()

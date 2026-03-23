@@ -5,6 +5,35 @@ import AutocompleteInput from './AutocompleteInput'
 import { formatTime, type TimetableRow } from '../app/lib/trainTimetable'
 import { type TrainRow } from '../app/lib/trainDelay'
 
+const TRAIN_FETCH_MAX_ATTEMPTS = 3
+const TRAIN_FETCH_RETRY_DELAY_MS = 350
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function fetchTrainsWithRetry(): Promise<TrainRow[]> {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= TRAIN_FETCH_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch('/api/trains')
+      const data = await response.json()
+      const rows = Array.isArray(data) ? data : []
+      if (rows.length > 0) return rows as TrainRow[]
+      lastError = new Error('empty_train_list')
+    } catch (error) {
+      lastError = error
+    }
+
+    if (attempt < TRAIN_FETCH_MAX_ATTEMPTS) {
+      await sleep(TRAIN_FETCH_RETRY_DELAY_MS * attempt)
+    }
+  }
+
+  throw lastError ?? new Error('train_list_unavailable')
+}
+
 export default function TrainTimetableTab() {
   const [trains, setTrains] = useState<TrainRow[]>([])
   const [trainInput, setTrainInput] = useState('')
@@ -16,11 +45,28 @@ export default function TrainTimetableTab() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/trains')
-      .then((r) => r.json())
-      .then((data) => setTrains(Array.isArray(data) ? data : []))
-      .catch(() => setError('Failed to load train list'))
-      .finally(() => setTrainsLoading(false))
+    let isActive = true
+
+    setTrainsLoading(true)
+    setError(null)
+
+    fetchTrainsWithRetry()
+      .then((rows) => {
+        if (!isActive) return
+        setTrains(rows)
+      })
+      .catch(() => {
+        if (!isActive) return
+        setError('Failed to load train list')
+      })
+      .finally(() => {
+        if (!isActive) return
+        setTrainsLoading(false)
+      })
+
+    return () => {
+      isActive = false
+    }
   }, [])
 
   useEffect(() => {

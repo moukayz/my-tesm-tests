@@ -6,10 +6,12 @@ jest.mock('../../app/lib/pgdb', () => ({
 }))
 
 import { NextRequest } from 'next/server'
-import { GET, __resetTrainsCacheForTests } from '../../app/api/trains/route'
+import * as trainsRoute from '../../app/api/trains/route'
+import { resetTrainsCacheForTests } from '../../app/api/trains/cache'
 import { pgQuery } from '../../app/lib/pgdb'
 
 const mockPgQuery = pgQuery as jest.Mock
+const { GET } = trainsRoute
 
 function makeRequest(params: Record<string, string> = {}) {
   const url = new URL('http://localhost/api/trains')
@@ -20,7 +22,11 @@ function makeRequest(params: Record<string, string> = {}) {
 describe('GET /api/trains', () => {
   beforeEach(() => {
     mockPgQuery.mockReset()
-    __resetTrainsCacheForTests()
+    resetTrainsCacheForTests()
+  })
+
+  it('does not export test-only helpers from the route module', () => {
+    expect('__resetTrainsCacheForTests' in trainsRoute).toBe(false)
   })
 
   it('returns the train list with railway field from all sources', async () => {

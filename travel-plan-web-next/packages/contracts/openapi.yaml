@@ -1,0 +1,391 @@
+openapi: 3.1.0
+info:
+  title: Travel Plan Web MVP Itinerary API
+  version: 0.1.0
+  description: Contract-first API for itinerary shell creation and progressive stay planning.
+servers:
+  - url: http://localhost:3000
+security:
+  - sessionAuth: []
+paths:
+  /api/itineraries:
+    get:
+      summary: List itinerary cards for the signed-in user
+      description: Returns persisted user-owned itineraries only. The desktop-only seeded starter-route card is composed in the Next.js server layer for this slice and is intentionally outside this public contract.
+      operationId: listItineraries
+      responses:
+        '200':
+          description: Ordered itinerary summaries for the current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListItinerariesResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '500':
+          $ref: '#/components/responses/Error500'
+    post:
+      summary: Create a new itinerary shell
+      operationId: createItinerary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateItineraryRequest'
+      responses:
+        '201':
+          description: Itinerary created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateItineraryResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '500':
+          $ref: '#/components/responses/Error500'
+  /api/itineraries/{itineraryId}:
+    get:
+      summary: Get itinerary workspace payload
+      operationId: getItineraryWorkspace
+      parameters:
+        - $ref: '#/components/parameters/ItineraryId'
+      responses:
+        '200':
+          description: Workspace payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItineraryWorkspace'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+  /api/itineraries/{itineraryId}/stays:
+    post:
+      summary: Append a stay to the itinerary
+      operationId: appendStay
+      parameters:
+        - $ref: '#/components/parameters/ItineraryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStayRequest'
+      responses:
+        '200':
+          description: Updated workspace after stay append
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItineraryWorkspace'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+  /api/itineraries/{itineraryId}/stays/{stayIndex}:
+    patch:
+      summary: Edit stay city and-or nights
+      operationId: updateStay
+      parameters:
+        - $ref: '#/components/parameters/ItineraryId'
+        - $ref: '#/components/parameters/StayIndex'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStayRequest'
+      responses:
+        '200':
+          description: Updated workspace after stay edit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItineraryWorkspace'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '500':
+          $ref: '#/components/responses/Error500'
+  /api/itineraries/{itineraryId}/days/{dayIndex}/plan:
+    patch:
+      summary: Update plan sections for a single day
+      operationId: updateDayPlan
+      parameters:
+        - $ref: '#/components/parameters/ItineraryId'
+        - $ref: '#/components/parameters/DayIndex'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlanRequest'
+      responses:
+        '200':
+          description: Updated day returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteDay'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: next-auth.session-token
+  parameters:
+    ItineraryId:
+      name: itineraryId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    StayIndex:
+      name: stayIndex
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 0
+    DayIndex:
+      name: dayIndex
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 0
+  responses:
+    Error400:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Error401:
+      description: Unauthenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Error403:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Error404:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Error409:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Error500:
+      description: Server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    CreateItineraryRequest:
+      type: object
+      required: [startDate]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        startDate:
+          type: string
+          format: date
+    CreateItineraryResponse:
+      type: object
+      required: [itinerary, workspaceUrl]
+      properties:
+        itinerary:
+          $ref: '#/components/schemas/ItinerarySummary'
+        workspaceUrl:
+          type: string
+    ListItinerariesResponse:
+      type: object
+      required: [itineraries]
+      properties:
+        itineraries:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItineraryCardSummary'
+    CreateStayRequest:
+      type: object
+      required: [city, nights]
+      properties:
+        city:
+          type: string
+          minLength: 1
+          maxLength: 80
+        nights:
+          type: integer
+          minimum: 1
+    UpdateStayRequest:
+      type: object
+      minProperties: 1
+      properties:
+        city:
+          type: string
+          minLength: 1
+          maxLength: 80
+        nights:
+          type: integer
+          minimum: 1
+    UpdatePlanRequest:
+      type: object
+      required: [plan]
+      properties:
+        plan:
+          $ref: '#/components/schemas/PlanSections'
+    ItineraryWorkspace:
+      type: object
+      required: [itinerary, stays, days]
+      properties:
+        itinerary:
+          $ref: '#/components/schemas/ItinerarySummary'
+        stays:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaySummary'
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteDay'
+    ItinerarySummary:
+      type: object
+      required: [id, name, startDate, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ItineraryCardSummary:
+      allOf:
+        - $ref: '#/components/schemas/ItinerarySummary'
+        - type: object
+          required: [dayCount, stayCount]
+          properties:
+            dayCount:
+              type: integer
+              minimum: 0
+            stayCount:
+              type: integer
+              minimum: 0
+    StaySummary:
+      type: object
+      required: [stayIndex, city, nights, startDayIndex, endDayIndex, isLastStay]
+      properties:
+        stayIndex:
+          type: integer
+          minimum: 0
+        city:
+          type: string
+        nights:
+          type: integer
+          minimum: 1
+        startDayIndex:
+          type: integer
+          minimum: 0
+        endDayIndex:
+          type: integer
+          minimum: 0
+        isLastStay:
+          type: boolean
+    RouteDay:
+      type: object
+      required: [date, weekDay, dayNum, overnight, plan, train]
+      properties:
+        date:
+          type: string
+        weekDay:
+          type: string
+        dayNum:
+          type: integer
+          minimum: 1
+        overnight:
+          type: string
+        plan:
+          $ref: '#/components/schemas/PlanSections'
+        train:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainRoute'
+    PlanSections:
+      type: object
+      required: [morning, afternoon, evening]
+      properties:
+        morning:
+          type: string
+        afternoon:
+          type: string
+        evening:
+          type: string
+    TrainRoute:
+      type: object
+      required: [train_id]
+      properties:
+        train_id:
+          type: string
+        start:
+          type: string
+        end:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string

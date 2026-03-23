@@ -65,6 +65,7 @@ describe('FileRouteStore (via getRouteStore, no Upstash env)', () => {
     clearRoutePath()
     jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData))
     jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {})
+    jest.spyOn(fs, 'renameSync').mockImplementation(() => undefined)
   })
 
   afterEach(() => {
@@ -92,6 +93,27 @@ describe('FileRouteStore (via getRouteStore, no Upstash env)', () => {
     expect(fs.writeFileSync).toHaveBeenCalled()
     expect(written![0].plan).toEqual(newPlan)
     expect(written![1].plan.morning).toBe('Morning 2') // unchanged
+  })
+
+  it('updatePlan() writes atomically via temp file + rename', async () => {
+    const writeSpy = jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {})
+    const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation(() => undefined)
+    const newPlan: PlanSections = { morning: 'Atomic A', afternoon: 'Atomic B', evening: 'Atomic C' }
+
+    await getRouteStore().updatePlan(0, newPlan)
+
+    expect(writeSpy).toHaveBeenCalledTimes(1)
+    expect(renameSpy).toHaveBeenCalledTimes(1)
+
+    const [writtenPath] = writeSpy.mock.calls[0]
+    const [tempPath, targetPath] = renameSpy.mock.calls[0]
+
+    expect(typeof writtenPath).toBe('string')
+    expect(typeof tempPath).toBe('string')
+    expect(typeof targetPath).toBe('string')
+    expect(writtenPath).toBe(tempPath)
+    expect(tempPath).not.toBe(targetPath)
+    expect(String(targetPath)).toContain('route.json')
   })
 
   it('updatePlan() returns the updated day object', async () => {

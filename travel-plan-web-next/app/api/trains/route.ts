@@ -1,49 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { pgQuery } from '../../lib/pgdb'
 import logger from '../../lib/logger'
+import { readTrainsCache, writeTrainsCache } from './cache'
 
 const TRAIN_QUERY_MAX_ATTEMPTS = 3
 const TRAIN_QUERY_RETRY_BASE_DELAY_MS = 300
-const TRAINS_CACHE_TTL_MS = 60_000
-
 type TrainRow = {
   train_name: string
   train_type: string
   railway: 'german' | 'french' | 'eurostar'
-}
-
-type TrainsCacheEntry = {
-  expiresAt: number
-  rows: TrainRow[]
-}
-
-let combinedTrainsCache: TrainsCacheEntry | null = null
-let germanTrainsCache: TrainsCacheEntry | null = null
-
-function isCacheFresh(entry: TrainsCacheEntry | null): entry is TrainsCacheEntry {
-  return Boolean(entry && entry.expiresAt > Date.now())
-}
-
-function cloneRows(rows: TrainRow[]): TrainRow[] {
-  return rows.map((row) => ({ ...row }))
-}
-
-function writeCache(cacheType: 'combined' | 'german', rows: TrainRow[]): void {
-  const entry: TrainsCacheEntry = {
-    expiresAt: Date.now() + TRAINS_CACHE_TTL_MS,
-    rows: cloneRows(rows),
-  }
-
-  if (cacheType === 'combined') {
-    combinedTrainsCache = entry
-  } else {
-    germanTrainsCache = entry
-  }
-}
-
-export function __resetTrainsCacheForTests(): void {
-  combinedTrainsCache = null
-  germanTrainsCache = null
 }
 
 function sleep(ms: number): Promise<void> {
@@ -102,9 +67,10 @@ export async function GET(request: NextRequest) {
 
   try {
     if (railway === 'german') {
-      if (isCacheFresh(germanTrainsCache)) {
-        logger.info({ railway: 'german', rows: germanTrainsCache.rows.length, ms: Date.now() - t0, cacheHit: true }, '/api/trains')
-        return NextResponse.json(cloneRows(germanTrainsCache.rows))
+      const germanCachedRows = readTrainsCache('german')
+      if (germanCachedRows) {
+        logger.info({ railway: 'german', rows: germanCachedRows.length, ms: Date.now() - t0, cacheHit: true }, '/api/trains')
+        return NextResponse.json(germanCachedRows)
       }
 
       const result = await queryWithRetry<{ train_name: string; train_type: string }>(
@@ -112,14 +78,15 @@ export async function GET(request: NextRequest) {
         GERMAN_TRAINS_SQL
       )
       const rows = result.map((r) => ({ ...r, railway: 'german' as const }))
-      writeCache('german', rows)
+      writeTrainsCache('german', rows)
       logger.info({ railway: 'german', rows: rows.length, ms: Date.now() - t0, cacheHit: false }, '/api/trains')
       return NextResponse.json(rows)
     }
 
-    if (isCacheFresh(combinedTrainsCache)) {
-      logger.info({ rows: combinedTrainsCache.rows.length, ms: Date.now() - t0, cacheHit: true }, '/api/trains')
-      return NextResponse.json(cloneRows(combinedTrainsCache.rows))
+    const combinedCachedRows = readTrainsCache('combined')
+    if (combinedCachedRows) {
+      logger.info({ rows: combinedCachedRows.length, ms: Date.now() - t0, cacheHit: true }, '/api/trains')
+      return NextResponse.json(combinedCachedRows)
     }
 
     const [germanResult, frenchResult, eurostarResult] = await Promise.allSettled([
@@ -158,7 +125,7 @@ export async function GET(request: NextRequest) {
       eurostarResult.status === 'fulfilled' &&
       combined.length > 0
     ) {
-      writeCache('combined', combined)
+      writeTrainsCache('combined', combined)
     }
 
     logger.info({ rows: combined.length, ms: Date.now() - t0, cacheHit: false }, '/api/trains')

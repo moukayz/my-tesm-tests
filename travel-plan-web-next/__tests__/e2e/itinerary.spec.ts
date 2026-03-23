@@ -25,6 +25,14 @@ async function injectSession(
   ])
 }
 
+async function openStarterRouteTable(page: import('@playwright/test').Page) {
+  await page.goto('/?tab=itinerary')
+  await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
+  await page.getByTestId('itinerary-card-starter-route').click()
+  const panel = page.getByTestId('itinerary-tab')
+  await expect(panel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
+}
+
 test.describe('Itinerary Tab', () => {
   test.beforeEach(async ({ page }) => {
     // Inject auth session
@@ -39,8 +47,7 @@ test.describe('Itinerary Tab', () => {
     })
     expect(res.status()).toBe(200)
 
-    // Navigate to home page
-    await page.goto('/')
+    await openStarterRouteTable(page)
   })
 
   // NOTE: Both ItineraryTab instances (tabKey='route' and tabKey='route-test') are always

@@ -59,6 +59,7 @@ describe('FileRouteStore — tabKey routing', () => {
     delete process.env.ROUTE_DATA_PATH
     delete process.env.ROUTE_TEST_DATA_PATH
     jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {})
+    jest.spyOn(fs, 'renameSync').mockImplementation(() => undefined)
     jest.spyOn(fs, 'existsSync').mockReturnValue(true)
     jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData))
   })
@@ -149,6 +150,7 @@ describe('FileRouteStore — updateDays', () => {
     setFileStore()
     jest.spyOn(fs, 'existsSync').mockReturnValue(true)
     jest.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockData))
+    jest.spyOn(fs, 'renameSync').mockImplementation(() => undefined)
   })
 
   afterEach(() => {
