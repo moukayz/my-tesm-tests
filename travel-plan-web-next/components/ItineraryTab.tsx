@@ -1,55 +1,39 @@
 'use client'
 
-import React, { useMemo, useState, useEffect, useRef } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Pencil, Plus, Map as MapIcon, X, GripVertical } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 import {
   getCityColor,
   getCountryColor,
   getOvernightColor,
   processItinerary,
-  findMatchingStation,
   normalizeTrainId,
-  getRailwayFromTrainId,
   type RouteDay,
-  type DayAttraction,
 } from '../app/lib/itinerary'
-import { searchLocationSuggestions } from '../app/lib/locations/search'
-import type { StayLocationResolved } from '../app/lib/itinerary-store/types'
-import AttractionMiniMap from './AttractionMiniMap'
-import { getStaysWithMeta, applyStayEditOptimistic } from '../app/lib/stayUtils'
-import { formatTime } from '../app/lib/trainTimetable'
+import { getStaysWithMeta } from '../app/lib/stayUtils'
 import { renderMarkdown } from '../app/lib/markdown'
-import { buildMarkdownTable /*, buildPdfBlob — temporarily disabled */ } from '../app/lib/itineraryExport'
-import { saveFile } from '../app/lib/fileSave'
-import {
-  createEmptyTrainScheduleDraftRow,
-  moveDraftRow,
-  parseTrainScheduleForDraft,
-  serializeDraftRows,
-  validateTrainScheduleDraftRows,
-  type TrainScheduleDraftRow,
-  type TrainScheduleDraftRowErrors,
-} from '../app/lib/trainScheduleDraft'
+import { useTrainSchedules, buildScheduleKey } from '../app/lib/hooks/useTrainSchedules'
+import { useTrainEditor } from '../app/lib/hooks/useTrainEditor'
+import { useNoteEditor } from '../app/lib/hooks/useNoteEditor'
+import { useStayEdit } from '../app/lib/hooks/useStayEdit'
+import { useExport } from '../app/lib/hooks/useExport'
+import TrainScheduleEditorModal from './TrainScheduleEditorModal'
+import AttractionCell from './AttractionCell'
 import FloatingExportButton from './FloatingExportButton'
 import ExportFormatPicker from './ExportFormatPicker'
 import ExportSuccessToast from './ExportSuccessToast'
 import StayEditControl from './StayEditControl'
 
-interface TrainStopsResult {
-  fromStation: string
-  depTime: string
-  toStation: string
-  arrTime: string
-}
-
-interface TimetableRow {
-  station_name: string
-  station_num: number
-  arrival_planned_time: string | null
-  departure_planned_time: string | null
-  ride_date: string | null
-}
+const DAY_COLORS = [
+  { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
+  { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200' },
+  { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
+  { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200' },
+  { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-200' },
+  { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200' },
+  { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-200' },
+]
 
 interface ItineraryTabProps {
   initialData: RouteDay[]
@@ -68,572 +52,45 @@ export default function ItineraryTab({
   onMoveStay,
   onDirtyStateChange,
 }: ItineraryTabProps) {
-  // ── Days state (mutable copy for stay edits) ─────────────────────────────
+  // ── Days state ──────────────────────────────────────────────────────────────
   const [days, setDays] = useState<RouteDay[]>(() => initialData)
   const processedData = useMemo(() => processItinerary(days), [days])
 
-  useEffect(() => {
-    setDays(initialData)
-  }, [initialData])
+  useEffect(() => { setDays(initialData) }, [initialData])
 
-  // ── Stay edit state ───────────────────────────────────────────────────────
-  const [stayEditingIndex, setStayEditingIndex] = useState<number | null>(null)
-  const [stayEditSnapshot, setStayEditSnapshot] = useState<RouteDay[] | null>(null)
-  const [stayEditError, setStayEditError] = useState<string | null>(null)
-  const [stayEditSaving, setStayEditSaving] = useState(false)
-
-  const [trainSchedules, setTrainSchedules] = useState<Record<string, TrainStopsResult | null>>({})
-  const [schedulesLoading, setSchedulesLoading] = useState(false)
-  const [noteOverrides, setNoteOverrides] = useState<Record<number, string>>({})
-  const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(null)
-  const [noteEditingValue, setNoteEditingValue] = useState('')
-  const [trainEditorDayIndex, setTrainEditorDayIndex] = useState<number | null>(null)
-  const [trainEditorRows, setTrainEditorRows] = useState<TrainScheduleDraftRow[]>([])
-  const [trainEditorRowErrors, setTrainEditorRowErrors] = useState<Record<string, TrainScheduleDraftRowErrors>>({})
-  const [trainEditorLegacyError, setTrainEditorLegacyError] = useState<string | null>(null)
-  const [trainEditorSaving, setTrainEditorSaving] = useState(false)
-  const [trainEditorSaveError, setTrainEditorSaveError] = useState<string | null>(null)
-  const [trainEditorAnnouncement, setTrainEditorAnnouncement] = useState('')
-  const [trainEditorDragSourceRowId, setTrainEditorDragSourceRowId] = useState<string | null>(null)
-  const [trainEditorDragOverRowId, setTrainEditorDragOverRowId] = useState<string | null>(null)
+  // ── Train overrides (shared between editor and display) ─────────────────────
   const [trainOverrides, setTrainOverrides] = useState<Record<number, RouteDay['train']>>({})
-  const trainEditorTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const trainEditorInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  // ── Attraction state ─────────────────────────────────────────────────────────
-  const [attractionOverrides, setAttractionOverrides] = useState<Map<number, DayAttraction[]>>(new Map())
-  const [addingAttractionDayIndex, setAddingAttractionDayIndex] = useState<number | null>(null)
-  const [attractionQuery, setAttractionQuery] = useState('')
-  const [attractionResults, setAttractionResults] = useState<StayLocationResolved[]>([])
-  const [attractionSearchLoading, setAttractionSearchLoading] = useState(false)
-  const [attractionSearchOpen, setAttractionSearchOpen] = useState(false)
-  const [attractionActiveIndex, setAttractionActiveIndex] = useState(0)
-  const [attractionMiniMapDayIndex, setAttractionMiniMapDayIndex] = useState<number | null>(null)
-  const [attractionMiniMapRect, setAttractionMiniMapRect] = useState<DOMRect | null>(null)
-  const attractionSearchRef = useRef<AbortController | null>(null)
-  const attractionInputRef = useRef<HTMLInputElement | null>(null)
-  const attractionMiniMapButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({})
-
-  function getAttractionsForDay(day: RouteDay, dayIndex: number): DayAttraction[] {
-    return attractionOverrides.has(dayIndex) ? (attractionOverrides.get(dayIndex) ?? []) : (day.attractions ?? [])
-  }
-
-  async function saveAttractions(dayIndex: number, attractions: DayAttraction[]) {
-    if (itineraryId) {
-      await fetch(`/api/itineraries/${itineraryId}/days/${dayIndex}/attractions`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attractions }),
-      })
-    } else {
-      await fetch('/api/attraction-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dayIndex, attractions }),
-      })
-    }
-  }
-
-  function openAttractionSearch(dayIndex: number) {
-    setAddingAttractionDayIndex(dayIndex)
-    setAttractionQuery('')
-    setAttractionResults([])
-    setAttractionSearchOpen(false)
-    setAttractionActiveIndex(0)
-  }
-
-  function closeAttractionSearch() {
-    setAddingAttractionDayIndex(null)
-    setAttractionQuery('')
-    setAttractionResults([])
-    setAttractionSearchOpen(false)
-    attractionSearchRef.current?.abort()
-  }
-
-  function selectAttraction(dayIndex: number, result: StayLocationResolved) {
-    const attraction: DayAttraction = {
-      id: result.place.placeId,
-      label: result.place.name,
-      coordinates: result.coordinates,
-    }
-    const current = getAttractionsForDay(days[dayIndex], dayIndex)
-    if (current.some((a) => a.id === attraction.id)) {
-      closeAttractionSearch()
-      return
-    }
-    const next = [...current, attraction]
-    setAttractionOverrides((prev) => new Map(prev).set(dayIndex, next))
-    closeAttractionSearch()
-    saveAttractions(dayIndex, next).catch(() => {})
-  }
-
-  function removeAttraction(dayIndex: number, attractionId: string) {
-    const current = getAttractionsForDay(days[dayIndex], dayIndex)
-    const next = current.filter((a) => a.id !== attractionId)
-    setAttractionOverrides((prev) => new Map(prev).set(dayIndex, next))
-    saveAttractions(dayIndex, next).catch(() => {})
-  }
-
-  function openAttractionMiniMap(dayIndex: number, buttonEl: HTMLButtonElement | null) {
-    const rect = buttonEl?.getBoundingClientRect() ?? null
-    setAttractionMiniMapDayIndex(dayIndex)
-    setAttractionMiniMapRect(rect)
-  }
-
-  function closeAttractionMiniMap() {
-    setAttractionMiniMapDayIndex(null)
-    setAttractionMiniMapRect(null)
-  }
-
-  // Debounced attraction search
-  useEffect(() => {
-    if (addingAttractionDayIndex === null) return
-    const trimmed = attractionQuery.trim()
-    if (trimmed.length < 2) {
-      setAttractionResults([])
-      setAttractionSearchLoading(false)
-      setAttractionSearchOpen(false)
-      return
-    }
-    setAttractionSearchLoading(true)
-    attractionSearchRef.current?.abort()
-    const controller = new AbortController()
-    attractionSearchRef.current = controller
-    const timer = window.setTimeout(() => {
-      const countryBias = addingAttractionDayIndex !== null && processedData[addingAttractionDayIndex]?.location?.kind === 'resolved'
-        ? processedData[addingAttractionDayIndex].location?.place?.countryCode
-        : undefined
-      searchLocationSuggestions(attractionQuery, { signal: controller.signal, limit: 6, placeTypes: [], countryBias })
-        .then((res) => {
-          setAttractionResults(res.results)
-          setAttractionSearchOpen(res.results.length > 0)
-          setAttractionActiveIndex(0)
-        })
-        .catch(() => {})
-        .finally(() => setAttractionSearchLoading(false))
-    }, 300)
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [attractionQuery, addingAttractionDayIndex])
-
-  // Close minimap on Escape
-  useEffect(() => {
-    if (attractionMiniMapDayIndex === null) return
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeAttractionMiniMap()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [attractionMiniMapDayIndex])
-
-  const ATTRACTION_TAG_COLORS = [
-    { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
-    { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200' },
-    { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
-    { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200' },
-    { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-200' },
-    { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200' },
-    { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-200' },
-  ]
-
-  // ── Export state ────────────────────────────────────────────────────────────
-  const [floatingPickerOpen, setFloatingPickerOpen] = useState(false)
-  const [exportError, setExportError] = useState<string | null>(null)
-  const [isPdfGenerating, setIsPdfGenerating] = useState(false)
-  const [exportSuccess, setExportSuccess] = useState(false)
-  const [pickerAnchorRect, setPickerAnchorRect] = useState<DOMRect | null>(null)
-  const floatingButtonRef = useRef<HTMLButtonElement>(null)
-
-  // ── Derived stays (for stay edit controls) ────────────────────────────────
-  const stays = useMemo(() => getStaysWithMeta(days), [days])
-  const isItineraryScopedStayEdit = Boolean(itineraryId && onRequestEditStay)
-
-  // ── Country column spans ──────────────────────────────────────────────────
-  // ── Stay edit handlers ────────────────────────────────────────────────────
-
-  const handleStayConfirm = async (stayIndex: number, newNights: number) => {
-    // Take snapshot before optimistic update
-    const snapshot = [...days]
-    setStayEditSnapshot(snapshot)
-
-    // Optimistic update
-    const optimisticDays = applyStayEditOptimistic(days, stayIndex, newNights)
-    setDays(optimisticDays)
-    setStayEditingIndex(null)
-    setStayEditSaving(true)
-
-    try {
-      const response = itineraryId
-        ? await fetch(`/api/itineraries/${itineraryId}/stays/${stayIndex}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            keepalive: true,
-            body: JSON.stringify({ nights: newNights }),
-          })
-        : await fetch('/api/stay-update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            keepalive: true,
-            body: JSON.stringify({ stayIndex, newNights }),
-          })
-
-      if (!response.ok) {
-        // Revert optimistic update
-        setDays(snapshot)
-        setStayEditError('Could not save changes. Your edit has been reverted.')
-      } else {
-        const data = await response.json()
-        // Replace state with authoritative server response
-        const nextDays = (data.updatedDays ?? data.days) as RouteDay[] | undefined
-        if (nextDays) setDays(nextDays)
-        setStayEditSnapshot(null)
-      }
-    } catch {
-      // Network error — revert
-      setDays(snapshot)
-      setStayEditError('Could not save changes. Your edit has been reverted.')
-    } finally {
-      setStayEditSaving(false)
-    }
-  }
-
-  const handleStayCancel = () => {
-    setStayEditingIndex(null)
-  }
-
-  const saveNoteUpdate = async (dayIndex: number, note: string) => {
-    if (itineraryId) {
-      return fetch(`/api/itineraries/${itineraryId}/days/${dayIndex}/note`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note }),
-      })
-    }
-    return fetch('/api/note-update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dayIndex, note }),
-    })
-  }
-
-  // ── Export helpers ──────────────────────────────────────────────────────────
+  // ── Hooks ───────────────────────────────────────────────────────────────────
+  const { trainSchedules, schedulesLoading } = useTrainSchedules(days)
+  const trainEditor = useTrainEditor({ trainOverrides, setTrainOverrides })
+  const noteEditor = useNoteEditor({ days, itineraryId })
+  const stayEdit = useStayEdit({ days, itineraryId, setDays })
 
   function getEffectiveData(): RouteDay[] {
     return days.map((day, i) => ({
       ...day,
-      note: noteOverrides[i] ?? day.note,
+      note: noteEditor.noteOverrides[i] ?? day.note,
       train: trainOverrides[i] ?? day.train,
     }))
   }
 
-  function openFloatingPicker() {
-    if (floatingButtonRef.current) {
-      setPickerAnchorRect(floatingButtonRef.current.getBoundingClientRect())
-    }
-    setFloatingPickerOpen(true)
-    setExportError(null)
-  }
+  const exportState = useExport({ getEffectiveData })
 
-  function closeFloatingPicker() {
-    setFloatingPickerOpen(false)
-    setExportError(null)
-    setIsPdfGenerating(false)
-    setTimeout(() => floatingButtonRef.current?.focus(), 0)
-  }
+  // ── Derived ─────────────────────────────────────────────────────────────────
+  const stays = useMemo(() => getStaysWithMeta(days), [days])
+  const isItineraryScopedStayEdit = Boolean(itineraryId && onRequestEditStay)
 
-  async function handleExportMarkdown() {
-    try {
-      const content = buildMarkdownTable(getEffectiveData())
-      await saveFile({ content, filename: 'itinerary.md', mimeType: 'text/markdown' })
-      closeFloatingPicker()
-      setExportSuccess(true)
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        closeFloatingPicker()
-      }
-    }
-  }
-
-  function handleExportPdf() {
-    // PDF export is temporarily disabled — this is a no-op stub.
-  }
-
-  const buildScheduleKey = (trainId: string, start?: string, end?: string) =>
-    `${trainId}|${start ?? ''}|${end ?? ''}`
-
-  const handleNoteEdit = (dayIndex: number, currentNote: string) => {
-    setEditingNoteIndex(dayIndex)
-    setNoteEditingValue(currentNote)
-  }
-
-  const handleNoteBlur = async (dayIndex: number) => {
-    setEditingNoteIndex(null)
-    const currentNote = noteOverrides[dayIndex] ?? days[dayIndex]?.note ?? ''
-    if (noteEditingValue === currentNote) return
-
-    setNoteOverrides((prev) => ({ ...prev, [dayIndex]: noteEditingValue }))
-    try {
-      const response = await saveNoteUpdate(dayIndex, noteEditingValue)
-      if (!response.ok) {
-        setNoteOverrides((prev) => ({ ...prev, [dayIndex]: currentNote }))
-      }
-    } catch {
-      setNoteOverrides((prev) => ({ ...prev, [dayIndex]: currentNote }))
-    }
-  }
-
-  const handleNoteKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, dayIndex: number) => {
-    if (e.key === 'Escape') {
-      setEditingNoteIndex(null)
-      setNoteEditingValue(noteOverrides[dayIndex] ?? days[dayIndex]?.note ?? '')
-    }
-  }
-
-  const closeTrainEditor = (force = false) => {
-    if (trainEditorSaving && !force) return
-    setTrainEditorDayIndex(null)
-    setTrainEditorRows([])
-    setTrainEditorRowErrors({})
-    setTrainEditorLegacyError(null)
-    setTrainEditorSaveError(null)
-    setTrainEditorAnnouncement('')
-    setTrainEditorDragSourceRowId(null)
-    setTrainEditorDragOverRowId(null)
-    setTimeout(() => trainEditorTriggerRef.current?.focus(), 0)
-  }
-
-  const openTrainEditor = (
-    index: number,
-    trainData: RouteDay['train'],
-    triggerButton: HTMLButtonElement
-  ) => {
-    trainEditorTriggerRef.current = triggerButton
-    const parsed = parseTrainScheduleForDraft(trainOverrides[index] ?? trainData)
-    setTrainEditorDayIndex(index)
-    setTrainEditorRowErrors({})
-    setTrainEditorSaveError(null)
-    setTrainEditorAnnouncement('')
-
-    if (!parsed.ok) {
-      setTrainEditorLegacyError(parsed.error)
-      setTrainEditorRows([])
-      return
-    }
-
-    setTrainEditorLegacyError(null)
-    setTrainEditorRows(parsed.rows)
-  }
-
-  const setTrainEditorField = (
-    rowId: string,
-    field: 'trainId' | 'start' | 'end',
-    value: string
-  ) => {
-    setTrainEditorRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)))
-    setTrainEditorSaveError(null)
-    setTrainEditorRowErrors((prev) => {
-      if (!prev[rowId]) return prev
-      const rowErrors = { ...prev[rowId] }
-      if (field === 'trainId') {
-        delete rowErrors.trainId
-      }
-      if (field === 'start' || field === 'end') {
-        delete rowErrors.stationPair
-      }
-      const next = { ...prev }
-      if (!rowErrors.trainId && !rowErrors.stationPair) {
-        delete next[rowId]
-      } else {
-        next[rowId] = rowErrors
-      }
-      return next
-    })
-  }
-
-  const addTrainEditorRow = () => {
-    setTrainEditorRows((prev) => [...prev, createEmptyTrainScheduleDraftRow()])
-    setTrainEditorSaveError(null)
-  }
-
-  const removeTrainEditorRow = (rowId: string) => {
-    setTrainEditorRows((prev) => prev.filter((row) => row.id !== rowId))
-    setTrainEditorRowErrors((prev) => {
-      const next = { ...prev }
-      delete next[rowId]
-      return next
-    })
-    setTrainEditorSaveError(null)
-  }
-
-  const handleTrainEditorRowDragStart = (rowId: string, e: React.DragEvent) => {
-    setTrainEditorDragSourceRowId(rowId)
-    setTrainEditorDragOverRowId(null)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData?.('text/plain', rowId)
-  }
-
-  const handleTrainEditorRowDragOver = (rowId: string, e: React.DragEvent) => {
-    e.preventDefault()
-    if (!trainEditorDragSourceRowId || trainEditorDragSourceRowId === rowId) return
-    setTrainEditorDragOverRowId(rowId)
-  }
-
-  const handleTrainEditorRowDrop = (targetRowId: string, e: React.DragEvent) => {
-    e.preventDefault()
-    if (!trainEditorDragSourceRowId || trainEditorDragSourceRowId === targetRowId) {
-      setTrainEditorDragSourceRowId(null)
-      setTrainEditorDragOverRowId(null)
-      return
-    }
-
-    setTrainEditorRows((prev) => {
-      const fromIndex = prev.findIndex((row) => row.id === trainEditorDragSourceRowId)
-      const toIndex = prev.findIndex((row) => row.id === targetRowId)
-      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
-        return prev
-      }
-      setTrainEditorAnnouncement(`Moved row ${fromIndex + 1} to position ${toIndex + 1}.`)
-      return moveDraftRow(prev, fromIndex, toIndex)
-    })
-    setTrainEditorSaveError(null)
-    setTrainEditorDragSourceRowId(null)
-    setTrainEditorDragOverRowId(null)
-  }
-
-  const handleTrainEditorRowDragEnd = () => {
-    setTrainEditorDragSourceRowId(null)
-    setTrainEditorDragOverRowId(null)
-  }
-
-  const handleTrainEditorSave = async () => {
-    if (trainEditorDayIndex === null || trainEditorLegacyError) return
-
-    const validation = validateTrainScheduleDraftRows(trainEditorRows)
-    setTrainEditorRowErrors(validation.errors)
-    if (!validation.isValid) {
-      if (validation.firstInvalidField) {
-        const refKey = `${validation.firstInvalidField.rowId}:${validation.firstInvalidField.field}`
-        trainEditorInputRefs.current[refKey]?.focus()
-      }
-      return
-    }
-
-    setTrainEditorSaving(true)
-    setTrainEditorSaveError(null)
-
-    try {
-      const res = await fetch('/api/train-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dayIndex: trainEditorDayIndex,
-          trainJson: serializeDraftRows(trainEditorRows),
-        }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        setTrainEditorSaveError(data.error || 'Could not save train schedule. Your edits are still open.')
-      } else {
-        const updatedDay = await res.json()
-        setTrainOverrides((prev) => ({ ...prev, [trainEditorDayIndex]: updatedDay.train }))
-        closeTrainEditor(true)
-      }
-    } catch {
-      setTrainEditorSaveError('Could not save train schedule. Your edits are still open.')
-    } finally {
-      setTrainEditorSaving(false)
-    }
-  }
-
+  // ── Dirty state notification ────────────────────────────────────────────────
   useEffect(() => {
-    if (trainEditorDayIndex === null || trainEditorSaving) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setTrainEditorDayIndex(null)
-        setTrainEditorRows([])
-        setTrainEditorRowErrors({})
-        setTrainEditorLegacyError(null)
-        setTrainEditorSaveError(null)
-        setTrainEditorAnnouncement('')
-        setTrainEditorDragSourceRowId(null)
-        setTrainEditorDragOverRowId(null)
-        setTimeout(() => trainEditorTriggerRef.current?.focus(), 0)
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [trainEditorDayIndex, trainEditorSaving])
-
-  useEffect(() => {
-    onDirtyStateChange?.(editingNoteIndex !== null || stayEditingIndex !== null)
-  }, [editingNoteIndex, onDirtyStateChange, stayEditingIndex])
-
-  // Fetch train schedules for DB trains
-  useEffect(() => {
-    const fetchSchedules = async () => {
-      setSchedulesLoading(true)
-      const schedules: Record<string, TrainStopsResult | null> = {}
-
-      for (const day of days) {
-        for (const trainEntry of day.train) {
-          if (!('start' in trainEntry) || !trainEntry.start || !trainEntry.end) continue
-
-          const trainId = normalizeTrainId(trainEntry.train_id)
-          const key = buildScheduleKey(trainId, trainEntry.start as string, trainEntry.end as string)
-          if (key in schedules) continue
-
-          try {
-            const railway = getRailwayFromTrainId(trainEntry.train_id)
-            const url = `/api/timetable?train=${encodeURIComponent(trainId)}${railway ? `&railway=${railway}` : ''}`
-            const res = await fetch(url)
-            const rows = (await res.json()) as TimetableRow[]
-            if (!rows || rows.length === 0) {
-              schedules[key] = null
-              continue
-            }
-
-            let fromStation = null as TimetableRow | null
-            let toStation = null as TimetableRow | null
-
-            fromStation = findMatchingStation(rows as unknown as Array<{ station_name: string; [key: string]: unknown }>, trainEntry.start as string, 'from') as TimetableRow | null
-            toStation = findMatchingStation(rows as unknown as Array<{ station_name: string; [key: string]: unknown }>, trainEntry.end as string, 'to') as TimetableRow | null
-
-            if (!fromStation || !toStation) {
-              schedules[key] = null
-              continue
-            }
-
-            schedules[key] = {
-              fromStation: fromStation.station_name,
-              depTime: formatTime(fromStation.departure_planned_time),
-              toStation: toStation.station_name,
-              arrTime: formatTime(toStation.arrival_planned_time),
-            }
-          } catch {
-            schedules[key] = null
-          }
-        }
-      }
-
-      setTrainSchedules(schedules)
-      setSchedulesLoading(false)
-    }
-
-    fetchSchedules()
-  }, [days])
+    onDirtyStateChange?.(noteEditor.editingNoteIndex !== null || stayEdit.stayEditingIndex !== null)
+  }, [noteEditor.editingNoteIndex, onDirtyStateChange, stayEdit.stayEditingIndex])
 
   return (
-    <div
-      data-testid="itinerary-tab"
-      className="w-full"
-    >
-      {/* Relative wrapper so the zero-height sticky anchor is contained */}
+    <div data-testid="itinerary-tab" className="w-full">
       <div className="relative">
-        {/* Zero-height sticky anchor — stays at top-0 while scrolling, doesn't occupy layout height */}
+        {/* Sticky floating buttons */}
         <div className="sticky top-0 z-20 h-0 pointer-events-none">
-          {/* Buttons: absolute at left:100% so they sit outside the table's right edge */}
           <div className="absolute top-2 left-full ml-2 flex flex-col gap-1 pointer-events-auto">
             {onRequestAddStay && (
               <button
@@ -648,630 +105,160 @@ export default function ItineraryTab({
             )}
             <FloatingExportButton
               hasData={days.length > 0}
-              isPickerOpen={floatingPickerOpen}
-              onOpen={openFloatingPicker}
-              buttonRef={floatingButtonRef}
+              isPickerOpen={exportState.floatingPickerOpen}
+              onOpen={exportState.openFloatingPicker}
+              buttonRef={exportState.floatingButtonRef}
             />
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-lg overflow-x-auto border border-gray-200">
-      <table className="w-full border-collapse text-left">
-        <thead className="bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-10 shadow-sm">
-          <tr>
-            {(['Overnight', 'Date', 'Attractions', 'Train Schedule', 'Note'] as const).map((h) => (
-              <th
-                key={h}
-                className={`px-6 py-4 font-semibold text-gray-700 uppercase text-xs tracking-wider${h === 'Train Schedule' ? ' border-r border-gray-200' : ''}`}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {processedData.map((day, index) => {
-            // Find the stay for this overnight cell (only relevant when overnightRowSpan > 0)
-            const stay = day.overnightRowSpan > 0
-              ? stays.find((s) => s.firstDayIndex === index)
-              : undefined
-            const dayNum = typeof day.dayNum === 'number' && Number.isFinite(day.dayNum) ? day.dayNum : index + 1
-            const dayColor = ATTRACTION_TAG_COLORS[(dayNum - 1) % ATTRACTION_TAG_COLORS.length]
-
-            return (
-              <tr key={index} className="group hover:bg-gray-50">
-                {day.overnightRowSpan > 0 && (
-                  <td
-                    rowSpan={day.overnightRowSpan}
-                    className="relative group px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
-                    style={{ backgroundColor: getCityColor(
-                      day.location?.kind === 'resolved' ? day.location.place.name : day.overnight,
-                      day.location?.kind === 'resolved' ? (day.location.place.country ?? '') : ''
-                    ) }}
+          <table className="w-full border-collapse text-left">
+            <thead className="bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-10 shadow-sm">
+              <tr>
+                {(['Overnight', 'Date', 'Attractions', 'Train Schedule', 'Note'] as const).map((h) => (
+                  <th
+                    key={h}
+                    className={`px-6 py-4 font-semibold text-gray-700 uppercase text-xs tracking-wider${h === 'Train Schedule' ? ' border-r border-gray-200' : ''}`}
                   >
-                    {(() => {
-                      const cityName = day.location?.kind === 'resolved' ? day.location.place.name : day.overnight
-                      const countryName = day.location?.kind === 'resolved'
-                        ? (day.location.place.country ?? day.location.place.countryCode ?? null)
-                        : null
-                      const countryTag = countryName ? (
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {processedData.map((day, index) => {
+                const stay = day.overnightRowSpan > 0
+                  ? stays.find((s) => s.firstDayIndex === index)
+                  : undefined
+                const dayNum = typeof day.dayNum === 'number' && Number.isFinite(day.dayNum) ? day.dayNum : index + 1
+                const dayColor = DAY_COLORS[(dayNum - 1) % DAY_COLORS.length]
+
+                return (
+                  <tr key={index} className="group hover:bg-gray-50">
+                    {/* ── Overnight cell ─────────────────────────────── */}
+                    {day.overnightRowSpan > 0 && (
+                      <OvernightCell
+                        day={day}
+                        stay={stay}
+                        isItineraryScopedStayEdit={isItineraryScopedStayEdit}
+                        stayEditSaving={stayEdit.stayEditSaving}
+                        stays={stays}
+                        onRequestEditStay={onRequestEditStay}
+                        onMoveStay={onMoveStay}
+                        onStayConfirm={stayEdit.handleStayConfirm}
+                        onStayCancel={stayEdit.handleStayCancel}
+                      />
+                    )}
+
+                    {/* ── Date cell ──────────────────────────────────── */}
+                    <td className="px-6 py-4 border-b border-gray-200 align-middle whitespace-nowrap tabular-nums group-last:border-b-0">
+                      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 leading-tight items-center">
                         <span
-                          className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium text-gray-600 border border-gray-300/60"
-                          style={{ backgroundColor: getCountryColor(countryName) }}
+                          className={`inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full text-xs font-semibold border ${dayColor.bg} ${dayColor.text} ${dayColor.border}`}
                         >
-                          {countryName}
+                          {dayNum}
                         </span>
-                      ) : null
-                      return stay && isItineraryScopedStayEdit ? (
-                      <>
-                        <div className="relative inline-block">
-                          <div><span>{cityName}</span>{countryTag && <div>{countryTag}</div>}</div>
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 flex flex-row gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto">
+                        <span data-testid="itinerary-date" className="text-gray-600">{day.date}</span>
+                        <span className="col-start-2 text-sm text-gray-500">{day.weekDay}</span>
+                      </div>
+                    </td>
+
+                    {/* ── Attractions cell ────────────────────────────── */}
+                    <AttractionCell
+                      dayIndex={index}
+                      day={day}
+                      processedDay={processedData[index]}
+                      itineraryId={itineraryId}
+                    />
+
+                    {/* ── Train Schedule cell ────────────────────────── */}
+                    <td className="px-6 py-4 border-b border-r border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0 group/train-cell">
+                      <TrainScheduleDisplay
+                        dayIndex={index}
+                        train={trainOverrides[index] ?? day.train}
+                        trainSchedules={trainSchedules}
+                        schedulesLoading={schedulesLoading}
+                        onEdit={(triggerButton) => trainEditor.open(index, day.train, triggerButton)}
+                      />
+                    </td>
+
+                    {/* ── Note cell ───────────────────────────────────── */}
+                    <td
+                      data-testid={`note-cell-${index}`}
+                      className="px-4 py-3 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[180px] max-w-[280px] group/note-cell"
+                    >
+                      {noteEditor.editingNoteIndex === index ? (
+                        <textarea
+                          autoFocus
+                          value={noteEditor.noteEditingValue}
+                          onChange={(e) => noteEditor.setNoteEditingValue(e.target.value)}
+                          onBlur={() => noteEditor.handleNoteBlur(index)}
+                          onKeyDown={(e) => noteEditor.handleNoteKeyDown(e, index)}
+                          rows={4}
+                          className="w-full px-1 py-0.5 border border-blue-400 rounded text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const noteValue = noteEditor.noteOverrides[index] ?? day.note ?? ''
+                            return noteValue ? (
+                              <div className="flex-1 text-sm text-gray-700">{renderMarkdown(noteValue)}</div>
+                            ) : null
+                          })()}
                           <button
                             type="button"
-                            className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                            onClick={() => onRequestEditStay?.(stay.stayIndex)}
-                            aria-label={`Edit stay for ${stay.overnight}`}
-                            title={`Edit stay for ${stay.overnight}`}
+                            aria-label="Edit note"
+                            onClick={() => noteEditor.handleNoteEdit(index, noteEditor.noteOverrides[index] ?? day.note ?? '')}
+                            className="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover/note-cell:opacity-100"
                           >
-                            <Pencil size={12} aria-hidden="true" />
+                            <Pencil size={14} aria-hidden="true" />
                           </button>
-                          {onMoveStay && stay.stayIndex > 0 && (
-                            <button
-                              type="button"
-                              className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                              onClick={() => onMoveStay(stay.stayIndex, 'up')}
-                              aria-label={`Move ${stay.overnight} up`}
-                              title={`Move ${stay.overnight} up`}
-                            >
-                              ▲
-                            </button>
-                          )}
-                          {onMoveStay && !stay.isLast && (
-                            <button
-                              type="button"
-                              className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                              onClick={() => onMoveStay(stay.stayIndex, 'down')}
-                              aria-label={`Move ${stay.overnight} down`}
-                              title={`Move ${stay.overnight} down`}
-                            >
-                              ▼
-                            </button>
-                          )}
-                          </div>
                         </div>
-                      </>
-                    ) : stay && !stay.isLast ? (
-                      <div className="space-y-2">
-                        <StayEditControl
-                          stayIndex={stay.stayIndex}
-                          city={cityName}
-                          currentNights={stay.nights}
-                          maxAdditionalNights={
-                            (stays[stay.stayIndex + 1]?.nights ?? 1) - 1
-                          }
-                          isLast={false}
-                          isSaving={stayEditSaving}
-                          onConfirm={handleStayConfirm}
-                          onCancel={handleStayCancel}
-                        />
-                        {countryTag}
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <span>{cityName}</span>
-                        {countryTag}
-                      </div>
-                    )
-                    })()}
-                  </td>
-                )}
-
-                <td className="px-6 py-4 border-b border-gray-200 align-middle whitespace-nowrap tabular-nums group-last:border-b-0">
-                  <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 leading-tight items-center">
-                    <span
-                      className={`inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full text-xs font-semibold border ${dayColor.bg} ${dayColor.text} ${dayColor.border}`}
-                    >
-                      {dayNum}
-                    </span>
-                    <span data-testid="itinerary-date" className="text-gray-600">{day.date}</span>
-                    <span className="col-start-2 text-sm text-gray-500">{day.weekDay}</span>
-                  </div>
-                </td>
-
-                {/* ── Attractions cell ─────────────────────────────────── */}
-                <td className="px-4 py-3 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[200px] max-w-[300px] group/attraction-cell">
-                  {(() => {
-                    const attractions = getAttractionsForDay(day, index)
-                    const isAdding = addingAttractionDayIndex === index
-
-                    return (
-                      <div className="flex flex-col gap-1">
-                        <div className="flex flex-col gap-1 items-start">
-                          {attractions.map((attraction, aIdx) => {
-                            const color = ATTRACTION_TAG_COLORS[aIdx % ATTRACTION_TAG_COLORS.length]
-                            return (
-                              <div
-                                key={attraction.id}
-                                className="group/tag relative inline-flex items-center"
-                              >
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${color.bg} ${color.text} ${color.border}`}>
-                                  {attraction.label}
-                                </span>
-                                <button
-                                  type="button"
-                                  aria-label={`Remove ${attraction.label}`}
-                                  className="absolute left-full ml-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/tag:opacity-100 transition-opacity rounded-full hover:bg-black/10 p-0.5"
-                                  onClick={() => removeAttraction(index, attraction.id)}
-                                >
-                                  <X size={10} aria-hidden="true" />
-                                </button>
-                              </div>
-                            )
-                          })}
-                        </div>
-
-                        {isAdding && (
-                          <div className="relative w-full">
-                            <input
-                              ref={attractionInputRef}
-                              role="combobox"
-                              aria-label="Search attractions"
-                              aria-expanded={attractionSearchOpen}
-                              autoFocus
-                              value={attractionQuery}
-                              onChange={(e) => {
-                                setAttractionQuery(e.target.value)
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') { closeAttractionSearch(); return }
-                                if (e.key === 'ArrowDown') {
-                                  e.preventDefault()
-                                  setAttractionActiveIndex((i) => Math.min(i + 1, attractionResults.length - 1))
-                                } else if (e.key === 'ArrowUp') {
-                                  e.preventDefault()
-                                  setAttractionActiveIndex((i) => Math.max(i - 1, 0))
-                                } else if (e.key === 'Enter' && attractionResults[attractionActiveIndex]) {
-                                  e.preventDefault()
-                                  selectAttraction(index, attractionResults[attractionActiveIndex])
-                                }
-                              }}
-                              onBlur={() => {
-                                setTimeout(() => closeAttractionSearch(), 150)
-                              }}
-                              placeholder="Type to search…"
-                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                            {attractionSearchLoading && (
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2">
-                                <svg className="h-3 w-3 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                                </svg>
-                              </span>
-                            )}
-                            {attractionSearchOpen && attractionResults.length > 0 && (
-                              <ul
-                                role="listbox"
-                                className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-sm text-xs"
-                              >
-                                {attractionResults.map((result, rIdx) => (
-                                  <li
-                                    key={result.place.placeId}
-                                    role="option"
-                                    aria-selected={rIdx === attractionActiveIndex}
-                                    className={`cursor-pointer px-3 py-1.5 ${rIdx === attractionActiveIndex ? 'bg-blue-50 text-blue-900' : 'text-gray-700 hover:bg-gray-50'}`}
-                                    onMouseDown={(e) => {
-                                      e.preventDefault()
-                                      selectAttraction(index, result)
-                                    }}
-                                  >
-                                    <p className="font-medium">{result.place.name}</p>
-                                    {result.place.country && (
-                                      <p className="text-gray-400">{[result.place.locality, result.place.region, result.place.country].filter(Boolean).join(', ')}</p>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        )}
-
-                        {(attractions.length > 0 || !isAdding) && (
-                          <div className="flex justify-start gap-2 opacity-0 group-hover/attraction-cell:opacity-100 transition-opacity">
-                            {!isAdding && (
-                              <button
-                                type="button"
-                                aria-label={`Add attraction for day ${day.dayNum}`}
-                                title="Add attraction"
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                onClick={() => openAttractionSearch(index)}
-                              >
-                                <Plus size={10} aria-hidden="true" />
-                                Add
-                              </button>
-                            )}
-
-                            {attractions.length > 0 && (
-                              <button
-                                type="button"
-                                ref={(el) => { attractionMiniMapButtonRefs.current[index] = el }}
-                                aria-label={`Preview attractions map for day ${day.dayNum}`}
-                                title="Preview map"
-                                className="inline-flex items-center px-2 py-1 rounded-full text-xs text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
-                                onClick={() => openAttractionMiniMap(index, attractionMiniMapButtonRefs.current[index] ?? null)}
-                              >
-                                <MapIcon size={12} aria-hidden="true" />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })()}
-                </td>
-
-                <td className="px-6 py-4 border-b border-r border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0 group/train-cell">
-                  {(() => {
-                    const effectiveTrain = trainOverrides[index] ?? day.train
-                    return (
-                    <div className="flex items-center gap-2">
-                      {effectiveTrain && effectiveTrain.length > 0 ? (
-                    <div className="flex-1 space-y-2">
-                      {effectiveTrain.map((item, i) => {
-                        const trainId = normalizeTrainId(item.train_id)
-                        const isDbTrain = !!(item.start && item.end)
-                        const scheduleKey = isDbTrain
-                          ? buildScheduleKey(trainId, item.start, item.end)
-                          : null
-                        const schedule = scheduleKey ? trainSchedules[scheduleKey] : null
-                        const isLoading = scheduleKey && schedulesLoading && !(scheduleKey in trainSchedules)
-
-                        return (
-                          <div key={i} className="flex flex-col gap-0.5">
-                            {isDbTrain ? (
-                              <div>
-                                <span
-                                  data-testid="train-tag"
-                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200"
-                                >
-                                  {trainId}
-                                </span>
-                              </div>
-                            ) : (
-                              <>
-                                <span
-                                  data-testid="invalid-train-dash"
-                                  className="text-gray-400 italic"
-                                >
-                                  —
-                                </span>
-                                <span
-                                  data-testid="invalid-train-comment"
-                                  className="text-xs text-gray-400 italic"
-                                >
-                                  ({trainId})
-                                </span>
-                              </>
-                            )}
-
-                            {isLoading ? (
-                              <span
-                                role="status"
-                                aria-label="Loading"
-                                className="inline-block w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin align-middle"
-                              />
-                            ) : schedule ? (
-                              <div
-                                data-testid="schedule-grid"
-                                className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 text-xs text-gray-500 pl-1 items-baseline"
-                              >
-                                <span className="truncate">{schedule.fromStation}</span>
-                                <span className="tabular-nums text-right">{schedule.depTime}</span>
-                                <span className="truncate">{schedule.toStation}</span>
-                                <span className="tabular-nums text-right">{schedule.arrTime}</span>
-                              </div>
-                            ) : null}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : null}
-                      <button
-                        data-testid={`train-json-edit-btn-${index}`}
-                        onClick={(e) => openTrainEditor(index, day.train, e.currentTarget)}
-                        className="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover/train-cell:opacity-100"
-                        aria-label="Edit train schedule"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                    </div>
-                    )
-                  })()}
-                </td>
-
-                {/* ── Note cell ─────────────────────────────────────────── */}
-                <td
-                  data-testid={`note-cell-${index}`}
-                  className="px-4 py-3 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[180px] max-w-[280px] group/note-cell"
-                >
-                  {editingNoteIndex === index ? (
-                    <textarea
-                      autoFocus
-                      value={noteEditingValue}
-                      onChange={(e) => setNoteEditingValue(e.target.value)}
-                      onBlur={() => handleNoteBlur(index)}
-                      onKeyDown={(e) => handleNoteKeyDown(e, index)}
-                      rows={4}
-                      className="w-full px-1 py-0.5 border border-blue-400 rounded text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      {(() => {
-                        const noteValue = noteOverrides[index] ?? day.note ?? ''
-                        return noteValue ? (
-                          <div className="flex-1 text-sm text-gray-700">{renderMarkdown(noteValue)}</div>
-                        ) : null
-                      })()}
-                      <button
-                        type="button"
-                        aria-label="Edit note"
-                        onClick={() => handleNoteEdit(index, noteOverrides[index] ?? day.note ?? '')}
-                        className="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover/note-cell:opacity-100"
-                      >
-                        <Pencil size={14} aria-hidden="true" />
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-        </div>{/* end table card */}
-      </div>{/* end relative wrapper */}
-
-      {trainEditorDayIndex !== null && (
-        <div
-          data-testid="train-schedule-editor-modal"
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Edit train schedule"
-            className="bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[85vh] overflow-auto"
-          >
-            <h2 className="text-lg font-semibold text-gray-900">Edit train schedule</h2>
-            <p className="text-sm text-gray-500 mt-1 mb-4">
-              Day {processedData[trainEditorDayIndex].dayNum} · {processedData[trainEditorDayIndex].date}
-            </p>
-
-            {trainEditorLegacyError ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {trainEditorLegacyError}
-              </div>
-            ) : (
-              <>
-                <div className="sr-only" aria-live="polite">{trainEditorAnnouncement}</div>
-
-                {trainEditorRows.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600 space-y-3">
-                    <p>No trains added for this day yet.</p>
-                    <button
-                      type="button"
-                      data-testid="train-editor-add-row"
-                      onClick={addTrainEditorRow}
-                      disabled={trainEditorSaving}
-                      className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      Add train
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {trainEditorRows.map((row, rowIndex) => (
-                      <div
-                        key={row.id}
-                        data-testid={`train-editor-row-${rowIndex + 1}`}
-                        draggable={!trainEditorSaving}
-                        onDragStart={(e) => handleTrainEditorRowDragStart(row.id, e)}
-                        onDragOver={(e) => handleTrainEditorRowDragOver(row.id, e)}
-                        onDrop={(e) => handleTrainEditorRowDrop(row.id, e)}
-                        onDragEnd={handleTrainEditorRowDragEnd}
-                        className={`rounded-lg border border-gray-200 p-3 space-y-2 cursor-grab
-                          ${trainEditorDragSourceRowId === row.id ? 'opacity-40' : ''}
-                          ${trainEditorDragOverRowId === row.id ? 'ring-2 ring-blue-400 bg-blue-50' : ''}
-                          ${trainEditorSaving ? 'cursor-wait' : ''}
-                        `}
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium text-gray-700">Train {rowIndex + 1}</p>
-                          <span aria-label="Drag to reorder trains" className="text-gray-300 shrink-0">
-                            <GripVertical size={14} />
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end">
-                          <div>
-                            <label htmlFor={`train-id-${row.id}`} className="block text-xs font-medium text-gray-600 mb-1">
-                              Train ID
-                            </label>
-                            <input
-                              id={`train-id-${row.id}`}
-                              type="text"
-                              aria-label={`Train ID for row ${rowIndex + 1}`}
-                              value={row.trainId}
-                              onChange={(e) => setTrainEditorField(row.id, 'trainId', e.target.value)}
-                              disabled={trainEditorSaving}
-                              ref={(el) => { trainEditorInputRefs.current[`${row.id}:trainId`] = el }}
-                              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              autoFocus={rowIndex === 0}
-                            />
-                            {trainEditorRowErrors[row.id]?.trainId && (
-                              <p className="text-xs text-red-600 mt-1">{trainEditorRowErrors[row.id].trainId}</p>
-                            )}
-                          </div>
-
-                          <div>
-                            <label htmlFor={`train-start-${row.id}`} className="block text-xs font-medium text-gray-600 mb-1">
-                              Start station
-                            </label>
-                            <input
-                              id={`train-start-${row.id}`}
-                              type="text"
-                              aria-label={`Start station for row ${rowIndex + 1}`}
-                              value={row.start}
-                              onChange={(e) => setTrainEditorField(row.id, 'start', e.target.value)}
-                              disabled={trainEditorSaving}
-                              ref={(el) => { trainEditorInputRefs.current[`${row.id}:start`] = el }}
-                              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label htmlFor={`train-end-${row.id}`} className="block text-xs font-medium text-gray-600 mb-1">
-                              End station
-                            </label>
-                            <input
-                              id={`train-end-${row.id}`}
-                              type="text"
-                              aria-label={`End station for row ${rowIndex + 1}`}
-                              value={row.end}
-                              onChange={(e) => setTrainEditorField(row.id, 'end', e.target.value)}
-                              disabled={trainEditorSaving}
-                              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-
-                          <div>
-                            <button
-                              type="button"
-                              data-testid={`train-editor-delete-${rowIndex + 1}`}
-                              onClick={() => removeTrainEditorRow(row.id)}
-                              disabled={trainEditorSaving}
-                              className="h-[34px] px-2 py-1 text-xs rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
-                              aria-label={`Delete row ${rowIndex + 1}`}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-
-                        {trainEditorRowErrors[row.id]?.stationPair && (
-                          <p className="text-xs text-red-600">{trainEditorRowErrors[row.id].stationPair}</p>
-                        )}
-                      </div>
-                    ))}
-
-                    <button
-                      type="button"
-                      data-testid="train-editor-add-row"
-                      onClick={addTrainEditorRow}
-                      disabled={trainEditorSaving}
-                      className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Add train
-                    </button>
-                  </div>
-                )}
-
-                {trainEditorSaveError && (
-                  <p data-testid="train-editor-save-error" role="alert" className="text-sm text-red-600 mt-3">
-                    {trainEditorSaveError}
-                  </p>
-                )}
-              </>
-            )}
-
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                data-testid="train-editor-cancel"
-                onClick={() => closeTrainEditor()}
-                disabled={trainEditorSaving}
-                className="px-4 py-2 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {trainEditorLegacyError ? 'Close' : 'Cancel'}
-              </button>
-              {!trainEditorLegacyError && (
-                <button
-                  data-testid="train-editor-save"
-                  onClick={handleTrainEditorSave}
-                  disabled={trainEditorSaving}
-                  className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {trainEditorSaving ? 'Saving…' : 'Save'}
-                </button>
-              )}
-            </div>
-          </div>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
 
-      {/* Export format picker — portal to document.body, positioned to the left of the export button */}
-      {typeof document !== 'undefined' && floatingPickerOpen && pickerAnchorRect && createPortal(
+      {/* Train editor modal */}
+      <TrainScheduleEditorModal editor={trainEditor} processedData={processedData} />
+
+      {/* Export format picker portal */}
+      {typeof document !== 'undefined' && exportState.floatingPickerOpen && exportState.pickerAnchorRect && createPortal(
         <div
           className="fixed z-[45]"
           style={{
-            top: `${pickerAnchorRect.top}px`,
-            right: `${window.innerWidth - pickerAnchorRect.left + 8}px`,
+            top: `${exportState.pickerAnchorRect.top}px`,
+            right: `${window.innerWidth - exportState.pickerAnchorRect.left + 8}px`,
           }}
         >
           <ExportFormatPicker
-            onExportMarkdown={handleExportMarkdown}
-            onExportPdf={handleExportPdf}
-            onClose={closeFloatingPicker}
-            exportError={exportError}
-            isPdfGenerating={isPdfGenerating}
+            onExportMarkdown={exportState.handleExportMarkdown}
+            onExportPdf={exportState.handleExportPdf}
+            onClose={exportState.closeFloatingPicker}
+            exportError={exportState.exportError}
+            isPdfGenerating={exportState.isPdfGenerating}
           />
         </div>,
         document.body
       )}
 
-      {/* Attraction minimap popover — portal to document.body */}
-      {typeof document !== 'undefined' && attractionMiniMapDayIndex !== null && createPortal(
-        <div
-          className="absolute z-[46]"
-          style={{
-            top: `${(attractionMiniMapRect?.bottom ?? 0) + (typeof window !== 'undefined' ? window.scrollY : 0) + 8}px`,
-            left: `${(attractionMiniMapRect?.left ?? 0) + (typeof window !== 'undefined' ? window.scrollX : 0)}px`,
-          }}
-        >
-          <div
-            className="rounded-xl shadow-xl border border-gray-200 bg-white overflow-hidden"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
-              <span className="text-xs font-medium text-gray-600">Attractions map</span>
-              <button
-                type="button"
-                aria-label="Close map"
-                className="p-0.5 rounded text-gray-400 hover:text-gray-600"
-                onClick={closeAttractionMiniMap}
-              >
-                <X size={12} aria-hidden="true" />
-              </button>
-            </div>
-            <AttractionMiniMap
-              attractions={getAttractionsForDay(days[attractionMiniMapDayIndex], attractionMiniMapDayIndex)}
-            />
-          </div>
-        </div>,
-        document.body
-      )}
-
       {/* Export success toast */}
-      {exportSuccess && (
+      {exportState.exportSuccess && (
         <ExportSuccessToast
           message="Itinerary exported!"
-          onDismiss={() => setExportSuccess(false)}
+          onDismiss={() => exportState.setExportSuccess(false)}
           autoDismissMs={3000}
         />
       )}
 
       {/* Stay edit error toast */}
-      {stayEditError && (
+      {stayEdit.stayEditError && (
         <div
           data-testid="stay-edit-error-toast"
           role="alert"
@@ -1280,16 +267,196 @@ export default function ItineraryTab({
                      bg-white px-4 py-3 shadow-lg text-sm text-gray-800"
         >
           <span className="text-red-500">⚠</span>
-          <span>{stayEditError}</span>
+          <span>{stayEdit.stayEditError}</span>
           <button
             aria-label="Dismiss error"
             className="ml-2 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-            onClick={() => setStayEditError(null)}
+            onClick={() => stayEdit.setStayEditError(null)}
           >
             ×
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Inline sub-components ──────────────────────────────────────────────────
+
+interface OvernightCellProps {
+  day: RouteDay
+  stay: ReturnType<typeof getStaysWithMeta>[number] | undefined
+  isItineraryScopedStayEdit: boolean
+  stayEditSaving: boolean
+  stays: ReturnType<typeof getStaysWithMeta>
+  onRequestEditStay?: (stayIndex: number) => void
+  onMoveStay?: (stayIndex: number, direction: 'up' | 'down') => void
+  onStayConfirm: (stayIndex: number, newNights: number) => void
+  onStayCancel: () => void
+}
+
+function OvernightCell({
+  day,
+  stay,
+  isItineraryScopedStayEdit,
+  stayEditSaving,
+  stays,
+  onRequestEditStay,
+  onMoveStay,
+  onStayConfirm,
+  onStayCancel,
+}: OvernightCellProps) {
+  const cityName = day.location?.kind === 'resolved' ? day.location.place.name : day.overnight
+  const countryName = day.location?.kind === 'resolved'
+    ? (day.location.place.country ?? day.location.place.countryCode ?? null)
+    : null
+  const countryTag = countryName ? (
+    <span
+      className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium text-gray-600 border border-gray-300/60"
+      style={{ backgroundColor: getCountryColor(countryName) }}
+    >
+      {countryName}
+    </span>
+  ) : null
+
+  return (
+    <td
+      rowSpan={day.overnightRowSpan}
+      className="relative group px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
+      style={{ backgroundColor: getCityColor(
+        day.location?.kind === 'resolved' ? day.location.place.name : day.overnight,
+        day.location?.kind === 'resolved' ? (day.location.place.country ?? '') : ''
+      ) }}
+    >
+      {stay && isItineraryScopedStayEdit ? (
+        <div className="relative inline-block">
+          <div><span>{cityName}</span>{countryTag && <div>{countryTag}</div>}</div>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 flex flex-row gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto">
+            <button
+              type="button"
+              className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              onClick={() => onRequestEditStay?.(stay.stayIndex)}
+              aria-label={`Edit stay for ${stay.overnight}`}
+              title={`Edit stay for ${stay.overnight}`}
+            >
+              <Pencil size={12} aria-hidden="true" />
+            </button>
+            {onMoveStay && stay.stayIndex > 0 && (
+              <button
+                type="button"
+                className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                onClick={() => onMoveStay(stay.stayIndex, 'up')}
+                aria-label={`Move ${stay.overnight} up`}
+                title={`Move ${stay.overnight} up`}
+              >
+                ▲
+              </button>
+            )}
+            {onMoveStay && !stay.isLast && (
+              <button
+                type="button"
+                className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                onClick={() => onMoveStay(stay.stayIndex, 'down')}
+                aria-label={`Move ${stay.overnight} down`}
+                title={`Move ${stay.overnight} down`}
+              >
+                ▼
+              </button>
+            )}
+          </div>
+        </div>
+      ) : stay && !stay.isLast ? (
+        <div className="space-y-2">
+          <StayEditControl
+            stayIndex={stay.stayIndex}
+            city={cityName}
+            currentNights={stay.nights}
+            maxAdditionalNights={(stays[stay.stayIndex + 1]?.nights ?? 1) - 1}
+            isLast={false}
+            isSaving={stayEditSaving}
+            onConfirm={onStayConfirm}
+            onCancel={onStayCancel}
+          />
+          {countryTag}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <span>{cityName}</span>
+          {countryTag}
+        </div>
+      )}
+    </td>
+  )
+}
+
+interface TrainScheduleDisplayProps {
+  dayIndex: number
+  train: RouteDay['train']
+  trainSchedules: Record<string, { fromStation: string; depTime: string; toStation: string; arrTime: string } | null>
+  schedulesLoading: boolean
+  onEdit: (triggerButton: HTMLButtonElement) => void
+}
+
+function TrainScheduleDisplay({ dayIndex, train, trainSchedules, schedulesLoading, onEdit }: TrainScheduleDisplayProps) {
+  return (
+    <div className="flex items-center gap-2">
+      {train && train.length > 0 ? (
+        <div className="flex-1 space-y-2">
+          {train.map((item, i) => {
+            const trainId = normalizeTrainId(item.train_id)
+            const isDbTrain = !!(item.start && item.end)
+            const scheduleKey = isDbTrain ? buildScheduleKey(trainId, item.start, item.end) : null
+            const schedule = scheduleKey ? trainSchedules[scheduleKey] : null
+            const isLoading = scheduleKey && schedulesLoading && !(scheduleKey in trainSchedules)
+
+            return (
+              <div key={i} className="flex flex-col gap-0.5">
+                {isDbTrain ? (
+                  <div>
+                    <span
+                      data-testid="train-tag"
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200"
+                    >
+                      {trainId}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <span data-testid="invalid-train-dash" className="text-gray-400 italic">—</span>
+                    <span data-testid="invalid-train-comment" className="text-xs text-gray-400 italic">({trainId})</span>
+                  </>
+                )}
+
+                {isLoading ? (
+                  <span
+                    role="status"
+                    aria-label="Loading"
+                    className="inline-block w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin align-middle"
+                  />
+                ) : schedule ? (
+                  <div
+                    data-testid="schedule-grid"
+                    className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 text-xs text-gray-500 pl-1 items-baseline"
+                  >
+                    <span className="truncate">{schedule.fromStation}</span>
+                    <span className="tabular-nums text-right">{schedule.depTime}</span>
+                    <span className="truncate">{schedule.toStation}</span>
+                    <span className="tabular-nums text-right">{schedule.arrTime}</span>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
+      <button
+        data-testid={`train-json-edit-btn-${dayIndex}`}
+        onClick={(e) => onEdit(e.currentTarget)}
+        className="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover/train-cell:opacity-100"
+        aria-label="Edit train schedule"
+      >
+        <Pencil size={14} />
+      </button>
     </div>
   )
 }
