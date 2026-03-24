@@ -573,6 +573,21 @@ describe('ItineraryTab - Edit Plan Functionality', () => {
     expect(screen.getByRole('textbox')).toBeInTheDocument()
   })
 
+  it('plan section rows have a minimum height in both display and edit mode to prevent table layout shift', async () => {
+    setupFetchWithPlanUpdate()
+    const routeData = await renderAndAwaitSchedules()
+
+    // Display mode: row has min-h class for layout stability
+    const displayRow = screen.getByTestId('plan-row-0-morning')
+    expect(displayRow.className).toContain('min-h-')
+
+    // Edit mode: editing container also has min-h class
+    await userEvent.dblClick(displayRow)
+    await screen.findByDisplayValue(routeData[0].plan.morning)
+    const editContainer = screen.getByRole('textbox').closest('div')
+    expect(editContainer?.className).toContain('min-h-')
+  })
+
   it('the edit element is a textarea to support multi-line input', async () => {
     setupFetchWithPlanUpdate()
     const routeData = await renderAndAwaitSchedules()

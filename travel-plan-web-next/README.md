@@ -11,13 +11,13 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
   - **Starter route handoff** — selecting `Original seeded route` opens seeded-route detail at `/?tab=itinerary&legacyTabKey=route`
   - **Detail workspace handoff** — card selection opens the existing itinerary editor at `/?tab=itinerary&itineraryId=<id>`
   - **Desktop width parity** — itinerary detail shell now uses the same wide desktop content rail as `Itinerary (Test)`
-  - **Desktop detail cleanup** — selected itinerary desktop view uses a compact back-only shell + one workspace metadata header (title/date once), with a single `Add next stay`
-  - **Back to cards** — detail mode shows a clear in-app `Back to all itineraries` action to return to cards without leaving the tab
+  - **Desktop detail cleanup** — selected itinerary workspace renders a single control row with `Back to all itineraries` (left) and `Add next stay` (right) on the same line, followed by a trip summary banner (date range, total days, city breakdown, country breakdown when location data is available)
+  - **Back to cards** — detail mode shows a clear in-app `Back to all itineraries` action in the workspace control row; legacy route mode keeps the back button in the detail shell
   - **New itinerary shell** — authenticated users can create a draft itinerary (`name` optional, `startDate` required) and land on `/?tab=itinerary&itineraryId=<id>`
   - **Empty workspace guidance** — newly created itineraries render an empty state with `Add first stay` before mounting the day table
   - **Stay planning sheet** — reusable add/edit dialog supports `Add first stay`, `Add next stay`, and full `Edit stay` (city + nights) from stay cells
   - **Stay location autocomplete** — `Add next stay` and `Edit stay` use a backend-exposed same-origin location search API that returns up to 5 normalized suggestions; selected places persist coordinates/place metadata while custom saves remain fully supported
-  - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away
+  - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away; plan rows have a fixed minimum height so the table layout stays stable during edit mode
   - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
 - **Structured train schedule editor** — click the pencil in Train Schedule to edit day-level train rows (`train_id`, optional `start`+`end`) with add, drag-and-drop reorder, row-end delete, inline validation, and single-save persistence
   - **Multi-railway timetable** — Train Schedule column auto-detects TGV (French) and EST (Eurostar) trains from the train ID prefix and fetches from the correct railway data source; German trains remain the default

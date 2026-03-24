@@ -14,7 +14,7 @@ jest.mock('../../components/ItineraryWorkspace', () => ({
 }))
 
 describe('ItineraryDetailShell', () => {
-  it('renders only back navigation chrome without duplicate itinerary metadata', () => {
+  it('renders workspace without standalone back button — navigation chrome is owned by ItineraryWorkspace', () => {
     const summary: ItinerarySummary = {
       id: 'iti-1',
       name: 'Paris Sprint',
@@ -34,7 +34,8 @@ describe('ItineraryDetailShell', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /back to all itineraries/i })).toBeInTheDocument()
+    // Back button is delegated to ItineraryWorkspace — shell renders no standalone back button
+    expect(screen.queryByRole('button', { name: /back to all itineraries/i })).not.toBeInTheDocument()
     expect(screen.queryByText('Back to all itineraries')).not.toBeInTheDocument()
     expect(screen.getByTestId('itinerary-detail-shell')).toHaveClass('w-full')
     expect(screen.getByTestId('itinerary-workspace')).toBeInTheDocument()

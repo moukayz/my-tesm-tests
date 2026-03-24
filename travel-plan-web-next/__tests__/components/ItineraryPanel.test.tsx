@@ -6,8 +6,17 @@ import ItineraryPanel from '../../components/ItineraryPanel'
 
 jest.mock('../../components/ItineraryWorkspace', () => ({
   __esModule: true,
-  default: ({ onDirtyStateChange }: { onDirtyStateChange?: (isDirty: boolean) => void }) => (
+  default: ({
+    onDirtyStateChange,
+    onBackToCards,
+  }: {
+    onDirtyStateChange?: (isDirty: boolean) => void
+    onBackToCards?: () => void
+  }) => (
     <div>
+      <button type="button" aria-label="Back to all itineraries" onClick={() => onBackToCards?.()}>
+        Back
+      </button>
       <div data-testid="itinerary-workspace">ItineraryWorkspace</div>
       <button type="button" onClick={() => onDirtyStateChange?.(true)}>
         Mark dirty

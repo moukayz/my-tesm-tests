@@ -236,13 +236,143 @@ describe('ItineraryWorkspace', () => {
     })
   })
 
-  it('renders one populated header with one Add next stay action', () => {
+  it('renders banner with trip summary and a single Add next stay action', () => {
     render(<ItineraryWorkspace selectedItineraryId="iti-1" initialWorkspace={filledWorkspace} />)
 
     expect(screen.getByRole('heading', { name: /filled draft/i })).toBeInTheDocument()
-    expect(screen.getByText('Start date: 2026-04-10')).toBeInTheDocument()
+    // Date range and total days are shown; old "Start date:" label is gone
+    expect(screen.queryByText(/start date:/i)).not.toBeInTheDocument()
+    // Formatted date range and total days
+    expect(screen.getByText(/Apr 10.*Apr 11/)).toBeInTheDocument()
+    expect(screen.getByText(/2 days/i)).toBeInTheDocument()
+    // City breakdown with compact nights notation
+    expect(screen.getByText(/paris.*2n/i)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /add next stay/i })).toHaveLength(1)
     expect(screen.queryByRole('button', { name: /edit stay for paris/i })).not.toBeInTheDocument()
+  })
+
+  it('renders back button alongside Add next stay in the same control row', () => {
+    const onBackToCards = jest.fn()
+    render(
+      <ItineraryWorkspace
+        selectedItineraryId="iti-1"
+        initialWorkspace={filledWorkspace}
+        onBackToCards={onBackToCards}
+      />
+    )
+
+    const backBtn = screen.getByRole('button', { name: /back to all itineraries/i })
+    const addBtn = screen.getByRole('button', { name: /add next stay/i })
+    expect(backBtn).toBeInTheDocument()
+    expect(addBtn).toBeInTheDocument()
+    // Both buttons share the same parent container (same control row)
+    expect(backBtn.parentElement).toBe(addBtn.parentElement)
+  })
+
+  it('renders back button without Add next stay when workspace is empty', () => {
+    const onBackToCards = jest.fn()
+    render(
+      <ItineraryWorkspace
+        selectedItineraryId="iti-1"
+        initialWorkspace={emptyWorkspace}
+        onBackToCards={onBackToCards}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /back to all itineraries/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add next stay/i })).not.toBeInTheDocument()
+  })
+
+  it('shows country breakdown in banner when stays have resolved locations', () => {
+    const workspaceWithCountries: ItineraryWorkspaceType = {
+      itinerary: { ...emptyWorkspace.itinerary, name: 'Euro trip', startDate: '2026-05-01' },
+      stays: [
+        {
+          stayIndex: 0,
+          city: 'Paris',
+          nights: 3,
+          startDayIndex: 0,
+          endDayIndex: 2,
+          isLastStay: false,
+          location: {
+            kind: 'resolved',
+            label: 'Paris, France',
+            queryText: 'Paris',
+            coordinates: { lat: 48.85, lng: 2.35 },
+            place: { placeId: 'geo:1', name: 'Paris', country: 'France', countryCode: 'FR', featureType: 'locality' },
+          },
+        },
+        {
+          stayIndex: 1,
+          city: 'Berlin',
+          nights: 2,
+          startDayIndex: 3,
+          endDayIndex: 4,
+          isLastStay: true,
+          location: {
+            kind: 'resolved',
+            label: 'Berlin, Germany',
+            queryText: 'Berlin',
+            coordinates: { lat: 52.52, lng: 13.4 },
+            place: { placeId: 'geo:2', name: 'Berlin', country: 'Germany', countryCode: 'DE', featureType: 'locality' },
+          },
+        },
+      ],
+      days: [
+        { date: '2026/5/1', weekDay: '星期五', dayNum: 1, overnight: 'Paris', plan: { morning: '', afternoon: '', evening: '' }, train: [] },
+        { date: '2026/5/2', weekDay: '星期六', dayNum: 2, overnight: 'Paris', plan: { morning: '', afternoon: '', evening: '' }, train: [] },
+        { date: '2026/5/3', weekDay: '星期日', dayNum: 3, overnight: 'Paris', plan: { morning: '', afternoon: '', evening: '' }, train: [] },
+        { date: '2026/5/4', weekDay: '星期一', dayNum: 4, overnight: 'Berlin', plan: { morning: '', afternoon: '', evening: '' }, train: [] },
+        { date: '2026/5/5', weekDay: '星期二', dayNum: 5, overnight: 'Berlin', plan: { morning: '', afternoon: '', evening: '' }, train: [] },
+      ],
+    }
+
+    render(<ItineraryWorkspace selectedItineraryId="iti-1" initialWorkspace={workspaceWithCountries} />)
+
+    expect(screen.getByText(/france.*3n/i)).toBeInTheDocument()
+    expect(screen.getByText(/germany.*2n/i)).toBeInTheDocument()
+    // Cities appear as sub-items under their country, without country postfix
+    expect(screen.getByText('Paris (3n)')).toBeInTheDocument()
+    expect(screen.getByText('Berlin (2n)')).toBeInTheDocument()
+  })
+
+  it('shows multi-city country group without repeating country in each city label', () => {
+    const multiCityWorkspace: ItineraryWorkspaceType = {
+      itinerary: { ...emptyWorkspace.itinerary, name: 'Italy trip', startDate: '2026-06-01' },
+      stays: [
+        {
+          stayIndex: 0, city: 'Florence', nights: 3, startDayIndex: 0, endDayIndex: 2, isLastStay: false,
+          location: { kind: 'resolved', label: 'Florence, Italy', queryText: 'Florence', coordinates: { lat: 43.77, lng: 11.25 },
+            place: { placeId: 'geo:3', name: 'Florence', country: 'Italy', countryCode: 'IT', featureType: 'locality' } },
+        },
+        {
+          stayIndex: 1, city: 'Rome', nights: 4, startDayIndex: 3, endDayIndex: 6, isLastStay: true,
+          location: { kind: 'resolved', label: 'Rome, Italy', queryText: 'Rome', coordinates: { lat: 41.9, lng: 12.5 },
+            place: { placeId: 'geo:4', name: 'Rome', country: 'Italy', countryCode: 'IT', featureType: 'locality' } },
+        },
+      ],
+      days: Array.from({ length: 7 }, (_, i) => ({
+        date: `2026/6/${i + 1}`, weekDay: '', dayNum: i + 1,
+        overnight: i < 3 ? 'Florence' : 'Rome',
+        plan: { morning: '', afternoon: '', evening: '' }, train: [],
+      })),
+    }
+
+    render(<ItineraryWorkspace selectedItineraryId="iti-1" initialWorkspace={multiCityWorkspace} />)
+
+    // Country header shows total nights
+    expect(screen.getByText('Italy (7n)')).toBeInTheDocument()
+    // Each city as its own item, no country appended
+    expect(screen.getByText('Florence (3n)')).toBeInTheDocument()
+    expect(screen.getByText('Rome (4n)')).toBeInTheDocument()
+  })
+
+  it('omits country row in banner when all stays have custom locations', () => {
+    render(<ItineraryWorkspace selectedItineraryId="iti-1" initialWorkspace={filledWorkspace} />)
+
+    // filledWorkspace has only custom-location stays → no country info
+    expect(screen.queryByText(/france/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/germany/i)).not.toBeInTheDocument()
   })
 
   it('optimistically reorders days before API resolves', async () => {

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import type { ItineraryWorkspace as ItineraryWorkspaceType } from '../app/lib/itinerary-store/types'
+import { ArrowLeft } from 'lucide-react'
+import type { ItineraryWorkspace as ItineraryWorkspaceType, StayLocation } from '../app/lib/itinerary-store/types'
 import { applyMoveStay, deriveStays, regenerateDerivedDates } from '../app/lib/itinerary-store/domain'
 import ItineraryTab from './ItineraryTab'
 import ItineraryEmptyState from './ItineraryEmptyState'
@@ -14,6 +15,22 @@ interface ItineraryWorkspaceProps {
   initialErrorCode?: string | null
   onDirtyStateChange?: (isDirty: boolean) => void
   onBackToCards?: () => void
+}
+
+function formatTripDate(dateStr: string): string {
+  const parts = dateStr.split(/[\/\-]/).map(Number)
+  if (parts.length !== 3 || parts.some(isNaN)) return dateStr
+  const [year, month, day] = parts
+  const d = new Date(year, month - 1, day)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function getCountryFromLocation(location?: StayLocation): string | undefined {
+  if (!location) return undefined
+  if (location.kind === 'resolved') return location.place.country ?? location.place.countryCode
+  if (location.kind === 'mapbox') return location.place.country ?? location.place.countryCode
+  if (location.kind === 'geonames') return location.place.countryName ?? location.place.countryCode
+  return undefined
 }
 
 function mapStayError(code: string): string {
@@ -91,6 +108,23 @@ export default function ItineraryWorkspace({
     if (!workspace || sheetStayIndex === null) return undefined
     return workspace.stays[sheetStayIndex]
   }, [sheetStayIndex, workspace])
+
+  const tripSummary = useMemo(() => {
+    if (!workspace || workspace.days.length === 0) return null
+    const startDate = workspace.days[0].date
+    const endDate = workspace.days.at(-1)!.date
+    const totalDays = workspace.days.length
+    const groupMap = new Map<string | null, { nights: number; cities: { city: string; nights: number }[] }>()
+    for (const stay of workspace.stays) {
+      const country = getCountryFromLocation(stay.location) ?? null
+      if (!groupMap.has(country)) groupMap.set(country, { nights: 0, cities: [] })
+      const g = groupMap.get(country)!
+      g.nights += stay.nights
+      g.cities.push({ city: stay.city, nights: stay.nights })
+    }
+    const countryGroups = Array.from(groupMap.entries()).map(([name, { nights, cities }]) => ({ name, nights, cities }))
+    return { startDate, endDate, totalDays, countryGroups }
+  }, [workspace])
 
   async function handleMoveStay(stayIndex: number, direction: 'up' | 'down'): Promise<void> {
     if (!workspace) return
@@ -189,26 +223,58 @@ export default function ItineraryWorkspace({
 
   const hasDays = workspace.days.length > 0
 
+  function openAddNextStay() {
+    setSheetMode('add-next')
+    setSheetStayIndex(null)
+    setSheetError(null)
+    setIsSheetOpen(true)
+  }
+
   return (
     <div className="space-y-4">
-      {hasDays && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">{workspace.itinerary.name}</h2>
-            <p className="text-sm text-gray-500">Start date: {workspace.itinerary.startDate}</p>
-          </div>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          onClick={onBackToCards}
+          aria-label="Back to all itineraries"
+          title="Back to all itineraries"
+        >
+          <ArrowLeft size={16} aria-hidden="true" />
+        </button>
+        {hasDays && (
           <button
             type="button"
-            onClick={() => {
-              setSheetMode('add-next')
-              setSheetStayIndex(null)
-              setSheetError(null)
-              setIsSheetOpen(true)
-            }}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            onClick={openAddNextStay}
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
           >
             Add next stay
           </button>
+        )}
+      </div>
+
+      {hasDays && tripSummary && (
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 space-y-1">
+          <h2 className="text-base font-semibold text-gray-900">{workspace.itinerary.name}</h2>
+          <p className="text-sm text-gray-500">
+            {formatTripDate(tripSummary.startDate)} – {formatTripDate(tripSummary.endDate)}
+            <span className="mx-1.5 text-gray-300">·</span>
+            {tripSummary.totalDays} {tripSummary.totalDays === 1 ? 'day' : 'days'}
+          </p>
+          <div className="space-y-0.5 text-sm">
+            {tripSummary.countryGroups.map((group) => (
+              <div key={group.name ?? '__none__'}>
+                {group.name && (
+                  <p className="text-gray-500">{group.name} ({group.nights}n)</p>
+                )}
+                {group.cities.map((c, i) => (
+                  <p key={i} className={group.name ? 'pl-3 text-gray-400' : 'text-gray-500'}>
+                    {c.city} ({c.nights}n)
+                  </p>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -229,12 +295,7 @@ export default function ItineraryWorkspace({
         <ItineraryTab
           initialData={workspace.days}
           itineraryId={workspace.itinerary.id}
-          onRequestAddStay={() => {
-            setSheetMode('add-next')
-            setSheetStayIndex(null)
-            setSheetError(null)
-            setIsSheetOpen(true)
-          }}
+          onRequestAddStay={openAddNextStay}
           onRequestEditStay={(stayIndex) => {
             setSheetMode('edit')
             setSheetStayIndex(stayIndex)
