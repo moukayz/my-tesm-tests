@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Sunrise, Sun, Moon, GripVertical, Pencil, Plus, Map as MapIcon, X } from 'lucide-react'
+import { Pencil, Plus, Map as MapIcon, X, GripVertical } from 'lucide-react'
 import {
   getCityColor,
   getCountryColor,
@@ -12,7 +12,6 @@ import {
   normalizeTrainId,
   getRailwayFromTrainId,
   type RouteDay,
-  type PlanSections,
   type DayAttraction,
 } from '../app/lib/itinerary'
 import { searchLocationSuggestions } from '../app/lib/locations/search'
@@ -87,13 +86,9 @@ export default function ItineraryTab({
 
   const [trainSchedules, setTrainSchedules] = useState<Record<string, TrainStopsResult | null>>({})
   const [schedulesLoading, setSchedulesLoading] = useState(false)
-  const [planOverrides, setPlanOverrides] = useState<Record<number, PlanSections>>({})
-  const [editingRowId, setEditingRowId] = useState<string | null>(null)
-  const [editingValue, setEditingValue] = useState('')
-  const [dragSourceId, setDragSourceId] = useState<string | null>(null)
-  const [dragOverId, setDragOverId] = useState<string | null>(null)
-  const [savingDndDayIndex, setSavingDndDayIndex] = useState<number | null>(null)
-  const [dndError, setDndError] = useState<Record<number, string>>({})
+  const [noteOverrides, setNoteOverrides] = useState<Record<number, string>>({})
+  const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(null)
+  const [noteEditingValue, setNoteEditingValue] = useState('')
   const [trainEditorDayIndex, setTrainEditorDayIndex] = useState<number | null>(null)
   const [trainEditorRows, setTrainEditorRows] = useState<TrainScheduleDraftRow[]>([])
   const [trainEditorRowErrors, setTrainEditorRowErrors] = useState<Record<string, TrainScheduleDraftRowErrors>>({})
@@ -257,27 +252,6 @@ export default function ItineraryTab({
   const isItineraryScopedStayEdit = Boolean(itineraryId && onRequestEditStay)
 
   // ── Country column spans ──────────────────────────────────────────────────
-  const countrySpans = useMemo(() => {
-    const spans = new Array<number>(processedData.length).fill(0)
-    let spanStart = -1
-    let currentCountry: string | null = null
-    for (let i = 0; i <= processedData.length; i++) {
-      const day = processedData[i]
-      const country =
-        day?.location?.kind === 'resolved'
-          ? (day.location.place.country ?? day.location.place.countryCode ?? '—')
-          : '—'
-      if (i === processedData.length || country !== currentCountry) {
-        if (spanStart !== -1) spans[spanStart] = i - spanStart
-        if (i < processedData.length) {
-          currentCountry = country
-          spanStart = i
-        }
-      }
-    }
-    return spans
-  }, [processedData])
-
   // ── Stay edit handlers ────────────────────────────────────────────────────
 
   const handleStayConfirm = async (stayIndex: number, newNights: number) => {
@@ -330,18 +304,18 @@ export default function ItineraryTab({
     setStayEditingIndex(null)
   }
 
-  const savePlanUpdate = async (dayIndex: number, plan: PlanSections) => {
+  const saveNoteUpdate = async (dayIndex: number, note: string) => {
     if (itineraryId) {
-      return fetch(`/api/itineraries/${itineraryId}/days/${dayIndex}/plan`, {
+      return fetch(`/api/itineraries/${itineraryId}/days/${dayIndex}/note`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ note }),
       })
     }
-    return fetch('/api/plan-update', {
+    return fetch('/api/note-update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dayIndex, plan, tabKey }),
+      body: JSON.stringify({ dayIndex, note, tabKey }),
     })
   }
 
@@ -350,7 +324,7 @@ export default function ItineraryTab({
   function getEffectiveData(): RouteDay[] {
     return days.map((day, i) => ({
       ...day,
-      plan: planOverrides[i] ?? day.plan,
+      note: noteOverrides[i] ?? day.note,
       train: trainOverrides[i] ?? day.train,
     }))
   }
@@ -390,109 +364,31 @@ export default function ItineraryTab({
   const buildScheduleKey = (trainId: string, start?: string, end?: string) =>
     `${trainId}|${start ?? ''}|${end ?? ''}`
 
-  const planSections = [
-    { label: 'Morning',   key: 'morning',   icon: <Sunrise size={16} /> },
-    { label: 'Afternoon', key: 'afternoon', icon: <Sun     size={16} /> },
-    { label: 'Evening',   key: 'evening',   icon: <Moon    size={16} /> },
-  ] as { label: string; key: 'morning' | 'afternoon' | 'evening'; icon: React.ReactNode }[]
-
-  const handleRowDoubleClick = (dayIndex: number, sectionKey: string, currentValue: string) => {
-    setEditingRowId(`${dayIndex}|${sectionKey}`)
-    setEditingValue(currentValue)
-    setDndError((prev) => { const next = { ...prev }; delete next[dayIndex]; return next })
+  const handleNoteEdit = (dayIndex: number, currentNote: string) => {
+    setEditingNoteIndex(dayIndex)
+    setNoteEditingValue(currentNote)
   }
 
-  const handleEditBlur = async (dayIndex: number, sectionKey: string, day: typeof processedData[0]) => {
-    setEditingRowId(null)
+  const handleNoteBlur = async (dayIndex: number) => {
+    setEditingNoteIndex(null)
+    const currentNote = noteOverrides[dayIndex] ?? days[dayIndex]?.note ?? ''
+    if (noteEditingValue === currentNote) return
 
-    const currentPlan = planOverrides[dayIndex] ?? day.plan
-    if (editingValue === currentPlan[sectionKey as keyof PlanSections]) return
-
-    const newPlan: PlanSections = { ...currentPlan, [sectionKey]: editingValue }
-    setPlanOverrides((prev) => ({ ...prev, [dayIndex]: newPlan }))
-
+    setNoteOverrides((prev) => ({ ...prev, [dayIndex]: noteEditingValue }))
     try {
-      const response = await savePlanUpdate(dayIndex, newPlan)
-
+      const response = await saveNoteUpdate(dayIndex, noteEditingValue)
       if (!response.ok) {
-        const errorData = await response.json()
-        setPlanOverrides((prev) => ({ ...prev, [dayIndex]: currentPlan }))
-        setDndError((prev) => ({ ...prev, [dayIndex]: errorData.error || 'Failed to save' }))
+        setNoteOverrides((prev) => ({ ...prev, [dayIndex]: currentNote }))
       }
     } catch {
-      setPlanOverrides((prev) => ({ ...prev, [dayIndex]: currentPlan }))
-      setDndError((prev) => ({ ...prev, [dayIndex]: 'Error saving plan. Please try again.' }))
+      setNoteOverrides((prev) => ({ ...prev, [dayIndex]: currentNote }))
     }
   }
 
-  const handleDragStart = (dayIndex: number, sectionKey: string, e: React.DragEvent) => {
-    if ((e.target as HTMLElement).dataset.noDrag) {
-      e.preventDefault()
-      return
-    }
-    setDragSourceId(`${dayIndex}|${sectionKey}`)
-    e.dataTransfer.effectAllowed = 'move'
-  }
-
-  const handleDragOver = (dayIndex: number, sectionKey: string, e: React.DragEvent) => {
-    e.preventDefault()
-    if (!dragSourceId) return
-    const sourceDayIndex = parseInt(dragSourceId.split('|')[0], 10)
-    if (sourceDayIndex !== dayIndex) return
-    setDragOverId(`${dayIndex}|${sectionKey}`)
-  }
-
-  const handleDrop = (dayIndex: number, targetKey: string, e: React.DragEvent, day: typeof processedData[0]) => {
-    e.preventDefault()
-    if (!dragSourceId) return
-    const [sourceDayStr, sourceKey] = dragSourceId.split('|')
-    const sourceDayIndex = parseInt(sourceDayStr, 10)
-    if (sourceDayIndex !== dayIndex || sourceKey === targetKey) {
-      setDragSourceId(null)
-      setDragOverId(null)
-      return
-    }
-
-    const currentPlan = planOverrides[dayIndex] ?? day.plan
-    const newPlan: PlanSections = {
-      ...currentPlan,
-      [sourceKey]: currentPlan[targetKey as keyof PlanSections],
-      [targetKey]: currentPlan[sourceKey as keyof PlanSections],
-    }
-
-    setPlanOverrides((prev) => ({ ...prev, [dayIndex]: newPlan }))
-    setDragSourceId(null)
-    setDragOverId(null)
-
-    autoSavePlan(dayIndex, newPlan, currentPlan)
-  }
-
-  const handleDragEnd = () => {
-    setDragSourceId(null)
-    setDragOverId(null)
-  }
-
-  const autoSavePlan = async (dayIndex: number, newPlan: PlanSections, originalPlan: PlanSections) => {
-    setSavingDndDayIndex(dayIndex)
-    setDndError((prev) => {
-      const next = { ...prev }
-      delete next[dayIndex]
-      return next
-    })
-
-    try {
-      const response = await savePlanUpdate(dayIndex, newPlan)
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        setPlanOverrides((prev) => ({ ...prev, [dayIndex]: originalPlan }))
-        setDndError((prev) => ({ ...prev, [dayIndex]: errorData.error || 'Failed to save' }))
-      }
-    } catch {
-      setPlanOverrides((prev) => ({ ...prev, [dayIndex]: originalPlan }))
-      setDndError((prev) => ({ ...prev, [dayIndex]: 'Error saving plan. Please try again.' }))
-    } finally {
-      setSavingDndDayIndex(null)
+  const handleNoteKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, dayIndex: number) => {
+    if (e.key === 'Escape') {
+      setEditingNoteIndex(null)
+      setNoteEditingValue(noteOverrides[dayIndex] ?? days[dayIndex]?.note ?? '')
     }
   }
 
@@ -674,8 +570,8 @@ export default function ItineraryTab({
   }, [trainEditorDayIndex, trainEditorSaving])
 
   useEffect(() => {
-    onDirtyStateChange?.(editingRowId !== null || stayEditingIndex !== null)
-  }, [editingRowId, onDirtyStateChange, stayEditingIndex])
+    onDirtyStateChange?.(editingNoteIndex !== null || stayEditingIndex !== null)
+  }, [editingNoteIndex, onDirtyStateChange, stayEditingIndex])
 
   // Fetch train schedules for DB trains
   useEffect(() => {
@@ -766,10 +662,10 @@ export default function ItineraryTab({
       <table className="w-full border-collapse text-left">
         <thead className="bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-10 shadow-sm">
           <tr>
-            {['Date', 'Country', 'Overnight', 'Plan', 'Attractions', 'Train Schedule'].map((h) => (
+            {(['Date', 'Overnight', 'Attractions', 'Train Schedule', 'Note'] as const).map((h) => (
               <th
                 key={h}
-                className="px-6 py-4 font-semibold text-gray-700 uppercase text-xs tracking-wider"
+                className={`px-6 py-4 font-semibold text-gray-700 uppercase text-xs tracking-wider${h === 'Train Schedule' ? ' border-r border-gray-200' : ''}`}
               >
                 {h}
               </th>
@@ -799,21 +695,6 @@ export default function ItineraryTab({
                   </div>
                 </td>
 
-                {countrySpans[index] > 0 && (() => {
-                  const countryValue = day.location?.kind === 'resolved'
-                    ? (day.location.place.country ?? day.location.place.countryCode ?? '—')
-                    : '—'
-                  return (
-                    <td
-                      rowSpan={countrySpans[index]}
-                      className="px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
-                      style={{ backgroundColor: getCountryColor(countryValue) }}
-                    >
-                      {countryValue}
-                    </td>
-                  )
-                })()}
-
                 {day.overnightRowSpan > 0 && (
                   <td
                     rowSpan={day.overnightRowSpan}
@@ -823,10 +704,23 @@ export default function ItineraryTab({
                       day.location?.kind === 'resolved' ? (day.location.place.country ?? '') : ''
                     ) }}
                   >
-                    {stay && isItineraryScopedStayEdit ? (
+                    {(() => {
+                      const cityName = day.location?.kind === 'resolved' ? day.location.place.name : day.overnight
+                      const countryName = day.location?.kind === 'resolved'
+                        ? (day.location.place.country ?? day.location.place.countryCode ?? null)
+                        : null
+                      const countryTag = countryName ? (
+                        <span
+                          className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium text-gray-600 border border-gray-300/60"
+                          style={{ backgroundColor: getCountryColor(countryName) }}
+                        >
+                          {countryName}
+                        </span>
+                      ) : null
+                      return stay && isItineraryScopedStayEdit ? (
                       <>
                         <div className="relative inline-block">
-                          <span>{day.location?.kind === 'resolved' ? day.location.place.name : day.overnight}</span>
+                          <div><span>{cityName}</span>{countryTag && <div>{countryTag}</div>}</div>
                           <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 flex flex-row gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto">
                           <button
                             type="button"
@@ -866,7 +760,7 @@ export default function ItineraryTab({
                       <div className="space-y-2">
                         <StayEditControl
                           stayIndex={stay.stayIndex}
-                          city={day.location?.kind === 'resolved' ? day.location.place.name : day.overnight}
+                          city={cityName}
                           currentNights={stay.nights}
                           maxAdditionalNights={
                             (stays[stay.stayIndex + 1]?.nights ?? 1) - 1
@@ -876,83 +770,20 @@ export default function ItineraryTab({
                           onConfirm={handleStayConfirm}
                           onCancel={handleStayCancel}
                         />
+                        {countryTag}
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <span>{day.location?.kind === 'resolved' ? day.location.place.name : day.overnight}</span>
+                        <span>{cityName}</span>
+                        {countryTag}
                       </div>
-                    )}
+                    )
+                    })()}
                   </td>
                 )}
 
-                <td className="px-6 py-4 border-b border-gray-200 align-middle min-w-[280px] group-last:border-b-0">
-                  <div className="space-y-1 text-sm text-gray-700">
-                    {dndError[index] && (
-                      <div className="text-red-600 text-xs font-semibold mb-1">{dndError[index]}</div>
-                    )}
-                    {planSections.map((section, sectionIndex) => {
-                      const rowId = `${index}|${section.key}`
-                      const isEditing = editingRowId === rowId
-                      const value = (planOverrides[index] ?? day.plan)[section.key].trim()
-
-                      if (isEditing) {
-                        return (
-                          <React.Fragment key={section.key}>
-                            {sectionIndex > 0 && <hr className="border-gray-100" />}
-                          <div className="flex gap-2 items-start rounded">
-                            <span className="shrink-0 text-gray-400 mt-0.5" title={section.label}>
-                              {section.icon}
-                            </span>
-                            <textarea
-                              value={editingValue}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) e.currentTarget.blur() }}
-                              onBlur={() => handleEditBlur(index, section.key, day)}
-                              autoFocus
-                              rows={2}
-                              className="flex-1 px-1 py-0.5 border border-blue-400 rounded text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                            />
-                          </div>
-                          </React.Fragment>
-                        )
-                      }
-
-                      return (
-                        <React.Fragment key={section.key}>
-                          {sectionIndex > 0 && <hr className="border-gray-100" />}
-                        <div
-                          key={section.key}
-                          data-testid={`plan-row-${index}-${section.key}`}
-                          draggable={savingDndDayIndex !== index}
-                          onDoubleClick={() => handleRowDoubleClick(index, section.key, value)}
-                          onDragStart={(e) => handleDragStart(index, section.key, e)}
-                          onDragOver={(e) => handleDragOver(index, section.key, e)}
-                          onDrop={(e) => handleDrop(index, section.key, e, day)}
-                          onDragEnd={handleDragEnd}
-                          className={`flex gap-2 items-center rounded cursor-grab select-none
-                            ${dragSourceId === rowId ? 'opacity-40' : ''}
-                            ${dragOverId === rowId ? 'ring-2 ring-blue-400 bg-blue-50' : ''}
-                            ${savingDndDayIndex === index ? 'cursor-wait' : ''}
-                          `}
-                        >
-                          <span data-no-drag="true" className="shrink-0 text-gray-400 cursor-default" title={section.label}>
-                            {section.icon}
-                          </span>
-                          <span className={`flex-1 ${value ? 'text-gray-800' : 'text-gray-400 italic'}`}>
-                            {value ? renderMarkdown(value) : '—'}
-                          </span>
-                          <span aria-label="Drag to reorder" className="text-gray-300 shrink-0">
-                            <GripVertical size={14} />
-                          </span>
-                        </div>
-                        </React.Fragment>
-                      )
-                    })}
-                  </div>
-                </td>
-
                 {/* ── Attractions cell ─────────────────────────────────── */}
-                <td className="px-4 py-3 border-b border-gray-200 align-top group-last:border-b-0 min-w-[200px] max-w-[300px]">
+                <td className="px-4 py-3 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[200px] max-w-[300px] group/attraction-cell">
                   {(() => {
                     const attractions = getAttractionsForDay(day, index)
                     const isAdding = addingAttractionDayIndex === index
@@ -1050,7 +881,7 @@ export default function ItineraryTab({
                         )}
 
                         {(attractions.length > 0 || !isAdding) && (
-                          <div className="w-full flex justify-start gap-2">
+                          <div className="flex justify-start gap-2 opacity-0 group-hover/attraction-cell:opacity-100 transition-opacity">
                             {!isAdding && (
                               <button
                                 type="button"
@@ -1083,19 +914,13 @@ export default function ItineraryTab({
                   })()}
                 </td>
 
-                <td className="px-6 py-4 border-b border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0 relative">
-                  <button
-                    data-testid={`train-json-edit-btn-${index}`}
-                    onClick={(e) => openTrainEditor(index, day.train, e.currentTarget)}
-                    className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
-                    aria-label="Edit train schedule"
-                  >
-                    <Pencil size={14} />
-                  </button>
+                <td className="px-6 py-4 border-b border-r border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0 group/train-cell">
                   {(() => {
                     const effectiveTrain = trainOverrides[index] ?? day.train
-                    return effectiveTrain && effectiveTrain.length > 0 ? (
-                    <div className="space-y-2">
+                    return (
+                    <div className="flex items-center gap-2">
+                      {effectiveTrain && effectiveTrain.length > 0 ? (
+                    <div className="flex-1 space-y-2">
                       {effectiveTrain.map((item, i) => {
                         const trainId = normalizeTrainId(item.train_id)
                         const isDbTrain = !!(item.start && item.end)
@@ -1154,10 +979,53 @@ export default function ItineraryTab({
                         )
                       })}
                     </div>
-                  ) : (
-                    <span className="text-gray-400 italic">—</span>
-                  )
+                  ) : null}
+                      <button
+                        data-testid={`train-json-edit-btn-${index}`}
+                        onClick={(e) => openTrainEditor(index, day.train, e.currentTarget)}
+                        className="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover/train-cell:opacity-100"
+                        aria-label="Edit train schedule"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
+                    )
                   })()}
+                </td>
+
+                {/* ── Note cell ─────────────────────────────────────────── */}
+                <td
+                  data-testid={`note-cell-${index}`}
+                  className="px-4 py-3 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[180px] max-w-[280px] group/note-cell"
+                >
+                  {editingNoteIndex === index ? (
+                    <textarea
+                      autoFocus
+                      value={noteEditingValue}
+                      onChange={(e) => setNoteEditingValue(e.target.value)}
+                      onBlur={() => handleNoteBlur(index)}
+                      onKeyDown={(e) => handleNoteKeyDown(e, index)}
+                      rows={4}
+                      className="w-full px-1 py-0.5 border border-blue-400 rounded text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const noteValue = noteOverrides[index] ?? day.note ?? ''
+                        return noteValue ? (
+                          <div className="flex-1 text-sm text-gray-700">{renderMarkdown(noteValue)}</div>
+                        ) : null
+                      })()}
+                      <button
+                        type="button"
+                        aria-label="Edit note"
+                        onClick={() => handleNoteEdit(index, noteOverrides[index] ?? day.note ?? '')}
+                        className="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover/note-cell:opacity-100"
+                      >
+                        <Pencil size={14} aria-hidden="true" />
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             )
@@ -1367,10 +1235,10 @@ export default function ItineraryTab({
       {/* Attraction minimap popover — portal to document.body */}
       {typeof document !== 'undefined' && attractionMiniMapDayIndex !== null && createPortal(
         <div
-          className="fixed z-[46]"
+          className="absolute z-[46]"
           style={{
-            top: `${(attractionMiniMapRect?.bottom ?? 0) + 8}px`,
-            left: `${attractionMiniMapRect?.left ?? 0}px`,
+            top: `${(attractionMiniMapRect?.bottom ?? 0) + (typeof window !== 'undefined' ? window.scrollY : 0) + 8}px`,
+            left: `${(attractionMiniMapRect?.left ?? 0) + (typeof window !== 'undefined' ? window.scrollX : 0)}px`,
           }}
         >
           <div

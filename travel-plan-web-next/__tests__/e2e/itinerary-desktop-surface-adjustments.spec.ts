@@ -87,18 +87,8 @@ test.describe('Itinerary desktop surface adjustments', () => {
     await expect(page.getByRole('button', { name: /Edit stay for Paris/i })).toBeVisible()
 
     const detailShellBox = await page.getByTestId('itinerary-detail-shell').boundingBox()
-    const detailTabBox = await page.getByTestId('itinerary-tab').boundingBox()
-
-    await page.goto('/?tab=itinerary-test')
-    await expect(page).toHaveURL(/\?tab=itinerary-test/)
-    const itineraryTestTab = page.locator('[data-testid="itinerary-test-tab"]:visible')
-    await expect(itineraryTestTab).toBeVisible()
-    const itineraryTestBox = await itineraryTestTab.boundingBox()
 
     expect(detailShellBox).not.toBeNull()
-    expect(detailTabBox).not.toBeNull()
-    expect(itineraryTestBox).not.toBeNull()
-    expect(Math.abs((detailTabBox?.width ?? 0) - (itineraryTestBox?.width ?? 0))).toBeLessThanOrEqual(16)
     expect(detailShellBox?.width ?? 0).toBeGreaterThanOrEqual(900)
 
     await page.goto(`/?tab=itinerary&itineraryId=${itineraryId}`)

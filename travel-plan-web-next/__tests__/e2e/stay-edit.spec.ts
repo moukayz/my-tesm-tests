@@ -3,7 +3,6 @@
  *
  * Feature: editable-itinerary-stays
  * Covers:
- *   - AC-1  Itinerary (Test) tab exists and is isolated
  *   - AC-2  Stay edit control present on non-last blocks
  *   - AC-3  Shrink stay: leftover days reassigned to next stay
  *   - AC-4  Extend stay: days borrowed from next stay
@@ -11,11 +10,11 @@
  *   - AC-6  Cannot borrow below 1 night from next stay (client-side)
  *   - AC-7  Last city block has no edit affordance
  *   - AC-8  API failure reverts change (via request interception)
- *   - AC-9  Unauthenticated users see neither itinerary tab
+ *   - AC-9  Unauthenticated users see no itinerary tab
  *   - Regression: /api/stay-update 401 for unauthenticated requests
  *   - Regression: tabKey isolation (route vs route-test writes go to separate stores)
  *   - Regression: day conservation invariant (total days never changes)
- *   - Regression: adjacent itinerary flows (plan edit, tab switching) unaffected
+ *   - Regression: adjacent itinerary flows (tab switching) unaffected
  *
  * Data (route.e2e.json as of feature implementation):
  *   Stay 0: 巴黎 (Paris)        — 4 nights (days 0-3)   — stayIndex=0, editable
@@ -28,14 +27,6 @@
  * Environment:
  *   ROUTE_DATA_PATH=data/route.e2e.json  (primary tab, set in .env.test)
  *   ROUTE_TEST_DATA_PATH=data/route-test.e2e.json (set in .env.test, auto-seeded from primary)
- *
- * Selector strategy:
- *   Both ItineraryTab instances are always mounted in the DOM (keep-alive pattern).
- *   To avoid Playwright strict-mode violations when both panels share the same data-testid
- *   attributes, all selectors are scoped to the VISIBLE (active) panel wrapper:
- *     - Primary tab: `div:not(.hidden) >> [data-testid="itinerary-tab"]`
- *     - Test tab:    `div:not(.hidden) >> [data-testid="itinerary-test-tab"]`
- *   Helper `activePanel(page)` returns the visible panel locator.
  */
 
 import { test, expect, type Page, type Locator } from '@playwright/test'
@@ -73,13 +64,9 @@ async function injectSession(
 
 /**
  * Returns a locator scoped to the currently visible (active) itinerary panel.
- * Both tab panels are always in the DOM; the inactive one has class="hidden" on its wrapper div.
- * We scope to the wrapper that does NOT have the hidden class.
  */
 function activeItineraryPanel(page: Page): Locator {
-  // The active panel wrapper is the div that is not hidden and contains either
-  // data-testid="itinerary-tab" or data-testid="itinerary-test-tab"
-  return page.locator('[data-testid="itinerary-tab"],[data-testid="itinerary-test-tab"]').filter({ visible: true })
+  return page.locator('[data-testid="itinerary-tab"]').filter({ visible: true })
 }
 
 /** Returns a testid locator scoped to the active itinerary panel. */
@@ -95,13 +82,12 @@ async function openStarterRouteTable(page: Page) {
   await expect(primaryPanel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
 }
 
-// ── Suite: AC-1 & AC-9 — Tab visibility and isolation ─────────────────────────
+// ── Suite: AC-9 — Tab visibility ──────────────────────────────────────────────
 
 test.describe('Tab visibility', () => {
-  test('AC-9: unauthenticated — neither itinerary tab button is visible', async ({ page }) => {
+  test('AC-9: unauthenticated — itinerary tab button is not visible', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('button', { name: /^itinerary$/i })).not.toBeVisible()
-    await expect(page.getByRole('button', { name: /itinerary \(test\)/i })).not.toBeVisible()
   })
 
   test('AC-9: unauthenticated — /api/stay-update returns 401', async ({ request }) => {
@@ -113,11 +99,10 @@ test.describe('Tab visibility', () => {
     expect(body.error).toBe('Unauthorized')
   })
 
-  test('AC-1: authenticated — both itinerary tab buttons are visible', async ({ page }) => {
+  test('AC-1: authenticated — itinerary tab button is visible', async ({ page }) => {
     await injectSession(page)
     await page.goto('/')
     await expect(page.getByRole('button', { name: /^itinerary$/i })).toBeVisible()
-    await expect(page.getByRole('button', { name: /itinerary \(test\)/i })).toBeVisible()
   })
 
   test('AC-1: authenticated — default itinerary view is cards-first', async ({ page }) => {
@@ -125,28 +110,6 @@ test.describe('Tab visibility', () => {
     await page.goto('/?tab=itinerary')
     await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
     await expect(page.getByTestId('itinerary-card-starter-route')).toBeVisible()
-  })
-
-  test('AC-1: /?tab=itinerary-test shows the test table directly', async ({ page }) => {
-    await injectSession(page)
-    await page.goto('/?tab=itinerary-test')
-    await expect(activeItineraryPanel(page).getByRole('columnheader', { name: /^date$/i })).toBeVisible()
-  })
-
-  test('AC-1: switching back from test tab to primary itinerary works', async ({ page }) => {
-    await injectSession(page)
-    await page.goto('/?tab=itinerary-test')
-    await expect(activeItineraryPanel(page).getByRole('columnheader', { name: /^date$/i })).toBeVisible()
-    await page.goto('/?tab=itinerary')
-    await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
-    await expect(page.getByTestId('itinerary-card-starter-route')).toBeVisible()
-  })
-
-  test('AC-1: Itinerary (Test) tab also shows table when active', async ({ page }) => {
-    await injectSession(page)
-    await page.goto('/?tab=itinerary-test')
-    const testPanel = activeItineraryPanel(page)
-    await expect(testPanel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
   })
 })
 
@@ -157,13 +120,6 @@ test.describe('Stay edit affordance', () => {
     await injectSession(page)
     await page.request.post('/api/stay-update', {
       data: { tabKey: 'route', stayIndex: 0, newNights: 4 },
-    })
-    await page.request.post('/api/plan-update', {
-      data: {
-        tabKey: 'route',
-        dayIndex: 0,
-        plan: { morning: 'e2e-morning', afternoon: 'e2e-afternoon', evening: 'e2e-evening' },
-      },
     })
     await openStarterRouteTable(page)
   })
@@ -223,11 +179,6 @@ test.describe('Stay edit affordance', () => {
     await expect(panel.getByTestId('stay-edit-input-0')).not.toBeVisible()
   })
 
-  test('AC-2: edit controls appear on Itinerary (Test) tab too', async ({ page }) => {
-    await page.getByRole('button', { name: /itinerary \(test\)/i }).click()
-    const activePanel = activeItineraryPanel(page)
-    await expect(activePanel.getByTestId('stay-edit-btn-0')).toBeVisible()
-  })
 })
 
 // ── Suite: AC-3 & AC-4 — Stay shrink/extend (primary tab) ────────────────────
@@ -337,70 +288,6 @@ test.describe('Stay edit — shrink and extend (primary Itinerary tab)', () => {
     // Itinerary table still has all 16 date rows (scoped to primary panel)
     const dateCells = panel.locator('td').filter({ hasText: /^\d{4}\/\d+\/\d+$/ })
     await expect(dateCells).toHaveCount(16)
-  })
-})
-
-// ── Suite: AC-3 & AC-4 — Stay shrink/extend (Itinerary Test tab) ─────────────
-
-test.describe('Stay edit — Itinerary (Test) tab', () => {
-  test.afterEach(async ({ page }) => {
-    await injectSession(page)
-    await page.request.post('/api/stay-update', {
-      data: { tabKey: 'route-test', stayIndex: 0, newNights: 4 },
-    })
-  })
-
-  test.beforeEach(async ({ page }) => {
-    await injectSession(page)
-    await page.goto('/?tab=itinerary-test')
-    await expect(activeItineraryPanel(page).getByRole('columnheader', { name: /^date$/i })).toBeVisible()
-  })
-
-  test('AC-3: shrink on Test tab does NOT affect primary Itinerary tab store', async ({ page }) => {
-    const testPanel = page.getByTestId('itinerary-test-tab')
-    await testPanel.getByTestId('stay-edit-btn-0').click()
-    await testPanel.getByTestId('stay-edit-input-0').fill('2')
-    await testPanel.getByTestId('stay-edit-confirm-0').click()
-    await expect(testPanel.getByTestId('stay-edit-error-toast')).not.toBeVisible({ timeout: 5000 })
-
-    // Primary tab store should be untouched
-    const res = await page.request.post('/api/stay-update', {
-      data: { tabKey: 'route', stayIndex: 0, newNights: 4 },
-    })
-    expect(res.status()).toBe(200)
-    const body = await res.json()
-    const paris = body.updatedDays.filter((d: { overnight: string }) => d.overnight === '巴黎')
-    expect(paris).toHaveLength(4)
-  })
-
-  test('AC-1: edits on Test tab go to route-test store (total stays 16)', async ({ page }) => {
-    const testPanel = page.getByTestId('itinerary-test-tab')
-    await testPanel.getByTestId('stay-edit-btn-0').click()
-    await testPanel.getByTestId('stay-edit-input-0').fill('3')
-    await testPanel.getByTestId('stay-edit-confirm-0').click()
-    await expect(testPanel.getByTestId('stay-edit-error-toast')).not.toBeVisible({ timeout: 5000 })
-
-    const res = await page.request.post('/api/stay-update', {
-      data: { tabKey: 'route-test', stayIndex: 0, newNights: 4 },
-    })
-    expect(res.status()).toBe(200)
-    const body = await res.json()
-    expect(body.updatedDays).toHaveLength(16)
-  })
-
-  test('AC-4: extend on Test tab — total days invariant preserved', async ({ page }) => {
-    const testPanel = page.getByTestId('itinerary-test-tab')
-    await testPanel.getByTestId('stay-edit-btn-0').click()
-    await testPanel.getByTestId('stay-edit-input-0').fill('6')
-    await testPanel.getByTestId('stay-edit-confirm-0').click()
-    await expect(testPanel.getByTestId('stay-edit-error-toast')).not.toBeVisible({ timeout: 5000 })
-
-    const res = await page.request.post('/api/stay-update', {
-      data: { tabKey: 'route-test', stayIndex: 0, newNights: 4 },
-    })
-    expect(res.status()).toBe(200)
-    const body = await res.json()
-    expect(body.updatedDays).toHaveLength(16)
   })
 })
 
@@ -638,59 +525,7 @@ test.describe('/api/stay-update contract', () => {
 test.describe('Regression: adjacent itinerary flows', () => {
   test.beforeEach(async ({ page }) => {
     await injectSession(page)
-    await page.request.post('/api/plan-update', {
-      data: {
-        tabKey: 'route',
-        dayIndex: 0,
-        plan: { morning: 'e2e-morning', afternoon: 'e2e-afternoon', evening: 'e2e-evening' },
-      },
-    })
     await openStarterRouteTable(page)
-  })
-
-  test('plan content is visible in the primary Itinerary panel', async ({ page }) => {
-    const panel = page.getByTestId('itinerary-tab')
-    await expect(panel.getByText('e2e-morning')).toBeVisible()
-  })
-
-  test('/api/plan-update with tabKey=route-test succeeds', async ({ page }) => {
-    const res = await page.request.post('/api/plan-update', {
-      data: {
-        tabKey: 'route-test',
-        dayIndex: 0,
-        plan: { morning: 'test-morning', afternoon: 'test-afternoon', evening: 'test-evening' },
-      },
-    })
-    expect(res.status()).toBe(200)
-  })
-
-  test('/api/plan-update without tabKey defaults to route (backward compat)', async ({ page }) => {
-    const res = await page.request.post('/api/plan-update', {
-      data: {
-        dayIndex: 0,
-        plan: { morning: 'compat-morning', afternoon: 'compat-afternoon', evening: 'compat-evening' },
-      },
-    })
-    expect(res.status()).toBe(200)
-    // Restore
-    await page.request.post('/api/plan-update', {
-      data: {
-        dayIndex: 0,
-        plan: { morning: 'e2e-morning', afternoon: 'e2e-afternoon', evening: 'e2e-evening' },
-      },
-    })
-  })
-
-  test('switching to Test tab and back does not lose primary data', async ({ page }) => {
-    const primaryPanel = page.getByTestId('itinerary-tab')
-    await expect(primaryPanel.getByText('e2e-morning')).toBeVisible()
-
-    await page.goto('/?tab=itinerary-test')
-    await expect(page.getByTestId('itinerary-test-tab').filter({ visible: true })).toBeVisible()
-
-    await page.goto('/?tab=itinerary')
-    await page.getByTestId('itinerary-card-starter-route').click()
-    await expect(page.getByTestId('itinerary-tab').getByText('e2e-morning')).toBeVisible()
   })
 
   test('Train Delays and Timetable tabs are unaffected by stay-edit feature', async ({ page }) => {

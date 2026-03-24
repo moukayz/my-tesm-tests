@@ -56,7 +56,7 @@ jest.mock('../../components/ItineraryPanel', () => ({
 
 jest.mock('../../components/ItineraryTab', () => ({
   __esModule: true,
-  default: ({ tabKey }: { tabKey: string }) => <div data-testid={tabKey === 'route-test' ? 'itinerary-test-tab' : 'itinerary-tab'} />,
+  default: () => <div data-testid="itinerary-tab" />,
 }))
 
 jest.mock('../../components/TrainDelayTab', () => ({

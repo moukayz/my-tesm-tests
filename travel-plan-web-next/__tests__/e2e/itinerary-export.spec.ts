@@ -372,16 +372,13 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     expect(content).toMatch(/\|[-| ]+\|/)
   })
 
-  test('exported Markdown Plan cell combines morning/afternoon/evening, omits empty sections', async ({ page }) => {
+  test('exported Markdown Note cell shows note content', async ({ page }) => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
 
-    // Set day 0 to known values via API before page load
+    // Set day 0 note to known value via API before page load
     await injectSession(page)
-    const res = await page.request.post('/api/plan-update', {
-      data: {
-        dayIndex: 0,
-        plan: { morning: 'e2e-morning-export', afternoon: 'e2e-afternoon-export', evening: '' },
-      },
+    const res = await page.request.post('/api/note-update', {
+      data: { dayIndex: 0, note: 'e2e-note-export' },
     })
     expect(res.status()).toBe(200)
 
@@ -406,12 +403,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     })
 
     expect(content).not.toBeNull()
-    // Morning and afternoon present
-    expect(content).toContain('Morning: e2e-morning-export')
-    expect(content).toContain('Afternoon: e2e-afternoon-export')
-    // Evening omitted (empty string)
-    expect(content).not.toMatch(/Evening:\s*$/)
-    expect(content).not.toContain('Evening: \n')
+    expect(content).toContain('e2e-note-export')
   })
 
   test('exported Markdown Train Schedule cell: DB trains show normalised ID only (no station names or times)', async ({ page }) => {

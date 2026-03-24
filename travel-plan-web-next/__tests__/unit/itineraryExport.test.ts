@@ -6,7 +6,6 @@
  */
 
 import {
-  buildPlanCell,
   buildTrainCell,
   stripMarkdown,
   toExportRows,
@@ -14,7 +13,7 @@ import {
   buildPdfBlob,
   hasCjkCharacters,
 } from '../../app/lib/itineraryExport'
-import type { PlanSections, TrainRoute, RouteDay } from '../../app/lib/itinerary'
+import type { TrainRoute, RouteDay } from '../../app/lib/itinerary'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Module mocks for buildPdfBlob (must be at top level, hoisted by jest)
@@ -33,47 +32,6 @@ jest.mock('jspdf-autotable', () => ({ autoTable: mockAutoTable }), { virtual: tr
 jest.mock('../../app/lib/cjkFontLoader', () => ({
   loadCjkFont: mockLoadCjkFont,
 }))
-
-// ─────────────────────────────────────────────────────────────────────────────
-// buildPlanCell
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('buildPlanCell', () => {
-  it('joins all three non-empty sections with \\n and prefixes labels', () => {
-    const plan: PlanSections = { morning: 'Arrive', afternoon: 'Museum visit', evening: 'Dinner' }
-    expect(buildPlanCell(plan)).toBe('Morning: Arrive\nAfternoon: Museum visit\nEvening: Dinner')
-  })
-
-  it('omits empty sections entirely', () => {
-    const plan: PlanSections = { morning: 'Arrive', afternoon: 'Museum visit', evening: '' }
-    expect(buildPlanCell(plan)).toBe('Morning: Arrive\nAfternoon: Museum visit')
-  })
-
-  it('returns "—" when all sections are empty', () => {
-    const plan: PlanSections = { morning: '', afternoon: '', evening: '' }
-    expect(buildPlanCell(plan)).toBe('—')
-  })
-
-  it('treats whitespace-only sections as empty (trims before checking)', () => {
-    const plan: PlanSections = { morning: '  ', afternoon: 'Museum', evening: '\t' }
-    expect(buildPlanCell(plan)).toBe('Afternoon: Museum')
-  })
-
-  it('trims whitespace from values included in the output', () => {
-    const plan: PlanSections = { morning: '  Arrive  ', afternoon: '', evening: '' }
-    expect(buildPlanCell(plan)).toBe('Morning: Arrive')
-  })
-
-  it('only morning populated returns just morning line', () => {
-    const plan: PlanSections = { morning: 'Sunrise hike', afternoon: '', evening: '' }
-    expect(buildPlanCell(plan)).toBe('Morning: Sunrise hike')
-  })
-
-  it('only evening populated returns just evening line', () => {
-    const plan: PlanSections = { morning: '', afternoon: '', evening: 'Night market' }
-    expect(buildPlanCell(plan)).toBe('Evening: Night market')
-  })
-})
 
 // ─────────────────────────────────────────────────────────────────────────────
 // buildTrainCell
@@ -191,7 +149,8 @@ const sampleData: RouteDay[] = [
     weekDay: '星期五',
     dayNum: 1,
     overnight: '巴黎',
-    plan: { morning: 'Arrive in Paris', afternoon: 'Eiffel Tower', evening: '' },
+    plan: { morning: '', afternoon: '', evening: '' },
+    note: 'Arrive in Paris, visit Eiffel Tower',
     train: [],
   },
   {
@@ -199,7 +158,7 @@ const sampleData: RouteDay[] = [
     weekDay: '星期六',
     dayNum: 2,
     overnight: '巴黎',
-    plan: { morning: 'Louvre', afternoon: '', evening: 'Dinner' },
+    plan: { morning: '', afternoon: '', evening: '' },
     train: [{ train_id: 'TGV9242', start: 'paris', end: 'lyon' }],
   },
 ]
@@ -211,7 +170,7 @@ describe('buildMarkdownTable', () => {
     expect(headerLine).toContain('Date')
     expect(headerLine).toContain('Day')
     expect(headerLine).toContain('Overnight')
-    expect(headerLine).toContain('Plan')
+    expect(headerLine).toContain('Note')
     expect(headerLine).toContain('Train Schedule')
     expect(headerLine).not.toContain('Weekday')
   })
@@ -237,10 +196,10 @@ describe('buildMarkdownTable', () => {
     expect(result).toContain('巴黎')
   })
 
-  it('plan cell uses buildPlanCell output (non-empty sections joined with literal \\n)', () => {
+  it('note cell contains note text when present', () => {
     const result = buildMarkdownTable(sampleData)
-    // First row: morning + afternoon only (evening is empty)
-    expect(result).toContain('Morning: Arrive in Paris\\nAfternoon: Eiffel Tower')
+    // First row has a note
+    expect(result).toContain('Arrive in Paris, visit Eiffel Tower')
   })
 
   it('train cell uses buildTrainCell output (normalised train IDs)', () => {
@@ -269,46 +228,48 @@ describe('buildMarkdownTable', () => {
 
 describe('toExportRows', () => {
   it('returns one ExportRow per RouteDay', () => {
-    const rows = toExportRows(sampleData, { stripMarkdownInPlan: false })
+    const rows = toExportRows(sampleData, { stripMarkdownInNote: false })
     expect(rows).toHaveLength(sampleData.length)
   })
 
   it('copies date, day, and overnight verbatim', () => {
-    const rows = toExportRows(sampleData, { stripMarkdownInPlan: false })
+    const rows = toExportRows(sampleData, { stripMarkdownInNote: false })
     expect(rows[0].date).toBe('2026/9/25')
     expect(rows[0].day).toBe('1')
     expect(rows[0].overnight).toBe('巴黎')
   })
 
-  it('does NOT strip Markdown in plan when stripMarkdownInPlan is false', () => {
+  it('does NOT strip Markdown in note when stripMarkdownInNote is false', () => {
     const data: RouteDay[] = [
       {
         date: '2026/9/25',
         weekDay: '星期五',
         dayNum: 1,
         overnight: '巴黎',
-        plan: { morning: '**Bold** text', afternoon: '', evening: '' },
+        plan: { morning: '', afternoon: '', evening: '' },
+        note: '**Bold** text',
         train: [],
       },
     ]
-    const rows = toExportRows(data, { stripMarkdownInPlan: false })
-    expect(rows[0].plan).toContain('**Bold**')
+    const rows = toExportRows(data, { stripMarkdownInNote: false })
+    expect(rows[0].note).toContain('**Bold**')
   })
 
-  it('strips Markdown in plan when stripMarkdownInPlan is true', () => {
+  it('strips Markdown in note when stripMarkdownInNote is true', () => {
     const data: RouteDay[] = [
       {
         date: '2026/9/25',
         weekDay: '星期五',
         dayNum: 1,
         overnight: '巴黎',
-        plan: { morning: '**Bold** text', afternoon: '', evening: '' },
+        plan: { morning: '', afternoon: '', evening: '' },
+        note: '**Bold** text',
         train: [],
       },
     ]
-    const rows = toExportRows(data, { stripMarkdownInPlan: true })
-    expect(rows[0].plan).not.toContain('**')
-    expect(rows[0].plan).toContain('Bold')
+    const rows = toExportRows(data, { stripMarkdownInNote: true })
+    expect(rows[0].note).not.toContain('**')
+    expect(rows[0].note).toContain('Bold')
   })
 })
 
@@ -335,7 +296,7 @@ describe('buildPdfBlob', () => {
     const [firstArg, secondArg] = mockAutoTable.mock.calls[0]
     expect(firstArg).toBe(mockJsPDFInstance)
     expect(secondArg).toMatchObject({
-      head: [['Date', 'Day', 'Overnight', 'Plan', 'Train Schedule']],
+      head: [['Date', 'Day', 'Overnight', 'Train Schedule', 'Note']],
     })
   })
 
@@ -350,22 +311,23 @@ describe('buildPdfBlob', () => {
     expect(opts.body).toHaveLength(sampleData.length)
   })
 
-  it('strips Markdown from plan cells before passing to autoTable', async () => {
+  it('strips Markdown from note cells before passing to autoTable', async () => {
     const dataWithMarkdown: RouteDay[] = [
       {
         date: '2026/9/25',
         weekDay: '星期五',
         dayNum: 1,
         overnight: '巴黎',
-        plan: { morning: '**Bold** visit', afternoon: '', evening: '' },
+        plan: { morning: '', afternoon: '', evening: '' },
+        note: '**Bold** visit',
         train: [],
       },
     ]
     await buildPdfBlob(dataWithMarkdown)
     const [, opts] = mockAutoTable.mock.calls[0]
-    const planCell = opts.body[0][3] // 4th column is plan
-    expect(planCell).not.toContain('**')
-    expect(planCell).toContain('Bold')
+    const noteCell = opts.body[0][4] // 5th column is note
+    expect(noteCell).not.toContain('**')
+    expect(noteCell).toContain('Bold')
   })
 
   it('calls doc.output("blob") and returns its result', async () => {

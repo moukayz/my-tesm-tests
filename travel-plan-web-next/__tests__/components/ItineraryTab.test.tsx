@@ -79,12 +79,10 @@ describe('ItineraryTab', () => {
     const dbTrainCount = getDbTrainCount(mockRouteData)
     render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     expect(screen.getByText('Date')).toBeInTheDocument()
-    expect(screen.getByText('Weekday')).toBeInTheDocument()
-    expect(screen.getByText('Day')).toBeInTheDocument()
-    expect(screen.getByText('Country')).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /^country$/i })).not.toBeInTheDocument()
     expect(screen.getByText('Overnight')).toBeInTheDocument()
-    expect(screen.getByText('Plan')).toBeInTheDocument()
     expect(screen.getByText('Train Schedule')).toBeInTheDocument()
+    expect(screen.getByText('Note')).toBeInTheDocument()
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
     })
@@ -134,7 +132,7 @@ describe('ItineraryTab', () => {
     expect(screen.getByText('France')).toBeInTheDocument()
   })
 
-  it('shows dash in country cell for custom or absent location', async () => {
+  it('shows no country tag in overnight cell when location is absent', async () => {
     setupFetch()
     const dataNoLocation: RouteDay[] = [
       {
@@ -147,11 +145,12 @@ describe('ItineraryTab', () => {
       },
     ]
     render(<ItineraryTab initialData={dataNoLocation} tabKey="route" />)
-    const dashes = screen.getAllByText('—')
-    expect(dashes.length).toBeGreaterThan(0)
+    // Country tag should not appear when there is no resolved location
+    expect(screen.queryByText('—')).not.toBeInTheDocument()
+    expect(screen.getByText('SomeCity')).toBeInTheDocument()
   })
 
-  it('merges country cells across consecutive stays in the same country', async () => {
+  it('shows country tag per overnight row (no merging)', async () => {
     setupFetch()
     const makeResolved = (name: string, country: string): RouteDay['location'] => ({
       kind: 'resolved',
@@ -166,13 +165,9 @@ describe('ItineraryTab', () => {
       { date: '2026/9/27', weekDay: '三', dayNum: 3, overnight: 'Milan', location: makeResolved('Milan', 'Italy'), plan: { morning: '', afternoon: '', evening: '' }, train: [] },
     ]
     render(<ItineraryTab initialData={multiCountryData} tabKey="route" />)
-    // France appears once, Italy appears once (merged across Rome + Milan)
-    const franceCells = screen.getAllByText('France')
-    const italyCells = screen.getAllByText('Italy')
-    expect(franceCells).toHaveLength(1)
-    expect(italyCells).toHaveLength(1)
-    // Italy cell spans 2 rows
-    expect(italyCells[0].closest('td')).toHaveAttribute('rowspan', '2')
+    // France tag appears once (Paris), Italy tag appears twice (Rome + Milan) — one per overnight cell
+    expect(screen.getAllByText('France')).toHaveLength(1)
+    expect(screen.getAllByText('Italy')).toHaveLength(2)
   })
 
   it('shows only city name in overnight cell for resolved location', async () => {
@@ -228,58 +223,12 @@ describe('ItineraryTab', () => {
     })
   })
 
-  it('exposes test itinerary panel locator with Date column header', async () => {
-    setupFetch()
-    const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} tabKey="route-test" />)
-
-    const panel = screen.getByTestId('itinerary-test-tab')
-    expect(within(panel).getByRole('columnheader', { name: /^date$/i })).toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
-    })
-  })
-
   it('renders a row for every entry in initialData', async () => {
     setupFetch()
     const dbTrainCount = getDbTrainCount(mockRouteData)
     render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
     const dateCells = screen.getAllByText(/^\d{4}\/\d+\/\d+$/)
     expect(dateCells).toHaveLength(mockRouteData.length)
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
-    })
-  })
-
-  it('renders the first day date and plan sections', async () => {
-    setupFetch()
-    const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
-    const firstDateCell = screen.getByText(mockRouteData[0].date)
-    const firstRow = firstDateCell.closest('tr')
-    expect(firstRow).not.toBeNull()
-    const withinRow = within(firstRow as HTMLElement)
-    expect(withinRow.getByTitle('Morning')).toBeInTheDocument()
-    expect(withinRow.getByTitle('Afternoon')).toBeInTheDocument()
-    expect(withinRow.getByTitle('Evening')).toBeInTheDocument()
-    expect(withinRow.getByText(mockRouteData[0].plan.morning)).toBeInTheDocument()
-    expect(withinRow.getByText(mockRouteData[0].plan.afternoon)).toBeInTheDocument()
-    expect(withinRow.getByText(mockRouteData[0].plan.evening)).toBeInTheDocument()
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
-    })
-  })
-
-  it('renders 2 delimiters between the 3 plan sections', async () => {
-    setupFetch()
-    const dbTrainCount = getDbTrainCount(mockRouteData)
-    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
-
-    const firstDateCell = screen.getByText(mockRouteData[0].date)
-    const firstRow = firstDateCell.closest('tr') as HTMLElement
-    const separators = within(firstRow).getAllByRole('separator')
-    expect(separators).toHaveLength(2)
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
     })
@@ -414,7 +363,7 @@ describe('ItineraryTab', () => {
 function setupFetchWithPlanUpdate(overrides: Record<string, unknown> = {}) {
   const responses: Record<string, unknown> = {
     '/api/timetable': null,
-    '/api/plan-update': { success: true },
+    '/api/note-update': { success: true },
     ...overrides,
   }
   global.fetch = jest.fn((url: RequestInfo | URL, options?: RequestInit) => {
@@ -435,237 +384,6 @@ async function renderAndAwaitSchedules() {
   }
   return mockRouteData
 }
-
-describe('ItineraryTab - Edit Plan Functionality', () => {
-  afterEach(() => jest.restoreAllMocks())
-
-  it('does not render an edit button in the plan cell', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-    expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument()
-  })
-
-  it('double-clicking an activity row shows an input pre-filled with current value', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue(routeData[0].plan.morning)).toBeInTheDocument()
-    })
-  })
-
-  it('only the double-clicked row enters edit mode; others stay in display mode', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue(routeData[0].plan.morning)).toBeInTheDocument()
-      expect(screen.queryByDisplayValue(routeData[0].plan.afternoon)).not.toBeInTheDocument()
-      expect(screen.queryByDisplayValue(routeData[0].plan.evening)).not.toBeInTheDocument()
-    })
-  })
-
-  it('allows typing in the edit input', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const input = await screen.findByDisplayValue(routeData[0].plan.morning)
-
-    await userEvent.clear(input)
-    await userEvent.type(input, 'Updated morning plan')
-
-    expect(input).toHaveValue('Updated morning plan')
-  })
-
-  it('blurring the input exits edit mode', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const input = await screen.findByDisplayValue(routeData[0].plan.morning)
-
-    fireEvent.blur(input)
-
-    await waitFor(() => {
-      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-    })
-  })
-
-  it('blurring with a changed value calls POST /api/plan-update', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const input = await screen.findByDisplayValue(routeData[0].plan.morning)
-
-    await userEvent.clear(input)
-    await userEvent.type(input, 'Updated morning')
-    fireEvent.blur(input)
-
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/plan-update',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
-          body: expect.stringContaining('"dayIndex":0'),
-        })
-      )
-    })
-  })
-
-  it('shows the saved value in display mode after blur', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const input = await screen.findByDisplayValue(routeData[0].plan.morning)
-
-    await userEvent.clear(input)
-    await userEvent.type(input, 'Updated morning')
-    fireEvent.blur(input)
-
-    await waitFor(() => {
-      expect(screen.getByText('Updated morning')).toBeInTheDocument()
-    })
-  })
-
-  it('reverts to original value and shows error on API failure', async () => {
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        json: () => Promise.resolve({ error: 'Invalid day index' }),
-        ok: false,
-        status: 400,
-      } as Response)
-    )
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const input = await screen.findByDisplayValue(routeData[0].plan.morning)
-
-    await userEvent.clear(input)
-    await userEvent.type(input, 'Updated')
-    fireEvent.blur(input)
-
-    await waitFor(() => {
-      expect(screen.getByText(/Invalid/i)).toBeInTheDocument()
-      expect(screen.getByText(routeData[0].plan.morning)).toBeInTheDocument()
-    })
-  })
-
-  it('pressing Enter commits the change and exits edit mode', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const input = await screen.findByDisplayValue(routeData[0].plan.morning)
-
-    await userEvent.clear(input)
-    await userEvent.type(input, 'New activity')
-    fireEvent.keyDown(input, { key: 'Enter' })
-
-    await waitFor(() => {
-      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-      expect(screen.getByText('New activity')).toBeInTheDocument()
-    })
-  })
-
-  it('pressing Enter calls POST /api/plan-update', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const input = await screen.findByDisplayValue(routeData[0].plan.morning)
-
-    await userEvent.clear(input)
-    await userEvent.type(input, 'New activity')
-    fireEvent.keyDown(input, { key: 'Enter' })
-
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/plan-update',
-        expect.objectContaining({ method: 'POST', body: expect.stringContaining('New activity') })
-      )
-    })
-  })
-
-  it('pressing Shift+Enter does not exit edit mode', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const input = await screen.findByDisplayValue(routeData[0].plan.morning)
-
-    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
-
-    expect(screen.getByRole('textbox')).toBeInTheDocument()
-  })
-
-  it('plan section rows have a minimum height in both display and edit mode to prevent table layout shift', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    // Display mode: row has min-h class for layout stability
-    const displayRow = screen.getByTestId('plan-row-0-morning')
-    expect(displayRow.className).toContain('min-h-')
-
-    // Edit mode: editing container also has min-h class
-    await userEvent.dblClick(displayRow)
-    await screen.findByDisplayValue(routeData[0].plan.morning)
-    const editContainer = screen.getByRole('textbox').closest('div')
-    expect(editContainer?.className).toContain('min-h-')
-  })
-
-  it('the edit element is a textarea to support multi-line input', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    await screen.findByDisplayValue(routeData[0].plan.morning)
-
-    const editEl = screen.getByRole('textbox')
-    expect(editEl.tagName.toLowerCase()).toBe('textarea')
-  })
-
-  it('displays multi-line values with preserved newlines in display mode', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const textarea = await screen.findByRole('textbox')
-
-    fireEvent.change(textarea, { target: { value: 'Line 1\nLine 2' } })
-    fireEvent.blur(textarea)
-
-    await waitFor(() => {
-      const morningRow = screen.getByTestId('plan-row-0-morning')
-      expect(morningRow.querySelector('br')).not.toBeNull()
-      expect(morningRow.textContent).toContain('Line 1')
-      expect(morningRow.textContent).toContain('Line 2')
-    })
-  })
-
-  it('allows editing different activity rows one after another', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const morningInput = await screen.findByDisplayValue(routeData[0].plan.morning)
-    fireEvent.blur(morningInput)
-
-    await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-1-evening'))
-    await waitFor(() => {
-      expect(screen.getByDisplayValue(routeData[1].plan.evening)).toBeInTheDocument()
-    })
-  })
-})
 
 describe('ItineraryTab - TGV/EST Railway Fetching', () => {
   afterEach(() => jest.restoreAllMocks())
@@ -986,68 +704,6 @@ describe('ItineraryTab - Train Schedule Tag Presentation', () => {
     })
   })
 })
-
-describe('ItineraryTab - Markdown Rendering', () => {
-  afterEach(() => jest.restoreAllMocks())
-
-  async function editRowWithValue(testId: string, value: string) {
-    await userEvent.dblClick(screen.getByTestId(testId))
-    const textarea = await screen.findByRole('textbox')
-    fireEvent.change(textarea, { target: { value } })
-    fireEvent.blur(textarea)
-  }
-
-  it('renders **bold** as <strong> in display mode', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-    await editRowWithValue('plan-row-0-morning', '**bold text**')
-    await waitFor(() => {
-      const row = screen.getByTestId('plan-row-0-morning')
-      expect(within(row).getByText('bold text').tagName.toLowerCase()).toBe('strong')
-    })
-  })
-
-  it('renders *italic* as <em> in display mode', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-    await editRowWithValue('plan-row-0-morning', '*italic text*')
-    await waitFor(() => {
-      const row = screen.getByTestId('plan-row-0-morning')
-      expect(within(row).getByText('italic text').tagName.toLowerCase()).toBe('em')
-    })
-  })
-
-  it('renders `code` as <code> in display mode', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-    await editRowWithValue('plan-row-0-morning', '`code text`')
-    await waitFor(() => {
-      const row = screen.getByTestId('plan-row-0-morning')
-      expect(within(row).getByText('code text').tagName.toLowerCase()).toBe('code')
-    })
-  })
-
-  it('renders ~~strikethrough~~ as <del> in display mode', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-    await editRowWithValue('plan-row-0-morning', '~~strike~~')
-    await waitFor(() => {
-      const row = screen.getByTestId('plan-row-0-morning')
-      expect(within(row).getByText('strike').tagName.toLowerCase()).toBe('del')
-    })
-  })
-
-  it('preserves newlines as line breaks in display mode', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-    await editRowWithValue('plan-row-0-morning', 'line one\nline two')
-    await waitFor(() => {
-      const row = screen.getByTestId('plan-row-0-morning')
-      expect(row.querySelector('br')).not.toBeNull()
-    })
-  })
-})
-
 describe('ItineraryTab - Train Schedule Editor', () => {
   afterEach(() => jest.restoreAllMocks())
 
@@ -1389,179 +1045,6 @@ describe('ItineraryTab - Train Schedule Editor', () => {
   })
 })
 
-describe('ItineraryTab - Drag and Drop', () => {
-  afterEach(() => jest.restoreAllMocks())
-
-  const mockDragEvent = { dataTransfer: { setData: jest.fn(), getData: jest.fn(), effectAllowed: '' } }
-
-  it('renders a drag handle for each of the 3 plan sections in display mode', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    const firstDateCell = screen.getByText(routeData[0].date)
-    const firstRow = firstDateCell.closest('tr') as HTMLElement
-    const handles = within(firstRow).getAllByLabelText('Drag to reorder')
-    expect(handles).toHaveLength(3)
-  })
-
-  it('does not render a drag handle for the row being edited', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('plan-row-0-morning')).not.toBeInTheDocument()
-    })
-    expect(screen.getByTestId('plan-row-0-afternoon')).toBeInTheDocument()
-  })
-
-  it('plan section rows are draggable in display mode', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    const morningRow = screen.getByTestId(`plan-row-0-morning`)
-    expect(morningRow).toHaveAttribute('draggable', 'true')
-  })
-
-  it('source row gets muted appearance on dragStart', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    const morningRow = screen.getByTestId('plan-row-0-morning')
-    fireEvent.dragStart(morningRow, mockDragEvent)
-
-    expect(morningRow.className).toContain('opacity-40')
-  })
-
-  it('target row shows highlight on dragOver of same-day section', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    const morningRow = screen.getByTestId('plan-row-0-morning')
-    const eveningRow = screen.getByTestId('plan-row-0-evening')
-
-    fireEvent.dragStart(morningRow, mockDragEvent)
-    fireEvent.dragOver(eveningRow, mockDragEvent)
-
-    expect(eveningRow.className).toContain('ring-2')
-  })
-
-  it('dragOver on a different-day section does NOT show highlight', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    const morningRow0 = screen.getByTestId('plan-row-0-morning')
-    const morningRow1 = screen.getByTestId('plan-row-1-morning')
-
-    fireEvent.dragStart(morningRow0, mockDragEvent)
-    fireEvent.dragOver(morningRow1, mockDragEvent)
-
-    expect(morningRow1.className).not.toContain('ring-2')
-  })
-
-  it('dropping swaps activity values and calls POST /api/plan-update with swapped plan', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    const morningRow = screen.getByTestId('plan-row-0-morning')
-    const eveningRow = screen.getByTestId('plan-row-0-evening')
-
-    const originalMorning = routeData[0].plan.morning.trim()
-    const originalEvening = routeData[0].plan.evening.trim()
-
-    fireEvent.dragStart(morningRow, mockDragEvent)
-    fireEvent.dragOver(eveningRow, mockDragEvent)
-    fireEvent.drop(eveningRow, mockDragEvent)
-
-    await waitFor(() => {
-      expect(eveningRow.textContent).toContain(originalMorning)
-      expect(morningRow.textContent).toContain(originalEvening)
-    })
-
-    await waitFor(() => {
-      const calls = (global.fetch as jest.Mock).mock.calls
-      const planUpdateCall = calls.find(
-        (call) => call[0] === '/api/plan-update' && call[1]?.method === 'POST'
-      )
-      expect(planUpdateCall).toBeDefined()
-      const body = JSON.parse(planUpdateCall[1].body)
-      expect(body.plan.morning).toBe(originalEvening)
-      expect(body.plan.evening).toBe(originalMorning)
-    })
-  })
-
-  it('dropping on the same slot does not swap or call the API', async () => {
-    setupFetchWithPlanUpdate()
-    const routeData = await renderAndAwaitSchedules()
-
-    const morningRow = screen.getByTestId('plan-row-0-morning')
-    const originalMorning = routeData[0].plan.morning.trim()
-
-    fireEvent.dragStart(morningRow, mockDragEvent)
-    fireEvent.dragOver(morningRow, mockDragEvent)
-    fireEvent.drop(morningRow, mockDragEvent)
-
-    await waitFor(() => {
-      expect(morningRow.textContent).toContain(originalMorning)
-    })
-
-    const planUpdateCalls = (global.fetch as jest.Mock).mock.calls.filter(
-      (call) => call[0] === '/api/plan-update'
-    )
-    expect(planUpdateCalls).toHaveLength(0)
-  })
-
-  it('on API failure: values revert and error message appears', async () => {
-    global.fetch = jest.fn((url: RequestInfo | URL, options?: RequestInit) => {
-      const path = url.toString().split('?')[0].replace('http://localhost', '')
-      if (path === '/api/plan-update') {
-        return Promise.resolve({
-          json: () => Promise.resolve({ error: 'Server error' }),
-          ok: false,
-          status: 500,
-        } as Response)
-      }
-      return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
-    })
-
-    const routeData = await renderAndAwaitSchedules()
-
-    const morningRow = screen.getByTestId('plan-row-0-morning')
-    const eveningRow = screen.getByTestId('plan-row-0-evening')
-    const originalMorning = routeData[0].plan.morning.trim()
-    const originalEvening = routeData[0].plan.evening.trim()
-
-    fireEvent.dragStart(morningRow, mockDragEvent)
-    fireEvent.dragOver(eveningRow, mockDragEvent)
-    fireEvent.drop(eveningRow, mockDragEvent)
-
-    await waitFor(() => {
-      expect(morningRow.textContent).toContain(originalMorning)
-      expect(eveningRow.textContent).toContain(originalEvening)
-    })
-
-    await waitFor(() => {
-      expect(screen.getByText(/Server error|Failed to save/i)).toBeInTheDocument()
-    })
-  })
-
-  it('dragEnd without drop clears all drag visual state', async () => {
-    setupFetchWithPlanUpdate()
-    await renderAndAwaitSchedules()
-
-    const morningRow = screen.getByTestId('plan-row-0-morning')
-    const eveningRow = screen.getByTestId('plan-row-0-evening')
-
-    fireEvent.dragStart(morningRow, mockDragEvent)
-    fireEvent.dragOver(eveningRow, mockDragEvent)
-    fireEvent.dragEnd(morningRow, mockDragEvent)
-
-    expect(morningRow.className).not.toContain('opacity-40')
-    expect(eveningRow.className).not.toContain('ring-2')
-  })
-})
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Integration tests: Export flow
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1784,13 +1267,6 @@ function setupFetchForStayEdit(stayUpdateResponse?: { ok: boolean; body: unknown
         status: resp.ok ? 200 : 500,
       } as Response)
     }
-    if (path === '/api/plan-update') {
-      return Promise.resolve({
-        json: () => Promise.resolve({ success: true }),
-        ok: true,
-        status: 200,
-      } as Response)
-    }
     // timetable and others
     return Promise.resolve({
       json: () => Promise.resolve(null),
@@ -1799,6 +1275,147 @@ function setupFetchForStayEdit(stayUpdateResponse?: { ok: boolean; body: unknown
     } as Response)
   })
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Note Column tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ItineraryTab - Note Column', () => {
+  afterEach(() => jest.restoreAllMocks())
+
+  function setupFetchWithNoteUpdate(overrides: Record<string, unknown> = {}) {
+    const responses: Record<string, unknown> = {
+      '/api/timetable': null,
+      '/api/note-update': { success: true },
+      ...overrides,
+    }
+    global.fetch = jest.fn((url: RequestInfo | URL) => {
+      const path = url.toString().split('?')[0].replace('http://localhost', '')
+      return Promise.resolve({
+        json: () => Promise.resolve(responses[path] ?? null),
+        ok: true,
+        status: 200,
+      } as Response)
+    })
+  }
+
+  it('renders a Note column header', () => {
+    setupFetchWithNoteUpdate()
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
+    expect(screen.getByRole('columnheader', { name: /^note$/i })).toBeInTheDocument()
+  })
+
+  it('shows only the pencil button (no dash) for days with no note', () => {
+    setupFetchWithNoteUpdate()
+    const dataWithoutNote: RouteDay[] = [
+      { ...mockRouteData[0], note: undefined },
+    ]
+    render(<ItineraryTab initialData={dataWithoutNote} tabKey="route" />)
+    const noteCells = screen.getAllByTestId(/^note-cell-/)
+    expect(noteCells[0].textContent).not.toContain('—')
+    expect(noteCells[0].querySelector('button[aria-label="Edit note"]')).toBeInTheDocument()
+  })
+
+  it('renders an Edit note pencil button in each note cell', () => {
+    setupFetchWithNoteUpdate()
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
+    const editBtns = screen.getAllByLabelText('Edit note')
+    expect(editBtns).toHaveLength(mockRouteData.length)
+  })
+
+  it('clicking pencil button opens a textarea pre-filled with current note', async () => {
+    setupFetchWithNoteUpdate()
+    const dataWithNote: RouteDay[] = [
+      { ...mockRouteData[0], note: 'Existing note content' },
+      mockRouteData[1],
+      mockRouteData[2],
+    ]
+    render(<ItineraryTab initialData={dataWithNote} tabKey="route" />)
+    await userEvent.click(screen.getAllByLabelText('Edit note')[0])
+    expect(screen.getByDisplayValue('Existing note content')).toBeInTheDocument()
+  })
+
+  it('clicking pencil button on a day with no note opens empty textarea', async () => {
+    setupFetchWithNoteUpdate()
+    const dataWithoutNote: RouteDay[] = [{ ...mockRouteData[0], note: undefined }]
+    render(<ItineraryTab initialData={dataWithoutNote} tabKey="route" />)
+    await userEvent.click(screen.getByLabelText('Edit note'))
+    expect(screen.getByRole('textbox')).toHaveValue('')
+  })
+
+  it('blurring textarea with changed value calls POST /api/note-update', async () => {
+    setupFetchWithNoteUpdate()
+    const dataWithNote: RouteDay[] = [{ ...mockRouteData[0], note: 'old note' }]
+    render(<ItineraryTab initialData={dataWithNote} tabKey="route" />)
+    await userEvent.click(screen.getByLabelText('Edit note'))
+    const textarea = screen.getByRole('textbox')
+    await userEvent.clear(textarea)
+    await userEvent.type(textarea, 'new note text')
+    fireEvent.blur(textarea)
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/note-update',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"note":"new note text"'),
+        })
+      )
+    })
+  })
+
+  it('blurring textarea exits edit mode and shows updated note', async () => {
+    setupFetchWithNoteUpdate()
+    const dataWithNote: RouteDay[] = [{ ...mockRouteData[0], note: 'old note' }]
+    render(<ItineraryTab initialData={dataWithNote} tabKey="route" />)
+    await userEvent.click(screen.getByLabelText('Edit note'))
+    const textarea = screen.getByRole('textbox')
+    await userEvent.clear(textarea)
+    await userEvent.type(textarea, 'updated note')
+    fireEvent.blur(textarea)
+    await waitFor(() => {
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(screen.getByTestId('note-cell-0').textContent).toContain('updated note')
+    })
+  })
+
+  it('pressing Escape cancels edit and restores previous note', async () => {
+    setupFetchWithNoteUpdate()
+    const dataWithNote: RouteDay[] = [{ ...mockRouteData[0], note: 'original note' }]
+    render(<ItineraryTab initialData={dataWithNote} tabKey="route" />)
+    await userEvent.click(screen.getByLabelText('Edit note'))
+    const textarea = screen.getByRole('textbox')
+    await userEvent.clear(textarea)
+    await userEvent.type(textarea, 'discarded changes')
+    fireEvent.keyDown(textarea, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(screen.getByTestId('note-cell-0').textContent).toContain('original note')
+    })
+  })
+
+  it('renders note content as markdown (bold text becomes <strong>)', async () => {
+    setupFetchWithNoteUpdate()
+    const dataWithNote: RouteDay[] = [{ ...mockRouteData[0], note: '**bold content**' }]
+    render(<ItineraryTab initialData={dataWithNote} tabKey="route" />)
+    const noteCell = screen.getByTestId('note-cell-0')
+    expect(within(noteCell).getByText('bold content').tagName.toLowerCase()).toBe('strong')
+  })
+
+  it('blurring with unchanged value does not call the API', async () => {
+    setupFetchWithNoteUpdate()
+    const dataWithNote: RouteDay[] = [{ ...mockRouteData[0], note: 'same value' }]
+    render(<ItineraryTab initialData={dataWithNote} tabKey="route" />)
+    await userEvent.click(screen.getByLabelText('Edit note'))
+    const textarea = screen.getByRole('textbox')
+    fireEvent.blur(textarea)
+    await waitFor(() => {
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    })
+    const fetchCalls = (global.fetch as jest.Mock).mock.calls
+    const noteCalls = fetchCalls.filter((c: unknown[]) => (c[0] as string).includes('/api/note-update'))
+    expect(noteCalls).toHaveLength(0)
+  })
+})
 
 describe('ItineraryTab - Stay Edit Feature', () => {
   afterEach(() => jest.restoreAllMocks())
@@ -1976,26 +1593,6 @@ describe('ItineraryTab - Stay Edit Feature', () => {
     })
   })
 
-  // ── plan-update includes tabKey ─────────────────────────────────────────
-
-  it('plan-update calls include tabKey in the request body', async () => {
-    setupFetchForStayEdit()
-    render(<ItineraryTab initialData={stayMockData} tabKey="route" />)
-
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
-    const textarea = await screen.findByRole('textbox')
-    await userEvent.clear(textarea)
-    await userEvent.type(textarea, 'New plan')
-    fireEvent.blur(textarea)
-
-    await waitFor(() => {
-      const calls = (global.fetch as jest.Mock).mock.calls
-      const planCall = calls.find((c: unknown[]) => (c[0] as string).includes('/api/plan-update'))
-      expect(planCall).toBeDefined()
-      const body = JSON.parse(planCall![1].body)
-      expect(body.tabKey).toBe('route')
-    })
-  })
 })
 
 describe('ItineraryTab - Itinerary Scoped API wiring', () => {
@@ -2047,14 +1644,14 @@ describe('ItineraryTab - Itinerary Scoped API wiring', () => {
     )
   })
 
-  it('uses itinerary day plan PATCH endpoint when itineraryId is provided', async () => {
+  it('uses itinerary day note PATCH endpoint when itineraryId is provided', async () => {
     global.fetch = jest.fn((url: RequestInfo | URL) => {
       const path = url.toString().split('?')[0].replace('http://localhost', '')
-      if (path === '/api/itineraries/iti-1/days/0/plan') {
+      if (path === '/api/itineraries/iti-1/days/0/note') {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: async () => ({ ...mockRouteData[0] }),
+          json: async () => ({ ...mockRouteData[0], note: 'Scoped note' }),
         } as Response)
       }
       return Promise.resolve({ ok: true, status: 200, json: async () => null } as Response)
@@ -2062,15 +1659,15 @@ describe('ItineraryTab - Itinerary Scoped API wiring', () => {
 
     render(<ItineraryTab initialData={mockRouteData} itineraryId="iti-1" />)
 
-    await userEvent.dblClick(screen.getByTestId('plan-row-0-morning'))
+    await userEvent.click(screen.getAllByLabelText('Edit note')[0])
     const editor = await screen.findByRole('textbox')
     await userEvent.clear(editor)
-    await userEvent.type(editor, 'Scoped update')
+    await userEvent.type(editor, 'Scoped note')
     fireEvent.blur(editor)
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/itineraries/iti-1/days/0/plan',
+        '/api/itineraries/iti-1/days/0/note',
         expect.objectContaining({ method: 'PATCH' })
       )
     })

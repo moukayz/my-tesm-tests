@@ -5,7 +5,7 @@
  * All functions are synchronous except buildPdfBlob (dynamic import).
  */
 
-import { normalizeTrainId, type RouteDay, type PlanSections, type TrainRoute } from './itinerary'
+import { normalizeTrainId, type RouteDay, type TrainRoute } from './itinerary'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public types
@@ -23,47 +23,15 @@ export interface ExportRow {
   /** e.g. "巴黎" | "—" — copied verbatim from RouteDay.overnight */
   overnight: string
   /**
-   * Combined plan text. Built by buildPlanCell().
-   * For Markdown export: raw Markdown syntax preserved.
-   * For PDF export: Markdown syntax stripped via stripMarkdown().
+   * Free-form note text. Copied from RouteDay.note (or "—" if absent).
+   * Raw Markdown syntax preserved in the string.
    */
-  plan: string
+  note: string
   /**
    * Normalised train number(s), one per line, or "—" if no trains.
    * Built by buildTrainCell(). Never contains station names or times.
    */
   trainSchedule: string
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// buildPlanCell
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Combines morning/afternoon/evening sections into a single export cell string.
- *
- * Rules:
- * - Each non-empty (after trim) section is included as "Label: value".
- * - Empty/whitespace sections are omitted entirely.
- * - Sections are joined with "\n".
- * - If all sections are empty, returns "—".
- *
- * Note: does NOT strip Markdown syntax — call stripMarkdown() on the result
- * before passing to buildPdfBlob() if you need plain text.
- */
-export function buildPlanCell(plan: PlanSections): string {
-  const sections = [
-    { label: 'Morning', value: plan.morning },
-    { label: 'Afternoon', value: plan.afternoon },
-    { label: 'Evening', value: plan.evening },
-  ]
-
-  const parts = sections
-    .map(({ label, value }) => ({ label, trimmed: value.trim() }))
-    .filter(({ trimmed }) => trimmed.length > 0)
-    .map(({ label, trimmed }) => `${label}: ${trimmed}`)
-
-  return parts.length > 0 ? parts.join('\n') : '—'
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -129,22 +97,22 @@ export function stripMarkdown(text: string): string {
  * Converts an array of RouteDay into ExportRow[].
  * Used as the single entry point by both buildMarkdownTable and buildPdfBlob.
  *
- * @param data  - Effective RouteDay[] (with planOverrides and trainOverrides applied).
- * @param opts  - Controls whether plan cells have Markdown stripped (for PDF).
+ * @param data  - Effective RouteDay[] (with noteOverrides and trainOverrides applied).
+ * @param opts  - Controls whether note cells have Markdown stripped (for PDF).
  */
 export function toExportRows(
   data: RouteDay[],
-  opts: { stripMarkdownInPlan: boolean }
+  opts: { stripMarkdownInNote: boolean }
 ): ExportRow[] {
   return data.map((day) => {
-    const rawPlan = buildPlanCell(day.plan)
-    const plan = opts.stripMarkdownInPlan ? stripMarkdown(rawPlan) : rawPlan
+    const rawNote = day.note?.trim() ?? ''
+    const note = opts.stripMarkdownInNote ? stripMarkdown(rawNote) : rawNote
 
     return {
       date: day.date,
       day: String(day.dayNum),
       overnight: day.overnight,
-      plan,
+      note: note || '—',
       trainSchedule: buildTrainCell(day.train),
     }
   })
@@ -158,22 +126,22 @@ export function toExportRows(
  * Serialises RouteDay[] into a GFM (GitHub Flavoured Markdown) pipe table.
  *
  * Output structure:
- *   | Date | Day | Overnight | Plan | Train Schedule |
- *   |------|-----|-----------|------|----------------|
- *   | …    | …   | …         | …    | …              |
+ *   | Date | Day | Overnight | Train Schedule | Note |
+ *   |------|-----|-----------|----------------|------|
+ *   | …    | …   | …         | …              | …    |
  *
- * Weekday column is never included (FR-07).
+ * Weekday column is never included.
  * Newlines inside cells are represented as literal \n (not real newlines).
  */
 export function buildMarkdownTable(data: RouteDay[]): string {
-  const header = '| Date | Day | Overnight | Plan | Train Schedule |'
-  const separator = '|------|-----|-----------|------|----------------|'
+  const header = '| Date | Day | Overnight | Train Schedule | Note |'
+  const separator = '|------|-----|-----------|----------------|------|'
 
-  const rows = toExportRows(data, { stripMarkdownInPlan: false }).map((row) => {
+  const rows = toExportRows(data, { stripMarkdownInNote: false }).map((row) => {
     // Represent newlines inside cells as literal \n (GFM tables can't have real newlines in cells)
-    const planCell = row.plan.replace(/\n/g, '\\n')
     const trainCell = row.trainSchedule.replace(/\n/g, '\\n')
-    return `| ${row.date} | ${row.day} | ${row.overnight} | ${planCell} | ${trainCell} |`
+    const noteCell = row.note.replace(/\n/g, '\\n')
+    return `| ${row.date} | ${row.day} | ${row.overnight} | ${trainCell} | ${noteCell} |`
   })
 
   return [header, separator, ...rows].join('\n')
@@ -234,19 +202,19 @@ export async function buildPdfBlob(data: RouteDay[]): Promise<Blob> {
   // Load and register CJK font — must happen before autoTable renders cells
   const fontName = await loadCjkFont(doc)
 
-  const rows = toExportRows(data, { stripMarkdownInPlan: true })
+  const rows = toExportRows(data, { stripMarkdownInNote: true })
   const tableBody = rows.map((row) => [
     row.date,
     row.day,
     row.overnight,
-    row.plan,
     row.trainSchedule,
+    row.note,
   ])
 
   // Use the named autoTable(doc, opts) API — avoids prototype-augmentation
   // failures in dynamic-import / ESM environments (fixes DEF-001).
   autoTable(doc, {
-    head: [['Date', 'Day', 'Overnight', 'Plan', 'Train Schedule']],
+    head: [['Date', 'Day', 'Overnight', 'Train Schedule', 'Note']],
     body: tableBody,
     // DEF-002: do NOT set font here — keeps helvetica default for ASCII-only cells
     // so dates, day numbers, train IDs always render correctly.
@@ -255,13 +223,13 @@ export async function buildPdfBlob(data: RouteDay[]): Promise<Blob> {
       0: { cellWidth: 25 },  // Date
       1: { cellWidth: 12 },  // Day
       2: { cellWidth: 25 },  // Overnight
-      3: { cellWidth: 'auto' }, // Plan — takes remaining space
-      4: { cellWidth: 35 },  // Train Schedule
+      3: { cellWidth: 35 },  // Train Schedule
+      4: { cellWidth: 'auto' }, // Note — takes remaining space
     },
     headStyles: { fillColor: [59, 130, 246] }, // blue-500
     alternateRowStyles: { fillColor: [249, 250, 251] }, // gray-50
     // DEF-002: apply CJK font per-cell only when the cell text contains CJK characters.
-    // This ensures cells with Chinese/Japanese/Korean text (overnight, plan) use NotoSansSC
+    // This ensures cells with Chinese/Japanese/Korean text (overnight, note) use NotoSansSC
     // while ASCII-only cells (date, day, train schedule) keep helvetica and always render.
     didParseCell: (hookData) => {
       const cellText = hookData.cell.text.join('')

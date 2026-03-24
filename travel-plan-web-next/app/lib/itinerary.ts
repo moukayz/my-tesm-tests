@@ -25,6 +25,7 @@ export interface RouteDay {
   overnight: string
   location?: StayLocation
   plan: PlanSections
+  note?: string
   train: TrainRoute[]
   attractions?: DayAttraction[]
 }

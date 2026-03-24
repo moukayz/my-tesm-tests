@@ -434,3 +434,28 @@ export async function patchDayPlan(
   if (!saved) throw new ItineraryApiError(409, 'WORKSPACE_STALE')
   return saved.days[dayIndex]
 }
+
+export async function patchDayNote(
+  itineraryId: string,
+  dayIndex: number,
+  ownerEmail: string,
+  payload: { note?: unknown }
+) {
+  if (!Number.isInteger(dayIndex) || dayIndex < 0) throw new ItineraryApiError(400, 'INVALID_DAY_INDEX')
+  const record = await requireOwnedItinerary(itineraryId, ownerEmail)
+  if (dayIndex >= record.days.length) throw new ItineraryApiError(400, 'INVALID_DAY_INDEX')
+
+  if (typeof payload.note !== 'string') {
+    throw new ItineraryApiError(400, 'INVALID_NOTE')
+  }
+
+  const nextDays = record.days.map((day, index) => {
+    if (index !== dayIndex) return day
+    return { ...day, note: payload.note as string }
+  })
+
+  const store = getItineraryStore()
+  const saved = await store.replaceDays(record.id, record.updatedAt, nextDays)
+  if (!saved) throw new ItineraryApiError(409, 'WORKSPACE_STALE')
+  return saved.days[dayIndex]
+}

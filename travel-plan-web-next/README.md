@@ -10,23 +10,20 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
   - **Cards-first entry** — authenticated users land on an itinerary cards view (`/?tab=itinerary`) that lists the server-shaped starter route card plus saved itineraries
   - **Starter route handoff** — selecting `Original seeded route` opens seeded-route detail at `/?tab=itinerary&legacyTabKey=route`
   - **Detail workspace handoff** — card selection opens the existing itinerary editor at `/?tab=itinerary&itineraryId=<id>`
-  - **Desktop width parity** — itinerary detail shell now uses the same wide desktop content rail as `Itinerary (Test)`
   - **Desktop detail cleanup** — selected itinerary workspace renders a single control row with `Back to all itineraries` (left) and `Add next stay` (right) on the same line, followed by a trip summary banner (date range, total days, city breakdown, country breakdown when location data is available)
   - **Back to cards** — detail mode shows a clear in-app `Back to all itineraries` action in the workspace control row; legacy route mode keeps the back button in the detail shell
   - **New itinerary shell** — authenticated users can create a draft itinerary (`name` optional, `startDate` required) and land on `/?tab=itinerary&itineraryId=<id>`
   - **Empty workspace guidance** — newly created itineraries render an empty state with `Add first stay` before mounting the day table
   - **Stay planning sheet** — reusable add/edit dialog supports `Add first stay`, `Add next stay`, and full `Edit stay` (city + nights) from stay cells
   - **Stay location autocomplete** — `Add next stay` and `Edit stay` use a backend-exposed same-origin location search API that returns up to 5 normalized suggestions; selected places persist coordinates/place metadata while custom saves remain fully supported
-  - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away; plan rows have a fixed minimum height so the table layout stays stable during edit mode
-  - **Attractions column** — each day row has a dedicated Attractions column (after Plan, before Train Schedule); click `+ Add` to search by name via GeoNames (no feature-class filter), pick a result to append a colour-coded tag; hover a tag to reveal a `×` delete button; click the map icon to open a minimap popover (MapLibre, 280×200 px) showing all that day's attraction pins connected by a direct line. Saves immediately to `/api/itineraries/[id]/days/[dayIndex]/attractions` (itinerary-scoped) or `/api/attraction-update` (legacy route).
-  - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
+  - **Attractions column** — each day row has a dedicated Attractions column (before Train Schedule); click `+ Add` to search by name via GeoNames (no feature-class filter), pick a result to append a colour-coded tag; hover a tag to reveal a `×` delete button; click the map icon to open a minimap popover (MapLibre, 280×200 px) showing all that day's attraction pins connected by a direct line. Saves immediately to `/api/itineraries/[id]/days/[dayIndex]/attractions` (itinerary-scoped) or `/api/attraction-update` (legacy route).
+  - **Note column** — each day row has a Note column at the end of the table. Click the pencil icon (visible on hover) to open a textarea; blur to save. Content is rendered as Markdown (bold, italic, code, strikethrough, lists). Saves to `/api/itineraries/[id]/days/[dayIndex]/note` (itinerary-scoped) or `POST /api/note-update` (legacy route).
 - **Structured train schedule editor** — click the pencil in Train Schedule to edit day-level train rows (`train_id`, optional `start`+`end`) with add, drag-and-drop reorder, row-end delete, inline validation, and single-save persistence
   - **Multi-railway timetable** — Train Schedule column auto-detects TGV (French) and EST (Eurostar) trains from the train ID prefix and fetches from the correct railway data source; German trains remain the default
-  - **Export to files** — A floating action button (FAB, fixed at viewport mid-right) lets authenticated users download their itinerary as Markdown (`.md`) or PDF (`.pdf`). Uses the File System Access API where available (Chrome/Edge native save dialog), with a silent anchor-download fallback for Firefox/Safari. PDF generation is client-side only (jsPDF + jspdf-autotable, dynamically imported). CJK characters (Chinese/Japanese/Korean) render correctly in PDF via a lazily-loaded NotoSansSC font subset. A success toast confirms each export. Exported columns: Date, Day, Overnight, Plan, Train Schedule (Weekday omitted).
+  - **Export to files** — A floating action button (FAB, fixed at viewport mid-right) lets authenticated users download their itinerary as Markdown (`.md`) or PDF (`.pdf`). Uses the File System Access API where available (Chrome/Edge native save dialog), with a silent anchor-download fallback for Firefox/Safari. PDF generation is client-side only (jsPDF + jspdf-autotable, dynamically imported). CJK characters (Chinese/Japanese/Korean) render correctly in PDF via a lazily-loaded NotoSansSC font subset. A success toast confirms each export. Exported columns: Date, Day, Overnight, Train Schedule, Note (Weekday omitted).
 - **Editable stay duration** — quick inline nights edit remains for non-last stays; full stay city+nights edits are available from one table stay-cell trigger per stay. Optimistic quick-edit with revert-on-failure is preserved.
-- **Itinerary (Test) tab** — sandboxed duplicate of the Itinerary tab backed by an independent persistence key (`route-test`). Edits here never affect the main Itinerary data. Both tabs carry full stay-editing capability.
-- Legacy tab edits persist via `POST /api/plan-update` and `POST /api/stay-update` → `RouteStore` (file locally, Upstash Redis in production)
-- New itinerary workspace backend is available under `/api/itineraries*` with owner-scoped itinerary listing, itinerary-scoped shell creation, detail load, stay append/edit, and day-plan save backed by `ItineraryStore`
+- Legacy tab edits persist via `POST /api/note-update` and `POST /api/stay-update` → `RouteStore` (file locally, Upstash Redis in production)
+- New itinerary workspace backend is available under `/api/itineraries*` with owner-scoped itinerary listing, itinerary-scoped shell creation, detail load, stay append/edit, and day-note save backed by `ItineraryStore`
 - Server-side backend-selection logs show which persistence services are active (FileRouteStore vs Upstash Redis, local `pg` pool vs Neon serverless)
 - **Train Timetable tab** — unified search across German (DB), French (SNCF), and Eurostar trains; type any train ID and the correct data source is queried automatically — no railway selector needed
 - **Train Delays tab** — search any train and station to see delay statistics (avg, median, p75/p90/p95, max) and a daily trend chart over the last 3 months
@@ -86,11 +83,11 @@ travel-plan-web-next/
 │       ├── trains/cache.ts      # In-memory trains cache helpers (including test reset hook)
 │       ├── stations/route.ts    # GET /api/stations?train=<name>
 │       ├── delay-stats/route.ts # GET /api/delay-stats?train=<name>&station=<name>
-│       ├── plan-update/route.ts # POST /api/plan-update (auth required; tabKey param)
+│       ├── note-update/route.ts # POST /api/note-update (auth required; tabKey param)
 │       ├── stay-update/route.ts # POST /api/stay-update (auth required; editable stays)
 │       ├── attraction-update/route.ts # POST /api/attraction-update (auth required; legacy route attractions)
 │       ├── itineraries/route.ts # POST /api/itineraries (auth required)
-│       ├── itineraries/[itineraryId]/... # GET workspace + stay/day patch routes (incl. /days/[idx]/attractions)
+│       ├── itineraries/[itineraryId]/... # GET workspace + stay/day patch routes (incl. /days/[idx]/note, /days/[idx]/attractions)
 │       └── train-stops/route.ts # GET /api/train-stops
 ├── components/
 │   ├── AuthHeader.tsx           # Login/logout header with session state
@@ -102,7 +99,7 @@ travel-plan-web-next/
 │   ├── CreateItineraryModal.tsx # Name/startDate shell creation modal
 │   ├── ItineraryEmptyState.tsx  # Zero-day workspace card with Add first stay CTA
 │   ├── StaySheet.tsx            # Reusable add/edit stay dialog (city + nights)
-│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic, inline editing, drag-and-drop, export, stay editing, attractions column
+│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic, inline note editing, drag-and-drop train reorder, export, stay editing, attractions column
 │   ├── AttractionMiniMap.tsx    # MapLibre minimap for day attractions (pins + connecting line, 280×200 px popover)
 │   ├── StayEditControl.tsx      # Inline stay-duration edit widget (pencil → number input → confirm/cancel)
 │   ├── ExportToolbar.tsx        # Legacy export toolbar (superseded by FloatingExportButton)
@@ -114,7 +111,7 @@ travel-plan-web-next/
 ├── __tests__/
 │   ├── unit/
 │   │   ├── itinerary.test.ts      # getOvernightColor, processItinerary, getRailwayFromTrainId
-│   │   ├── itineraryExport.test.ts # buildPlanCell, buildTrainCell, stripMarkdown, buildMarkdownTable, toExportRows
+│   │   ├── itineraryExport.test.ts # buildTrainCell, stripMarkdown, buildMarkdownTable, toExportRows
 │   │   ├── fileSave.test.ts        # saveFile — File System Access API + anchor fallback paths
 │   │   ├── db.test.ts              # convertBigInt
 │   │   ├── trainDelay.test.ts      # formatDay, buildStatItems
@@ -127,12 +124,10 @@ travel-plan-web-next/
 │   ├── integration/
 │   │   ├── api-auth-login.test.ts    # POST /api/auth/login + rate limit recording
 │   │   ├── api-auth-logout.test.ts
-│   │   ├── api-auth-plan-update.test.ts
 │   │   ├── api-trains.test.ts
 │   │   ├── api-stations.test.ts
 │   │   ├── api-delay-stats.test.ts
-│   │   ├── api-plan-update.test.ts
-│   │   ├── api-plan-update-tabkey.test.ts  # tabKey extension tests (backward compat + route-test)
+│   │   ├── api-note-update.test.ts         # POST /api/note-update — auth, tabKey, validation
 │   │   ├── api-stay-update.test.ts         # POST /api/stay-update — all error paths + both tabKeys
 │   │   └── api-train-stops.test.ts
 │   └── components/
@@ -185,14 +180,14 @@ travel-plan-web-next/
 
 `AutocompleteInput` is a controlled component that accepts an `options` string array and filters it case-insensitively against the current input value. It uses `onMouseDown` (not `onClick`) for list item selection so the event fires before the input's `onBlur`, preventing the dropdown from closing before a selection registers.
 
-### Itinerary Plan Editing
+### Itinerary Note Editing
 
-Each plan row (Morning / Afternoon / Evening) supports two interaction modes:
+Each day row has a Note cell at the end of the table:
 
-- **Inline edit** — double-click a row to replace the activity text with an `<input>`. Commit with Enter or by clicking away (blur). Only one row is editable at a time. On blur, if the value changed a `POST /api/plan-update` is issued; on failure the value reverts and an error message is shown.
-- **Drag-and-drop reorder** — drag the grip handle (right side of each row) to swap activity values within the same day. An optimistic update is applied immediately; on API failure the swap reverts. The time-of-day labels (icons for Morning / Afternoon / Evening) are fixed and are not draggable. Drag handles are hidden while a row is in edit mode.
+- **Inline edit** — click the pencil icon (visible on hover) to open a `<textarea>`. Save by blurring (clicking away or pressing Tab). Press Escape to cancel. On save, if the value changed a `POST /api/note-update` (legacy) or `PATCH /api/itineraries/{id}/days/{dayIndex}/note` (itinerary-scoped) is issued; on failure the value reverts.
+- Note content is rendered as Markdown (bold, italic, code, strikethrough, lists).
 
-`planOverrides` in `ItineraryTab` is a client-side override layer (keyed by day index) that sits on top of the static `route.json` import so both interactions compose correctly without a page reload.
+`noteOverrides` in `ItineraryTab` is a client-side override layer (keyed by day index) that sits on top of the server-provided note data so edits are reflected immediately without a page reload.
 
 ### Itinerary Train Schedule Editing
 
@@ -208,7 +203,7 @@ Clicking the pencil button in a day's Train Schedule cell opens a structured dia
 
 Google OAuth via NextAuth.js v5 (Auth.js). `auth.ts` configures the Google provider and an optional `ALLOWED_EMAIL` allow-list. The NextAuth catch-all handler at `GET|POST /api/auth/[...nextauth]` manages the OAuth callback, session cookies, and CSRF tokens automatically.
 
-`POST /api/plan-update` and `POST /api/stay-update` both call `auth()` server-side and return 401 if no authenticated user is found.
+`POST /api/note-update` and `POST /api/stay-update` both call `auth()` server-side and return 401 if no authenticated user is found.
 
 The login page (`/login`) renders a single "Sign in with Google" button that calls `signIn('google', { callbackUrl: '/' })` from `next-auth/react`.
 
@@ -545,11 +540,11 @@ Edits the targeted stay city and/or nights with MVP rules (borrow/donate for non
 
 ---
 
-### `PATCH /api/itineraries/{itineraryId}/days/{dayIndex}/plan`
+### `PATCH /api/itineraries/{itineraryId}/days/{dayIndex}/note`
 
-Updates one day plan object and returns the updated `RouteDay`.
+Updates the free-form note for one day and returns the updated `RouteDay`.
 
-**Body:** `{ "plan": { "morning": string, "afternoon": string, "evening": string } }`
+**Body:** `{ "note": string }`
 
 ### `GET /api/trains`
 
@@ -583,13 +578,15 @@ Returns all stations for a given train, ordered by their position on the line. Q
 
 ---
 
-### `POST /api/plan-update`
+### `POST /api/note-update`
 
-Persists an updated plan object for a single day via `RouteStore` (file locally, Upstash Redis in production).
+Persists a free-form note for a single day via `RouteStore` (file locally, Upstash Redis in production).
 
-**Body:** `{ "tabKey"?: "route" | "route-test", "dayIndex": 0, "plan": { "morning": "...", "afternoon": "...", "evening": "..." } }`
+**Auth:** Session required (`401` if unauthenticated).
 
-`tabKey` is optional and defaults to `"route"` for backward compatibility. Invalid `tabKey` values return `400 { error: "invalid_tab_key" }`.
+**Body:** `{ "tabKey"?: "route" | "route-test", "dayIndex": 0, "note": "..." }`
+
+`tabKey` is optional and defaults to `"route"`. Invalid `tabKey` values return `400 { error: "invalid_tab_key" }`.
 
 **Response:** `200` with the updated day object, `400` for validation errors, `500` for store errors.
 

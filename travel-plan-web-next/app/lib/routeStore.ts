@@ -13,6 +13,7 @@ export const VALID_TAB_KEYS: readonly TabKey[] = ['route', 'route-test']
 export interface RouteStore {
   getAll(): Promise<RouteDay[]>
   updatePlan(dayIndex: number, plan: PlanSections): Promise<RouteDay>
+  updateNote(dayIndex: number, note: string): Promise<RouteDay>
   updateTrain(dayIndex: number, train: TrainRoute[]): Promise<RouteDay>
   updateAttractions(dayIndex: number, attractions: DayAttraction[]): Promise<RouteDay>
   /** Atomically write the full RouteDay[] array. Returns the written array. */
@@ -72,6 +73,13 @@ class FileRouteStore implements RouteStore {
     return data[dayIndex]
   }
 
+  async updateNote(dayIndex: number, note: string): Promise<RouteDay> {
+    const data = await this.getAll()
+    data[dayIndex].note = note
+    writeJsonAtomic(this.filePath, data)
+    return data[dayIndex]
+  }
+
   async updateTrain(dayIndex: number, train: TrainRoute[]): Promise<RouteDay> {
     const data = await this.getAll()
     data[dayIndex].train = train
@@ -125,6 +133,15 @@ class UpstashRouteStore implements RouteStore {
     const redis = Redis.fromEnv()
     const data = await this.getAll()
     data[dayIndex].plan = plan
+    await redis.set(this.redisKey, data)
+    return data[dayIndex]
+  }
+
+  async updateNote(dayIndex: number, note: string): Promise<RouteDay> {
+    const { Redis } = await import('@upstash/redis')
+    const redis = Redis.fromEnv()
+    const data = await this.getAll()
+    data[dayIndex].note = note
     await redis.set(this.redisKey, data)
     return data[dayIndex]
   }

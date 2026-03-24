@@ -47,9 +47,9 @@ test.describe('Authentication (Google OAuth)', () => {
     await expect(page.getByLabel(/password/i)).not.toBeVisible()
   })
 
-  test('POST /api/plan-update returns 401 without auth', async ({ request }) => {
-    const res = await request.post('/api/plan-update', {
-      data: { dayIndex: 0, plan: { morning: 'a', afternoon: 'b', evening: 'c' } },
+  test('POST /api/note-update returns 401 without auth', async ({ request }) => {
+    const res = await request.post('/api/note-update', {
+      data: { dayIndex: 0, note: 'some note' },
     })
     expect(res.status()).toBe(401)
   })
@@ -72,11 +72,11 @@ test.describe('Authentication (Google OAuth)', () => {
     await expect(page.getByText('Test User')).toBeVisible()
   })
 
-  test('with injected session: POST /api/plan-update returns 200', async ({ page }) => {
+  test('with injected session: POST /api/note-update returns 200', async ({ page }) => {
     await injectSession(page)
     await page.goto('/')
-    const res = await page.request.post('/api/plan-update', {
-      data: { dayIndex: 0, plan: { morning: 'e2e-morning', afternoon: 'e2e-afternoon', evening: 'e2e-evening' } },
+    const res = await page.request.post('/api/note-update', {
+      data: { dayIndex: 0, note: 'e2e note text' },
     })
     expect(res.status()).toBe(200)
   })

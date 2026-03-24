@@ -4,24 +4,20 @@ import { getRouteStore, VALID_TAB_KEYS } from '../../lib/routeStore'
 import type { TabKey } from '../../lib/routeStore'
 import logger from '../../lib/logger'
 
-interface UpdatePlanRequest {
+interface UpdateNoteRequest {
   tabKey?: TabKey
   dayIndex: number
-  plan: {
-    morning: string
-    afternoon: string
-    evening: string
-  }
+  note: string
 }
 
 export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session?.user) {
-    logger.warn('/api/plan-update unauthorized request')
+    logger.warn('/api/note-update unauthorized request')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: UpdatePlanRequest
+  let body: UpdateNoteRequest
   try {
     body = await request.json()
   } catch {
@@ -34,15 +30,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    if (
-      typeof body.dayIndex !== 'number' ||
-      !body.plan ||
-      typeof body.plan.morning !== 'string' ||
-      typeof body.plan.afternoon !== 'string' ||
-      typeof body.plan.evening !== 'string'
-    ) {
+    if (typeof body.dayIndex !== 'number' || typeof body.note !== 'string') {
       return NextResponse.json(
-        { error: 'Invalid request: dayIndex must be a number and plan must have morning, afternoon, and evening strings' },
+        { error: 'Invalid request: dayIndex must be a number and note must be a string' },
         { status: 400 }
       )
     }
@@ -58,13 +48,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const updatedDay = await store.updatePlan(body.dayIndex, body.plan)
-    logger.info({ user: session.user.email, tabKey, dayIndex: body.dayIndex }, '/api/plan-update ok')
+    const updatedDay = await store.updateNote(body.dayIndex, body.note)
+    logger.info({ user: session.user.email, tabKey, dayIndex: body.dayIndex }, '/api/note-update ok')
     return NextResponse.json(updatedDay, { status: 200 })
   } catch (error) {
-    logger.error({ err: error, user: session.user.email, dayIndex: body?.dayIndex }, '/api/plan-update error')
+    logger.error({ err: error, user: session.user.email, dayIndex: body?.dayIndex }, '/api/note-update error')
     return NextResponse.json(
-      { error: 'Internal server error while updating plan' },
+      { error: 'Internal server error while updating note' },
       { status: 500 }
     )
   }

@@ -15,7 +15,7 @@ import CreateItineraryModal from './CreateItineraryModal'
 import ItineraryPanel from './ItineraryPanel'
 import type { StarterRouteCard } from './ItineraryCardsView'
 
-type Tab = 'itinerary' | 'itinerary-test' | 'delays' | 'timetable'
+type Tab = 'itinerary' | 'delays' | 'timetable'
 
 interface TravelPlanProps {
   isLoggedIn?: boolean
@@ -64,14 +64,13 @@ export default function TravelPlan({
 
   const allTabs: { id: Tab; label: string }[] = [
     { id: 'itinerary', label: 'Itinerary' },
-    { id: 'itinerary-test', label: 'Itinerary (Test)' },
     { id: 'delays', label: 'Train Delays' },
     { id: 'timetable', label: 'Timetable' },
   ]
 
   const tabs = isLoggedIn
     ? allTabs
-    : allTabs.filter((t) => t.id !== 'itinerary' && t.id !== 'itinerary-test')
+    : allTabs.filter((t) => t.id !== 'itinerary')
   const defaultTab: Tab = isLoggedIn ? 'itinerary' : 'delays'
 
   const currentTab = (searchParams.get('tab') as Tab | null) ?? defaultTab
@@ -260,11 +259,6 @@ export default function TravelPlan({
               }
             }}
           />
-        </div>
-      )}
-      {isLoggedIn && initialRouteData && (
-        <div className={displayTab === 'itinerary-test' ? 'w-full' : 'hidden'}>
-          <ItineraryTab initialData={initialRouteData} tabKey="route-test" />
         </div>
       )}
       <div className={displayTab === 'delays' ? 'w-full' : 'hidden'}>

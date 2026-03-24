@@ -7,15 +7,11 @@ const mockAuth = jest.fn()
 const mockGetRouteStore = jest.fn()
 const mockRouteStore = {
   getAll: jest.fn(),
-  updatePlan: jest.fn(),
-  updateTrain: jest.fn(),
-  updateDays: jest.fn(),
+  updateNote: jest.fn(),
 }
 const mockRouteTestStore = {
   getAll: jest.fn(),
-  updatePlan: jest.fn(),
-  updateTrain: jest.fn(),
-  updateDays: jest.fn(),
+  updateNote: jest.fn(),
 }
 
 jest.mock('../../auth', () => ({ auth: mockAuth }))
@@ -43,14 +39,14 @@ const mockRouteData = [
   },
 ]
 
-describe('POST /api/plan-update', () => {
+describe('POST /api/note-update', () => {
   async function getHandler() {
-    const mod = await import('../../app/api/plan-update/route')
+    const mod = await import('../../app/api/note-update/route')
     return mod.POST
   }
 
   function makeRequest(body: unknown) {
-    return new NextRequest('http://localhost/api/plan-update', {
+    return new NextRequest('http://localhost/api/note-update', {
       method: 'POST',
       body: JSON.stringify(body),
       headers: { 'Content-Type': 'application/json' },
@@ -62,9 +58,9 @@ describe('POST /api/plan-update', () => {
     mockAuth.mockReset()
     mockGetRouteStore.mockReset()
     mockRouteStore.getAll.mockReset()
-    mockRouteStore.updatePlan.mockReset()
+    mockRouteStore.updateNote.mockReset()
     mockRouteTestStore.getAll.mockReset()
-    mockRouteTestStore.updatePlan.mockReset()
+    mockRouteTestStore.updateNote.mockReset()
 
     // Default: authenticated
     mockAuth.mockResolvedValue({ user: { email: 'test@example.com' } })
@@ -77,72 +73,73 @@ describe('POST /api/plan-update', () => {
     })
 
     mockRouteStore.getAll.mockResolvedValue(JSON.parse(JSON.stringify(mockRouteData)))
-    mockRouteStore.updatePlan.mockImplementation(async (dayIndex, plan) => ({
+    mockRouteStore.updateNote.mockImplementation(async (dayIndex: number, note: string) => ({
       ...mockRouteData[dayIndex],
-      plan,
+      note,
     }))
 
     mockRouteTestStore.getAll.mockResolvedValue(JSON.parse(JSON.stringify(mockRouteData)))
-    mockRouteTestStore.updatePlan.mockImplementation(async (dayIndex, plan) => ({
+    mockRouteTestStore.updateNote.mockImplementation(async (dayIndex: number, note: string) => ({
       ...mockRouteData[dayIndex],
-      plan,
+      note,
     }))
   })
 
   it.each([null, {}])('returns 401 when session is not usable (%p)', async (session) => {
     mockAuth.mockResolvedValue(session)
     const handler = await getHandler()
-    const res = await handler(makeRequest({ dayIndex: 0, plan: { morning: 'a', afternoon: 'b', evening: 'c' } }))
+    const res = await handler(makeRequest({ dayIndex: 0, note: 'some note' }))
     expect(res.status).toBe(401)
     expect((await res.json()).error).toBe('Unauthorized')
   })
 
   it('returns 200 and the updated day on a valid request', async () => {
     const handler = await getHandler()
-    const plan = { morning: 'Updated A', afternoon: 'Updated B', evening: 'Updated C' }
-    const res = await handler(makeRequest({ dayIndex: 0, plan }))
+    const note = 'My travel note for day 1'
+    const res = await handler(makeRequest({ dayIndex: 0, note }))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.plan).toEqual(plan)
+    expect(body.note).toBe(note)
     expect(mockGetRouteStore).toHaveBeenCalledWith('route')
-    expect(mockRouteStore.updatePlan).toHaveBeenCalledWith(0, plan)
+    expect(mockRouteStore.updateNote).toHaveBeenCalledWith(0, note)
   })
 
   it("uses route-test store when tabKey='route-test'", async () => {
     const handler = await getHandler()
-    const res = await handler(makeRequest({ tabKey: 'route-test', dayIndex: 1, plan: { morning: 'x', afternoon: 'y', evening: 'z' } }))
+    const res = await handler(makeRequest({ tabKey: 'route-test', dayIndex: 1, note: 'test note' }))
     expect(res.status).toBe(200)
     expect(mockGetRouteStore).toHaveBeenCalledWith('route-test')
-    expect(mockRouteTestStore.updatePlan).toHaveBeenCalledWith(1, { morning: 'x', afternoon: 'y', evening: 'z' })
-    expect(mockRouteStore.updatePlan).not.toHaveBeenCalled()
+    expect(mockRouteTestStore.updateNote).toHaveBeenCalledWith(1, 'test note')
+    expect(mockRouteStore.updateNote).not.toHaveBeenCalled()
   })
 
   it.each([
-    { tabKey: 'bad-tab', dayIndex: 0, plan: { morning: 'a', afternoon: 'b', evening: 'c' } },
-    { tabKey: '', dayIndex: 0, plan: { morning: 'a', afternoon: 'b', evening: 'c' } },
+    { tabKey: 'bad-tab', dayIndex: 0, note: 'hello' },
+    { tabKey: '', dayIndex: 0, note: 'hello' },
   ])('returns 400 invalid_tab_key for invalid tabKey', async (body) => {
     const handler = await getHandler()
     const res = await handler(makeRequest(body))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('invalid_tab_key')
-    expect(mockRouteStore.updatePlan).not.toHaveBeenCalled()
+    expect(mockRouteStore.updateNote).not.toHaveBeenCalled()
   })
 
   it.each([
-    { dayIndex: 'bad', plan: { morning: 'a', afternoon: 'b', evening: 'c' } },
-    { dayIndex: 0, plan: { morning: 'a', afternoon: 'b' } },
-    { dayIndex: -1, plan: { morning: 'a', afternoon: 'b', evening: 'c' } },
-    { dayIndex: 100, plan: { morning: 'a', afternoon: 'b', evening: 'c' } },
+    { dayIndex: 'bad', note: 'hello' },
+    { dayIndex: -1, note: 'hello' },
+    { dayIndex: 100, note: 'hello' },
+    { dayIndex: 0, note: 42 },
+    { dayIndex: 0 },
   ])('returns 400 for invalid request body: %p', async (body) => {
     const handler = await getHandler()
     const res = await handler(makeRequest(body))
     expect(res.status).toBe(400)
-    expect(mockRouteStore.updatePlan).not.toHaveBeenCalled()
+    expect(mockRouteStore.updateNote).not.toHaveBeenCalled()
   })
 
   it('returns 400 on invalid JSON body', async () => {
     const handler = await getHandler()
-    const req = new NextRequest('http://localhost/api/plan-update', {
+    const req = new NextRequest('http://localhost/api/note-update', {
       method: 'POST',
       body: 'not json',
       headers: { 'Content-Type': 'application/json' },
@@ -152,10 +149,17 @@ describe('POST /api/plan-update', () => {
   })
 
   it('returns 500 when store throws', async () => {
-    mockRouteStore.updatePlan.mockRejectedValueOnce(new Error('write failed'))
+    mockRouteStore.updateNote.mockRejectedValueOnce(new Error('write failed'))
     const handler = await getHandler()
-    const res = await handler(makeRequest({ dayIndex: 0, plan: { morning: 'a', afternoon: 'b', evening: 'c' } }))
+    const res = await handler(makeRequest({ dayIndex: 0, note: 'hello' }))
     expect(res.status).toBe(500)
     expect((await res.json()).error).toMatch(/Internal server error/)
+  })
+
+  it('accepts empty string as a valid note (clears note)', async () => {
+    const handler = await getHandler()
+    const res = await handler(makeRequest({ dayIndex: 0, note: '' }))
+    expect(res.status).toBe(200)
+    expect(mockRouteStore.updateNote).toHaveBeenCalledWith(0, '')
   })
 })
