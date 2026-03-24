@@ -1,5 +1,5 @@
-import type { LocationProviderResult } from '../types'
+import type { LocationFeatureType, LocationProviderResult } from '../types'
 
 export interface LocationProvider {
-  search(query: string, limit: number): Promise<LocationProviderResult[]>
+  search(query: string, limit: number, placeTypes?: LocationFeatureType[], countryBias?: string): Promise<LocationProviderResult[]>
 }

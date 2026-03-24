@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import type { RouteDay, PlanSections, TrainRoute } from './itinerary'
+import type { RouteDay, PlanSections, TrainRoute, DayAttraction } from './itinerary'
 import logger from './logger'
 
 // ── TabKey ────────────────────────────────────────────────────────────────────
@@ -14,6 +14,7 @@ export interface RouteStore {
   getAll(): Promise<RouteDay[]>
   updatePlan(dayIndex: number, plan: PlanSections): Promise<RouteDay>
   updateTrain(dayIndex: number, train: TrainRoute[]): Promise<RouteDay>
+  updateAttractions(dayIndex: number, attractions: DayAttraction[]): Promise<RouteDay>
   /** Atomically write the full RouteDay[] array. Returns the written array. */
   updateDays(days: RouteDay[]): Promise<RouteDay[]>
 }
@@ -78,6 +79,13 @@ class FileRouteStore implements RouteStore {
     return data[dayIndex]
   }
 
+  async updateAttractions(dayIndex: number, attractions: DayAttraction[]): Promise<RouteDay> {
+    const data = await this.getAll()
+    data[dayIndex].attractions = attractions
+    writeJsonAtomic(this.filePath, data)
+    return data[dayIndex]
+  }
+
   async updateDays(days: RouteDay[]): Promise<RouteDay[]> {
     writeJsonAtomic(this.filePath, days)
     return days
@@ -126,6 +134,15 @@ class UpstashRouteStore implements RouteStore {
     const redis = Redis.fromEnv()
     const data = await this.getAll()
     data[dayIndex].train = train
+    await redis.set(this.redisKey, data)
+    return data[dayIndex]
+  }
+
+  async updateAttractions(dayIndex: number, attractions: DayAttraction[]): Promise<RouteDay> {
+    const { Redis } = await import('@upstash/redis')
+    const redis = Redis.fromEnv()
+    const data = await this.getAll()
+    data[dayIndex].attractions = attractions
     await redis.set(this.redisKey, data)
     return data[dayIndex]
   }

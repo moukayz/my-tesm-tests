@@ -87,6 +87,46 @@ describe('GeoNamesLocationProvider', () => {
     expect(request.searchParams.getAll('featureClass')).toEqual(expect.arrayContaining(['P', 'A', 'T']))
   })
 
+  it('includes countryBias param in outbound request when provided', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ geonames: [] }),
+    })
+
+    const provider = new GeoNamesLocationProvider({
+      username: 'demo-user',
+      baseUrl: 'https://api.geonames.org',
+      timeoutMs: 1200,
+    })
+
+    await provider.search('eiffel', 5, undefined, 'FR')
+    const requestedUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string
+    const request = new URL(requestedUrl)
+
+    expect(request.searchParams.get('countryBias')).toBe('FR')
+  })
+
+  it('omits countryBias param when not provided', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ geonames: [] }),
+    })
+
+    const provider = new GeoNamesLocationProvider({
+      username: 'demo-user',
+      baseUrl: 'https://api.geonames.org',
+      timeoutMs: 1200,
+    })
+
+    await provider.search('par', 5)
+    const requestedUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string
+    const request = new URL(requestedUrl)
+
+    expect(request.searchParams.has('countryBias')).toBe(false)
+  })
+
   it('maps island feature codes (T/ISL) to featureType locality', async () => {
     ;(global.fetch as jest.Mock).mockResolvedValue({
       ok: true,

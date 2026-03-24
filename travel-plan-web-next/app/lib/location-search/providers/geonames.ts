@@ -1,6 +1,23 @@
 import type { LocationProvider } from './provider'
 import { LocationProviderError, type LocationFeatureType, type LocationProviderResult } from '../types'
 
+const FEATURE_TYPE_TO_CLASSES: Record<LocationFeatureType, string[]> = {
+  locality: ['P'],
+  region: ['A'],
+  country: ['A'],
+  other: ['T', 'S', 'H', 'L', 'R', 'U', 'V'],
+}
+
+function placeTypesToFeatureClasses(placeTypes: LocationFeatureType[]): string[] {
+  const classes = new Set<string>()
+  for (const t of placeTypes) {
+    for (const cls of FEATURE_TYPE_TO_CLASSES[t]) {
+      classes.add(cls)
+    }
+  }
+  return [...classes]
+}
+
 interface GeoNamesResultRow {
   geonameId?: number
   name?: string
@@ -87,7 +104,7 @@ export class GeoNamesLocationProvider implements LocationProvider {
     }
   ) {}
 
-  async search(query: string, limit: number): Promise<LocationProviderResult[]> {
+  async search(query: string, limit: number, placeTypes?: LocationFeatureType[], countryBias?: string): Promise<LocationProviderResult[]> {
     const username = this.options.username.trim()
     if (!username) {
       throw new LocationProviderError('LOOKUP_CONFIG_MISSING', 'GeoNames username missing')
@@ -100,9 +117,13 @@ export class GeoNamesLocationProvider implements LocationProvider {
     endpoint.searchParams.set('isNameRequired', 'true')
     endpoint.searchParams.set('orderby', 'relevance')
     endpoint.searchParams.set('lang', 'en')
-    endpoint.searchParams.append('featureClass', 'P')
-    endpoint.searchParams.append('featureClass', 'A')
-    endpoint.searchParams.append('featureClass', 'T')
+    const featureClasses = placeTypes === undefined ? ['P', 'A', 'T'] : placeTypesToFeatureClasses(placeTypes)
+    for (const cls of featureClasses) {
+      endpoint.searchParams.append('featureClass', cls)
+    }
+    if (countryBias) {
+      endpoint.searchParams.set('countryBias', countryBias)
+    }
 
     const abortController = new AbortController()
     const timeout = setTimeout(() => abortController.abort(), this.options.timeoutMs)

@@ -14,6 +14,16 @@ describe('LocationSearchService', () => {
     }
   }
 
+  it('forwards countryBias to the provider', async () => {
+    const mockSearch = jest.fn().mockResolvedValue([])
+    const provider: LocationProvider = { search: mockSearch }
+    const service = new LocationSearchService(provider)
+
+    await service.search('eiffel', 5, undefined, 'FR')
+
+    expect(mockSearch).toHaveBeenCalledWith('eiffel', 5, undefined, 'FR')
+  })
+
   it('normalizes labels, dedupes, and applies limit', async () => {
     const service = new LocationSearchService(
       providerWithResults([

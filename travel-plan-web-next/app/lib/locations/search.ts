@@ -3,6 +3,8 @@ import type { StayLocationResolved } from '../itinerary-store/types'
 interface SearchLocationSuggestionsOptions {
   signal?: AbortSignal
   limit?: number
+  placeTypes?: string[]
+  countryBias?: string
 }
 
 interface LocationSearchResponse {
@@ -87,6 +89,12 @@ export async function searchLocationSuggestions(
 
   const limit = Math.max(1, Math.min(options.limit ?? 5, 5))
   const params = new URLSearchParams({ query: trimmed, limit: String(limit) })
+  if (options.placeTypes !== undefined) {
+    params.set('placeTypes', options.placeTypes.join(','))
+  }
+  if (options.countryBias) {
+    params.set('countryBias', options.countryBias)
+  }
   const response = await fetch(`/api/locations/search?${params.toString()}`, {
     method: 'GET',
     signal: options.signal,

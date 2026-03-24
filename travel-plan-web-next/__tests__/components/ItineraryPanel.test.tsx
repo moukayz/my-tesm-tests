@@ -4,6 +4,11 @@ import userEvent from '@testing-library/user-event'
 import type { ItinerarySummary, ItineraryWorkspace } from '../../app/lib/itinerary-store/types'
 import ItineraryPanel from '../../components/ItineraryPanel'
 
+jest.mock('../../components/AttractionMiniMap', () => ({
+  __esModule: true,
+  default: () => <div data-testid="attraction-minimap-placeholder" />,
+}))
+
 jest.mock('../../components/ItineraryWorkspace', () => ({
   __esModule: true,
   default: ({

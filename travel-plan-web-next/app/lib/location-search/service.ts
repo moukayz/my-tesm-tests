@@ -3,7 +3,7 @@ import type { StayLocationResolved } from '../itinerary-store/types'
 import { getLocationSearchConfig } from './config'
 import { GeoNamesLocationProvider } from './providers/geonames'
 import type { LocationProvider } from './providers/provider'
-import { LocationProviderError, type LocationProviderResult, type LocationSearchResponse } from './types'
+import { LocationProviderError, type LocationFeatureType, type LocationProviderResult, type LocationSearchResponse } from './types'
 
 export class LocationSearchInputError extends Error {
   constructor(
@@ -66,13 +66,13 @@ function parseLimitOrThrow(limit: number | undefined): number {
 export class LocationSearchService {
   constructor(private readonly provider: LocationProvider) {}
 
-  async search(queryInput: string, limitInput?: number): Promise<LocationSearchResponse> {
+  async search(queryInput: string, limitInput?: number, placeTypes?: LocationFeatureType[], countryBias?: string): Promise<LocationSearchResponse> {
     const query = parseQueryOrThrow(queryInput)
     const limit = parseLimitOrThrow(limitInput)
 
     let providerResults: LocationProviderResult[]
     try {
-      providerResults = await this.provider.search(query, limit)
+      providerResults = await this.provider.search(query, limit, placeTypes, countryBias)
       providerResults.sort((a, b) => a.name.length - b.name.length)
     } catch (error) {
       if (error instanceof LocationProviderError) {
@@ -117,9 +117,9 @@ export function getLocationSearchService(): LocationSearchService {
   return singletonService
 }
 
-export async function searchLocations(query: string, limit: number | undefined, userEmail?: string) {
+export async function searchLocations(query: string, limit: number | undefined, userEmail?: string, placeTypes?: LocationFeatureType[], countryBias?: string) {
   const startedAt = Date.now()
-  const response = await getLocationSearchService().search(query, limit)
+  const response = await getLocationSearchService().search(query, limit, placeTypes, countryBias)
   logger.info(
     {
       route: '/api/locations/search',

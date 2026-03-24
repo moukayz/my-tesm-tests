@@ -18,6 +18,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
   - **Stay planning sheet** — reusable add/edit dialog supports `Add first stay`, `Add next stay`, and full `Edit stay` (city + nights) from stay cells
   - **Stay location autocomplete** — `Add next stay` and `Edit stay` use a backend-exposed same-origin location search API that returns up to 5 normalized suggestions; selected places persist coordinates/place metadata while custom saves remain fully supported
   - **Inline editing** — double-click any activity cell to edit it in place; commit with Enter or by clicking away; plan rows have a fixed minimum height so the table layout stays stable during edit mode
+  - **Attractions column** — each day row has a dedicated Attractions column (after Plan, before Train Schedule); click `+ Add` to search by name via GeoNames (no feature-class filter), pick a result to append a colour-coded tag; hover a tag to reveal a `×` delete button; click the map icon to open a minimap popover (MapLibre, 280×200 px) showing all that day's attraction pins connected by a direct line. Saves immediately to `/api/itineraries/[id]/days/[dayIndex]/attractions` (itinerary-scoped) or `/api/attraction-update` (legacy route).
   - **Drag-and-drop reordering** — drag the grip handle on any plan row to swap Morning / Afternoon / Evening activities within a day; auto-saves on drop
 - **Structured train schedule editor** — click the pencil in Train Schedule to edit day-level train rows (`train_id`, optional `start`+`end`) with add, drag-and-drop reorder, row-end delete, inline validation, and single-save persistence
   - **Multi-railway timetable** — Train Schedule column auto-detects TGV (French) and EST (Eurostar) trains from the train ID prefix and fetches from the correct railway data source; German trains remain the default
@@ -68,7 +69,7 @@ travel-plan-web-next/
 │   ├── lib/
 │   │   ├── db.ts                # DuckDB singleton + query helper + convertBigInt
 │   │   ├── pgdb.ts              # pgQuery: pg.Pool locally, @neondatabase/serverless on Vercel
-│   │   ├── itinerary.ts         # RouteDay/ProcessedDay types, getOvernightColor, processItinerary, getRailwayFromTrainId
+│   │   ├── itinerary.ts         # RouteDay/DayAttraction/ProcessedDay types, getOvernightColor, processItinerary, getRailwayFromTrainId
 │   │   ├── routeStore.ts        # RouteStore interface + FileRouteStore + UpstashRouteStore + getRouteStore(tabKey)
 │   │   ├── itinerary-store/
 │   │   │   ├── store.ts         # ItineraryStore interface + File/Upstash implementations
@@ -87,8 +88,9 @@ travel-plan-web-next/
 │       ├── delay-stats/route.ts # GET /api/delay-stats?train=<name>&station=<name>
 │       ├── plan-update/route.ts # POST /api/plan-update (auth required; tabKey param)
 │       ├── stay-update/route.ts # POST /api/stay-update (auth required; editable stays)
+│       ├── attraction-update/route.ts # POST /api/attraction-update (auth required; legacy route attractions)
 │       ├── itineraries/route.ts # POST /api/itineraries (auth required)
-│       ├── itineraries/[itineraryId]/... # GET workspace + stay/day patch routes
+│       ├── itineraries/[itineraryId]/... # GET workspace + stay/day patch routes (incl. /days/[idx]/attractions)
 │       └── train-stops/route.ts # GET /api/train-stops
 ├── components/
 │   ├── AuthHeader.tsx           # Login/logout header with session state
@@ -100,7 +102,8 @@ travel-plan-web-next/
 │   ├── CreateItineraryModal.tsx # Name/startDate shell creation modal
 │   ├── ItineraryEmptyState.tsx  # Zero-day workspace card with Add first stay CTA
 │   ├── StaySheet.tsx            # Reusable add/edit stay dialog (city + nights)
-│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic, inline editing, drag-and-drop, export, stay editing
+│   ├── ItineraryTab.tsx         # Trip table with rowspan + color logic, inline editing, drag-and-drop, export, stay editing, attractions column
+│   ├── AttractionMiniMap.tsx    # MapLibre minimap for day attractions (pins + connecting line, 280×200 px popover)
 │   ├── StayEditControl.tsx      # Inline stay-duration edit widget (pencil → number input → confirm/cancel)
 │   ├── ExportToolbar.tsx        # Legacy export toolbar (superseded by FloatingExportButton)
 │   ├── FloatingExportButton.tsx # Floating action button (viewport-fixed, portal to body) for export

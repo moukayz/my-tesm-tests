@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Sunrise, Sun, Moon, GripVertical, Pencil, Plus } from 'lucide-react'
+import { Sunrise, Sun, Moon, GripVertical, Pencil, Plus, Map as MapIcon, X } from 'lucide-react'
 import {
   getCityColor,
   getCountryColor,
@@ -13,7 +13,11 @@ import {
   getRailwayFromTrainId,
   type RouteDay,
   type PlanSections,
+  type DayAttraction,
 } from '../app/lib/itinerary'
+import { searchLocationSuggestions } from '../app/lib/locations/search'
+import type { StayLocationResolved } from '../app/lib/itinerary-store/types'
+import AttractionMiniMap from './AttractionMiniMap'
 import { getStaysWithMeta, applyStayEditOptimistic } from '../app/lib/stayUtils'
 import { formatTime } from '../app/lib/trainTimetable'
 import { renderMarkdown } from '../app/lib/markdown'
@@ -102,6 +106,143 @@ export default function ItineraryTab({
   const [trainOverrides, setTrainOverrides] = useState<Record<number, RouteDay['train']>>({})
   const trainEditorTriggerRef = useRef<HTMLButtonElement | null>(null)
   const trainEditorInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  // ── Attraction state ─────────────────────────────────────────────────────────
+  const [attractionOverrides, setAttractionOverrides] = useState<Map<number, DayAttraction[]>>(new Map())
+  const [addingAttractionDayIndex, setAddingAttractionDayIndex] = useState<number | null>(null)
+  const [attractionQuery, setAttractionQuery] = useState('')
+  const [attractionResults, setAttractionResults] = useState<StayLocationResolved[]>([])
+  const [attractionSearchLoading, setAttractionSearchLoading] = useState(false)
+  const [attractionSearchOpen, setAttractionSearchOpen] = useState(false)
+  const [attractionActiveIndex, setAttractionActiveIndex] = useState(0)
+  const [attractionMiniMapDayIndex, setAttractionMiniMapDayIndex] = useState<number | null>(null)
+  const [attractionMiniMapRect, setAttractionMiniMapRect] = useState<DOMRect | null>(null)
+  const attractionSearchRef = useRef<AbortController | null>(null)
+  const attractionInputRef = useRef<HTMLInputElement | null>(null)
+  const attractionMiniMapButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({})
+
+  function getAttractionsForDay(day: RouteDay, dayIndex: number): DayAttraction[] {
+    return attractionOverrides.has(dayIndex) ? (attractionOverrides.get(dayIndex) ?? []) : (day.attractions ?? [])
+  }
+
+  async function saveAttractions(dayIndex: number, attractions: DayAttraction[]) {
+    if (itineraryId) {
+      await fetch(`/api/itineraries/${itineraryId}/days/${dayIndex}/attractions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attractions }),
+      })
+    } else {
+      await fetch('/api/attraction-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dayIndex, attractions, tabKey }),
+      })
+    }
+  }
+
+  function openAttractionSearch(dayIndex: number) {
+    setAddingAttractionDayIndex(dayIndex)
+    setAttractionQuery('')
+    setAttractionResults([])
+    setAttractionSearchOpen(false)
+    setAttractionActiveIndex(0)
+  }
+
+  function closeAttractionSearch() {
+    setAddingAttractionDayIndex(null)
+    setAttractionQuery('')
+    setAttractionResults([])
+    setAttractionSearchOpen(false)
+    attractionSearchRef.current?.abort()
+  }
+
+  function selectAttraction(dayIndex: number, result: StayLocationResolved) {
+    const attraction: DayAttraction = {
+      id: result.place.placeId,
+      label: result.place.name,
+      coordinates: result.coordinates,
+    }
+    const current = getAttractionsForDay(days[dayIndex], dayIndex)
+    if (current.some((a) => a.id === attraction.id)) {
+      closeAttractionSearch()
+      return
+    }
+    const next = [...current, attraction]
+    setAttractionOverrides((prev) => new Map(prev).set(dayIndex, next))
+    closeAttractionSearch()
+    saveAttractions(dayIndex, next).catch(() => {})
+  }
+
+  function removeAttraction(dayIndex: number, attractionId: string) {
+    const current = getAttractionsForDay(days[dayIndex], dayIndex)
+    const next = current.filter((a) => a.id !== attractionId)
+    setAttractionOverrides((prev) => new Map(prev).set(dayIndex, next))
+    saveAttractions(dayIndex, next).catch(() => {})
+  }
+
+  function openAttractionMiniMap(dayIndex: number, buttonEl: HTMLButtonElement | null) {
+    const rect = buttonEl?.getBoundingClientRect() ?? null
+    setAttractionMiniMapDayIndex(dayIndex)
+    setAttractionMiniMapRect(rect)
+  }
+
+  function closeAttractionMiniMap() {
+    setAttractionMiniMapDayIndex(null)
+    setAttractionMiniMapRect(null)
+  }
+
+  // Debounced attraction search
+  useEffect(() => {
+    if (addingAttractionDayIndex === null) return
+    const trimmed = attractionQuery.trim()
+    if (trimmed.length < 2) {
+      setAttractionResults([])
+      setAttractionSearchLoading(false)
+      setAttractionSearchOpen(false)
+      return
+    }
+    setAttractionSearchLoading(true)
+    attractionSearchRef.current?.abort()
+    const controller = new AbortController()
+    attractionSearchRef.current = controller
+    const timer = window.setTimeout(() => {
+      const countryBias = addingAttractionDayIndex !== null && processedData[addingAttractionDayIndex]?.location?.kind === 'resolved'
+        ? processedData[addingAttractionDayIndex].location?.place?.countryCode
+        : undefined
+      searchLocationSuggestions(attractionQuery, { signal: controller.signal, limit: 6, placeTypes: [], countryBias })
+        .then((res) => {
+          setAttractionResults(res.results)
+          setAttractionSearchOpen(res.results.length > 0)
+          setAttractionActiveIndex(0)
+        })
+        .catch(() => {})
+        .finally(() => setAttractionSearchLoading(false))
+    }, 300)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [attractionQuery, addingAttractionDayIndex])
+
+  // Close minimap on Escape
+  useEffect(() => {
+    if (attractionMiniMapDayIndex === null) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeAttractionMiniMap()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [attractionMiniMapDayIndex])
+
+  const ATTRACTION_TAG_COLORS = [
+    { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
+    { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200' },
+    { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
+    { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200' },
+    { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-200' },
+    { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200' },
+    { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-200' },
+  ]
 
   // ── Export state ────────────────────────────────────────────────────────────
   const [floatingPickerOpen, setFloatingPickerOpen] = useState(false)
@@ -621,11 +762,11 @@ export default function ItineraryTab({
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg overflow-clip border border-gray-200">
+        <div className="bg-white rounded-xl shadow-lg overflow-x-auto border border-gray-200">
       <table className="w-full border-collapse text-left">
         <thead className="bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-10 shadow-sm">
           <tr>
-            {['Date', 'Weekday', 'Day', 'Country', 'Overnight', 'Plan', 'Train Schedule'].map((h) => (
+            {['Date', 'Country', 'Overnight', 'Plan', 'Attractions', 'Train Schedule'].map((h) => (
               <th
                 key={h}
                 className="px-6 py-4 font-semibold text-gray-700 uppercase text-xs tracking-wider"
@@ -641,17 +782,21 @@ export default function ItineraryTab({
             const stay = day.overnightRowSpan > 0
               ? stays.find((s) => s.firstDayIndex === index)
               : undefined
+            const dayNum = typeof day.dayNum === 'number' && Number.isFinite(day.dayNum) ? day.dayNum : index + 1
+            const dayColor = ATTRACTION_TAG_COLORS[(dayNum - 1) % ATTRACTION_TAG_COLORS.length]
 
             return (
               <tr key={index} className="group hover:bg-gray-50">
-                <td className="px-6 py-4 border-b border-gray-200 align-middle whitespace-nowrap tabular-nums text-gray-600 group-last:border-b-0">
-                  {day.date}
-                </td>
-                <td className="px-6 py-4 border-b border-gray-200 align-middle text-gray-500 text-sm group-last:border-b-0">
-                  {day.weekDay}
-                </td>
-                <td className="px-6 py-4 border-b border-gray-200 align-middle text-center font-bold text-blue-500 group-last:border-b-0">
-                  {day.dayNum}
+                <td className="px-6 py-4 border-b border-gray-200 align-middle whitespace-nowrap tabular-nums group-last:border-b-0">
+                  <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 leading-tight items-center">
+                    <span
+                      className={`inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full text-xs font-semibold border ${dayColor.bg} ${dayColor.text} ${dayColor.border}`}
+                    >
+                      {dayNum}
+                    </span>
+                    <span data-testid="itinerary-date" className="text-gray-600">{day.date}</span>
+                    <span className="col-start-2 text-sm text-gray-500">{day.weekDay}</span>
+                  </div>
                 </td>
 
                 {countrySpans[index] > 0 && (() => {
@@ -805,6 +950,139 @@ export default function ItineraryTab({
                     })}
                   </div>
                 </td>
+
+                {/* ── Attractions cell ─────────────────────────────────── */}
+                <td className="px-4 py-3 border-b border-gray-200 align-top group-last:border-b-0 min-w-[200px] max-w-[300px]">
+                  {(() => {
+                    const attractions = getAttractionsForDay(day, index)
+                    const isAdding = addingAttractionDayIndex === index
+
+                    return (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1 items-start">
+                          {attractions.map((attraction, aIdx) => {
+                            const color = ATTRACTION_TAG_COLORS[aIdx % ATTRACTION_TAG_COLORS.length]
+                            return (
+                              <div
+                                key={attraction.id}
+                                className="group/tag relative inline-flex items-center"
+                              >
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${color.bg} ${color.text} ${color.border}`}>
+                                  {attraction.label}
+                                </span>
+                                <button
+                                  type="button"
+                                  aria-label={`Remove ${attraction.label}`}
+                                  className="absolute left-full ml-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/tag:opacity-100 transition-opacity rounded-full hover:bg-black/10 p-0.5"
+                                  onClick={() => removeAttraction(index, attraction.id)}
+                                >
+                                  <X size={10} aria-hidden="true" />
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {isAdding && (
+                          <div className="relative w-full">
+                            <input
+                              ref={attractionInputRef}
+                              role="combobox"
+                              aria-label="Search attractions"
+                              aria-expanded={attractionSearchOpen}
+                              autoFocus
+                              value={attractionQuery}
+                              onChange={(e) => {
+                                setAttractionQuery(e.target.value)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') { closeAttractionSearch(); return }
+                                if (e.key === 'ArrowDown') {
+                                  e.preventDefault()
+                                  setAttractionActiveIndex((i) => Math.min(i + 1, attractionResults.length - 1))
+                                } else if (e.key === 'ArrowUp') {
+                                  e.preventDefault()
+                                  setAttractionActiveIndex((i) => Math.max(i - 1, 0))
+                                } else if (e.key === 'Enter' && attractionResults[attractionActiveIndex]) {
+                                  e.preventDefault()
+                                  selectAttraction(index, attractionResults[attractionActiveIndex])
+                                }
+                              }}
+                              onBlur={() => {
+                                setTimeout(() => closeAttractionSearch(), 150)
+                              }}
+                              placeholder="Type to search…"
+                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            {attractionSearchLoading && (
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2">
+                                <svg className="h-3 w-3 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                </svg>
+                              </span>
+                            )}
+                            {attractionSearchOpen && attractionResults.length > 0 && (
+                              <ul
+                                role="listbox"
+                                className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-sm text-xs"
+                              >
+                                {attractionResults.map((result, rIdx) => (
+                                  <li
+                                    key={result.place.placeId}
+                                    role="option"
+                                    aria-selected={rIdx === attractionActiveIndex}
+                                    className={`cursor-pointer px-3 py-1.5 ${rIdx === attractionActiveIndex ? 'bg-blue-50 text-blue-900' : 'text-gray-700 hover:bg-gray-50'}`}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      selectAttraction(index, result)
+                                    }}
+                                  >
+                                    <p className="font-medium">{result.place.name}</p>
+                                    {result.place.country && (
+                                      <p className="text-gray-400">{[result.place.locality, result.place.region, result.place.country].filter(Boolean).join(', ')}</p>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+
+                        {(attractions.length > 0 || !isAdding) && (
+                          <div className="w-full flex justify-start gap-2">
+                            {!isAdding && (
+                              <button
+                                type="button"
+                                aria-label={`Add attraction for day ${day.dayNum}`}
+                                title="Add attraction"
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                onClick={() => openAttractionSearch(index)}
+                              >
+                                <Plus size={10} aria-hidden="true" />
+                                Add
+                              </button>
+                            )}
+
+                            {attractions.length > 0 && (
+                              <button
+                                type="button"
+                                ref={(el) => { attractionMiniMapButtonRefs.current[index] = el }}
+                                aria-label={`Preview attractions map for day ${day.dayNum}`}
+                                title="Preview map"
+                                className="inline-flex items-center px-2 py-1 rounded-full text-xs text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                                onClick={() => openAttractionMiniMap(index, attractionMiniMapButtonRefs.current[index] ?? null)}
+                              >
+                                <MapIcon size={12} aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </td>
+
                 <td className="px-6 py-4 border-b border-gray-200 align-middle text-sm text-gray-600 group-last:border-b-0 relative">
                   <button
                     data-testid={`train-json-edit-btn-${index}`}
@@ -1082,6 +1360,38 @@ export default function ItineraryTab({
             exportError={exportError}
             isPdfGenerating={isPdfGenerating}
           />
+        </div>,
+        document.body
+      )}
+
+      {/* Attraction minimap popover — portal to document.body */}
+      {typeof document !== 'undefined' && attractionMiniMapDayIndex !== null && createPortal(
+        <div
+          className="fixed z-[46]"
+          style={{
+            top: `${(attractionMiniMapRect?.bottom ?? 0) + 8}px`,
+            left: `${attractionMiniMapRect?.left ?? 0}px`,
+          }}
+        >
+          <div
+            className="rounded-xl shadow-xl border border-gray-200 bg-white overflow-hidden"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
+              <span className="text-xs font-medium text-gray-600">Attractions map</span>
+              <button
+                type="button"
+                aria-label="Close map"
+                className="p-0.5 rounded text-gray-400 hover:text-gray-600"
+                onClick={closeAttractionMiniMap}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </div>
+            <AttractionMiniMap
+              attractions={getAttractionsForDay(days[attractionMiniMapDayIndex], attractionMiniMapDayIndex)}
+            />
+          </div>
         </div>,
         document.body
       )}

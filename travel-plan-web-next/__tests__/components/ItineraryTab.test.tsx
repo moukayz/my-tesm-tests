@@ -14,6 +14,18 @@ jest.mock('../../app/lib/itineraryExport', () => ({
   buildPdfBlob: jest.fn().mockResolvedValue(new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
 }))
 
+jest.mock('../../components/AttractionMiniMap', () => ({
+  __esModule: true,
+  default: ({ attractions }: { attractions: { id: string }[] }) =>
+    attractions.length === 0 || attractions.every((a: { coordinates?: unknown }) => !a.coordinates)
+      ? <div data-testid="attraction-minimap-placeholder">No location data</div>
+      : <div data-testid="attraction-minimap">MiniMap</div>,
+}))
+
+jest.mock('../../app/lib/locations/search', () => ({
+  searchLocationSuggestions: jest.fn().mockResolvedValue({ results: [] }),
+}))
+
 import { saveFile } from '../../app/lib/fileSave'
 import { buildMarkdownTable, buildPdfBlob } from '../../app/lib/itineraryExport'
 
@@ -2162,5 +2174,112 @@ describe('ItineraryTab move stay buttons', () => {
       />
     )
     expect(screen.queryByRole('button', { name: /move paris/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('ItineraryTab - Attractions', () => {
+  afterEach(() => jest.restoreAllMocks())
+
+  function setupFetch(overrides: Record<string, unknown> = {}) {
+    global.fetch = jest.fn((url: RequestInfo | URL) => {
+      const path = url.toString().split('?')[0].replace('http://localhost', '')
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(overrides[path] ?? {}),
+      } as Response)
+    })
+  }
+
+  const dayWithAttractions: RouteDay[] = [
+    {
+      date: '2026/9/25',
+      weekDay: '星期五',
+      dayNum: 1,
+      overnight: '巴黎',
+      plan: { morning: 'morning', afternoon: 'afternoon', evening: 'evening' },
+      train: [],
+      attractions: [
+        { id: 'g1', label: 'Eiffel Tower', coordinates: { lat: 48.858, lng: 2.294 } },
+        { id: 'g2', label: 'Notre-Dame' },
+      ],
+    },
+  ]
+
+  it('renders Attractions column header in the table', () => {
+    setupFetch()
+    render(<ItineraryTab initialData={[{
+      date: '2026/9/25', weekDay: '星期五', dayNum: 1, overnight: '巴黎',
+      plan: { morning: '', afternoon: '', evening: '' }, train: [],
+    }]} tabKey="route" />)
+    expect(screen.getByText('Attractions')).toBeInTheDocument()
+  })
+
+  it('renders existing attraction tags from initialData', () => {
+    setupFetch()
+    render(<ItineraryTab initialData={dayWithAttractions} tabKey="route" />)
+    expect(screen.getByText('Eiffel Tower')).toBeInTheDocument()
+    expect(screen.getByText('Notre-Dame')).toBeInTheDocument()
+  })
+
+  it('shows Add attraction button that reveals inline search', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={dayWithAttractions} tabKey="route" />)
+    const addBtn = screen.getByRole('button', { name: /add attraction for day 1/i })
+    expect(addBtn).toBeInTheDocument()
+    await userEvent.click(addBtn)
+    expect(screen.getByRole('combobox', { name: /search attractions/i })).toBeInTheDocument()
+  })
+
+  it('closes inline search on Escape', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={dayWithAttractions} tabKey="route" />)
+    await userEvent.click(screen.getByRole('button', { name: /add attraction for day 1/i }))
+    const input = screen.getByRole('combobox', { name: /search attractions/i })
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('combobox', { name: /search attractions/i })).not.toBeInTheDocument()
+  })
+
+  it('removes an attraction and PATCHes when itineraryId provided', async () => {
+    setupFetch({ '/api/itineraries/iti-1/days/0/attractions': { date: '2026/9/25', attractions: [{ id: 'g2', label: 'Notre-Dame' }] } })
+    render(<ItineraryTab initialData={dayWithAttractions} itineraryId="iti-1" tabKey="route" />)
+    const deleteBtn = screen.getByRole('button', { name: /remove eiffel tower/i })
+    await userEvent.click(deleteBtn)
+    expect(screen.queryByText('Eiffel Tower')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/itineraries/iti-1/days/0/attractions',
+        expect.objectContaining({ method: 'PATCH' })
+      )
+    })
+  })
+
+  it('removes an attraction and POSTs to legacy endpoint when no itineraryId', async () => {
+    setupFetch({ '/api/attraction-update': { date: '2026/9/25', attractions: [{ id: 'g2', label: 'Notre-Dame' }] } })
+    render(<ItineraryTab initialData={dayWithAttractions} tabKey="route" />)
+    const deleteBtn = screen.getByRole('button', { name: /remove eiffel tower/i })
+    await userEvent.click(deleteBtn)
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/attraction-update',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+  })
+
+  it('renders preview button that opens minimap popover', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={dayWithAttractions} tabKey="route" />)
+    const previewBtn = screen.getByRole('button', { name: /preview attractions map for day 1/i })
+    await userEvent.click(previewBtn)
+    expect(await screen.findByTestId('attraction-minimap')).toBeInTheDocument()
+  })
+
+  it('closes minimap popover on Escape', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={dayWithAttractions} tabKey="route" />)
+    await userEvent.click(screen.getByRole('button', { name: /preview attractions map for day 1/i }))
+    await screen.findByTestId('attraction-minimap')
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByTestId('attraction-minimap')).not.toBeInTheDocument()
   })
 })

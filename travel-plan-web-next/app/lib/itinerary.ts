@@ -12,6 +12,12 @@ export interface PlanSections {
   evening: string
 }
 
+export interface DayAttraction {
+  id: string
+  label: string
+  coordinates?: { lat: number; lng: number }
+}
+
 export interface RouteDay {
   date: string
   weekDay: string
@@ -20,6 +26,7 @@ export interface RouteDay {
   location?: StayLocation
   plan: PlanSections
   train: TrainRoute[]
+  attractions?: DayAttraction[]
 }
 
 export interface ProcessedDay extends RouteDay {

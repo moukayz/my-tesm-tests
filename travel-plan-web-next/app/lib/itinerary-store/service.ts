@@ -1,4 +1,4 @@
-import type { PlanSections, RouteDay } from '../itinerary'
+import type { PlanSections, RouteDay, DayAttraction } from '../itinerary'
 import { applyAppendStay, applyMoveStay, applyPatchStay, deriveStays, regenerateDerivedDates } from './domain'
 import { getItineraryStore } from './store'
 import type { ItineraryRecord, ItinerarySummary, ItineraryWorkspace, ListItinerariesResponse, StayLocation } from './types'
@@ -350,6 +350,58 @@ export async function moveStay(
   const saved = await store.replaceDays(record.id, record.updatedAt, regenerated)
   if (!saved) throw new ItineraryApiError(409, 'WORKSPACE_STALE')
   return toWorkspace(saved)
+}
+
+export async function patchDayAttractions(
+  itineraryId: string,
+  dayIndex: number,
+  ownerEmail: string,
+  payload: { attractions?: unknown }
+) {
+  if (!Number.isInteger(dayIndex) || dayIndex < 0) throw new ItineraryApiError(400, 'INVALID_DAY_INDEX')
+  const record = await requireOwnedItinerary(itineraryId, ownerEmail)
+  if (dayIndex >= record.days.length) throw new ItineraryApiError(400, 'INVALID_DAY_INDEX')
+
+  const rawAttractions = payload.attractions
+  if (!Array.isArray(rawAttractions)) throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
+
+  const attractions: DayAttraction[] = []
+  for (const item of rawAttractions) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
+    }
+    const { id, label, coordinates } = item as Record<string, unknown>
+    if (typeof id !== 'string' || id.trim().length === 0 || id.trim().length > 80) {
+      throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
+    }
+    if (typeof label !== 'string' || label.trim().length === 0 || label.trim().length > 120) {
+      throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
+    }
+    const attraction: DayAttraction = { id: id.trim(), label: label.trim() }
+    if (coordinates !== undefined) {
+      if (!coordinates || typeof coordinates !== 'object' || Array.isArray(coordinates)) {
+        throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
+      }
+      const { lat, lng } = coordinates as Record<string, unknown>
+      const latNum = Number(lat)
+      const lngNum = Number(lng)
+      if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+        throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
+      }
+      attraction.coordinates = { lat: latNum, lng: lngNum }
+    }
+    attractions.push(attraction)
+  }
+
+  const nextDays = record.days.map((day, index) => {
+    if (index !== dayIndex) return day
+    return { ...day, attractions }
+  })
+
+  const store = getItineraryStore()
+  const saved = await store.replaceDays(record.id, record.updatedAt, nextDays)
+  if (!saved) throw new ItineraryApiError(409, 'WORKSPACE_STALE')
+  return saved.days[dayIndex]
 }
 
 export async function patchDayPlan(
