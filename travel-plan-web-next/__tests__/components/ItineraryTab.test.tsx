@@ -61,18 +61,19 @@ function getDbTrainCount(routeData: RouteDay[]) {
 }
 
 function setupFetch(overrides: Record<string, unknown> = {}) {
-  const defaults: Record<string, unknown> = {}
-  const responses = { ...defaults, ...overrides }
   global.fetch = jest.fn((url: RequestInfo | URL) => {
     const path = url.toString().split('?')[0].replace('http://localhost', '')
-    return Promise.resolve({
-      json: () => Promise.resolve(responses[path] ?? null),
-    } as Response)
+    if (path in overrides) {
+      return Promise.resolve({
+        json: () => Promise.resolve(overrides[path]),
+      } as Response)
+    }
+    return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
   })
 }
 
 describe('ItineraryTab', () => {
-  afterEach(() => jest.restoreAllMocks())
+  afterEach(async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); jest.restoreAllMocks() })
 
   it('renders all table header columns', async () => {
     setupFetch()
@@ -332,7 +333,7 @@ describe('ItineraryTab', () => {
     const dbTrainCount = getDbTrainCount(mockRouteData)
     render(<ItineraryTab initialData={mockRouteData} />)
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/timetable'))
+      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/timetable'), expect.anything())
     })
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(dbTrainCount)
@@ -362,17 +363,19 @@ describe('ItineraryTab', () => {
 
 function setupFetchWithPlanUpdate(overrides: Record<string, unknown> = {}) {
   const responses: Record<string, unknown> = {
-    '/api/timetable': null,
     '/api/note-update': { success: true },
     ...overrides,
   }
   global.fetch = jest.fn((url: RequestInfo | URL, options?: RequestInit) => {
     const path = url.toString().split('?')[0].replace('http://localhost', '')
-    return Promise.resolve({
-      json: () => Promise.resolve(responses[path] ?? null),
-      ok: true,
-      status: 200,
-    } as Response)
+    if (path in responses) {
+      return Promise.resolve({
+        json: () => Promise.resolve(responses[path]),
+        ok: true,
+        status: 200,
+      } as Response)
+    }
+    return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
   })
 }
 
@@ -386,7 +389,7 @@ async function renderAndAwaitSchedules() {
 }
 
 describe('ItineraryTab - TGV/EST Railway Fetching', () => {
-  afterEach(() => jest.restoreAllMocks())
+  afterEach(async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); jest.restoreAllMocks() })
 
   it('fetches TGV trains with railway=french query param', async () => {
     const tgvData: RouteDay[] = [
@@ -420,7 +423,8 @@ describe('ItineraryTab - TGV/EST Railway Fetching', () => {
     render(<ItineraryTab initialData={tgvData} />)
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('railway=french')
+        expect.stringContaining('railway=french'),
+        expect.anything()
       )
     })
   })
@@ -457,7 +461,8 @@ describe('ItineraryTab - TGV/EST Railway Fetching', () => {
     render(<ItineraryTab initialData={estData} />)
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('railway=eurostar')
+        expect.stringContaining('railway=eurostar'),
+        expect.anything()
       )
     })
   })
@@ -539,7 +544,7 @@ describe('ItineraryTab - TGV/EST Railway Fetching', () => {
 })
 
 describe('ItineraryTab - Train Schedule Tag Presentation', () => {
-  afterEach(() => jest.restoreAllMocks())
+  afterEach(async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); jest.restoreAllMocks() })
 
   // ── Tag vs plain-text rules ──────────────────────────────────────────────
 
@@ -705,7 +710,7 @@ describe('ItineraryTab - Train Schedule Tag Presentation', () => {
   })
 })
 describe('ItineraryTab - Train Schedule Editor', () => {
-  afterEach(() => jest.restoreAllMocks())
+  afterEach(async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); jest.restoreAllMocks() })
 
   it('renders edit button for each day', async () => {
     setupFetchWithPlanUpdate()
@@ -853,7 +858,7 @@ describe('ItineraryTab - Train Schedule Editor', () => {
           status: 200,
         } as Response)
       }
-      return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
+      return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
     })
 
     const reorderData: RouteDay[] = [
@@ -901,7 +906,7 @@ describe('ItineraryTab - Train Schedule Editor', () => {
           status: 200,
         } as Response)
       }
-      return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
+      return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
     })
 
     await renderAndAwaitSchedules()
@@ -929,7 +934,7 @@ describe('ItineraryTab - Train Schedule Editor', () => {
           status: 200,
         } as Response)
       }
-      return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
+      return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
     })
 
     await renderAndAwaitSchedules()
@@ -968,7 +973,7 @@ describe('ItineraryTab - Train Schedule Editor', () => {
           status: 400,
         } as Response)
       }
-      return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
+      return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
     })
 
     await renderAndAwaitSchedules()
@@ -995,7 +1000,7 @@ describe('ItineraryTab - Train Schedule Editor', () => {
           resolvePromise = resolve
         })
       }
-      return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
+      return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
     })
 
     await renderAndAwaitSchedules()
@@ -1007,12 +1012,11 @@ describe('ItineraryTab - Train Schedule Editor', () => {
       expect(screen.getByTestId('train-editor-save')).toBeDisabled()
     })
 
-    // Clean up: resolve the pending promise
-    resolvePromise!({
-      json: () => Promise.resolve({ train: [] }),
-      ok: true,
-      status: 200,
-    } as Response)
+    // Clean up: resolve the pending promise inside act to capture resulting state updates
+    await act(async () => {
+      resolvePromise!({ json: () => Promise.resolve({ train: [] }), ok: true, status: 200 } as Response)
+      await new Promise((r) => setTimeout(r, 0))
+    })
   })
 
   it('Cancel button is disabled while saving', async () => {
@@ -1024,7 +1028,7 @@ describe('ItineraryTab - Train Schedule Editor', () => {
           resolvePromise = resolve
         })
       }
-      return Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
+      return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
     })
 
     await renderAndAwaitSchedules()
@@ -1036,12 +1040,11 @@ describe('ItineraryTab - Train Schedule Editor', () => {
       expect(screen.getByTestId('train-editor-cancel')).toBeDisabled()
     })
 
-    // Clean up: resolve the pending promise
-    resolvePromise!({
-      json: () => Promise.resolve({ train: [] }),
-      ok: true,
-      status: 200,
-    } as Response)
+    // Clean up: resolve the pending promise inside act to capture resulting state updates
+    await act(async () => {
+      resolvePromise!({ json: () => Promise.resolve({ train: [] }), ok: true, status: 200 } as Response)
+      await new Promise((r) => setTimeout(r, 0))
+    })
   })
 })
 
@@ -1050,14 +1053,13 @@ describe('ItineraryTab - Train Schedule Editor', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('ItineraryTab - Export Feature', () => {
-  afterEach(() => {
+  afterEach(async () => {
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
     jest.clearAllMocks()
   })
 
   function setupExportFetch() {
-    global.fetch = jest.fn(() =>
-      Promise.resolve({ json: () => Promise.resolve(null), ok: true, status: 200 } as Response)
-    )
+    global.fetch = jest.fn(() => new Promise<Response>(() => {})) // pending — prevents out-of-act state updates
   }
 
   // ── T1-S3-12: export-fab present; export-button removed ──────────────────
@@ -1267,12 +1269,7 @@ function setupFetchForStayEdit(stayUpdateResponse?: { ok: boolean; body: unknown
         status: resp.ok ? 200 : 500,
       } as Response)
     }
-    // timetable and others
-    return Promise.resolve({
-      json: () => Promise.resolve(null),
-      ok: true,
-      status: 200,
-    } as Response)
+    return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
   })
 }
 
@@ -1281,21 +1278,23 @@ function setupFetchForStayEdit(stayUpdateResponse?: { ok: boolean; body: unknown
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('ItineraryTab - Note Column', () => {
-  afterEach(() => jest.restoreAllMocks())
+  afterEach(async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); jest.restoreAllMocks() })
 
   function setupFetchWithNoteUpdate(overrides: Record<string, unknown> = {}) {
     const responses: Record<string, unknown> = {
-      '/api/timetable': null,
       '/api/note-update': { success: true },
       ...overrides,
     }
     global.fetch = jest.fn((url: RequestInfo | URL) => {
       const path = url.toString().split('?')[0].replace('http://localhost', '')
-      return Promise.resolve({
-        json: () => Promise.resolve(responses[path] ?? null),
-        ok: true,
-        status: 200,
-      } as Response)
+      if (path in responses) {
+        return Promise.resolve({
+          json: () => Promise.resolve(responses[path]),
+          ok: true,
+          status: 200,
+        } as Response)
+      }
+      return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
     })
   }
 
@@ -1418,7 +1417,7 @@ describe('ItineraryTab - Note Column', () => {
 })
 
 describe('ItineraryTab - Stay Edit Feature', () => {
-  afterEach(() => jest.restoreAllMocks())
+  afterEach(async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); jest.restoreAllMocks() })
 
   // ── Rendering: edit affordance ──────────────────────────────────────────
 
@@ -1514,12 +1513,11 @@ describe('ItineraryTab - Stay Edit Feature', () => {
       expect(screen.queryByTestId('stay-edit-input-0')).not.toBeInTheDocument()
     })
 
-    // Clean up
-    resolveStayUpdate!({
-      json: () => Promise.resolve({ updatedDays: stayMockData }),
-      ok: true,
-      status: 200,
-    } as Response)
+    // Clean up: resolve inside act to capture resulting state updates
+    await act(async () => {
+      resolveStayUpdate!({ json: () => Promise.resolve({ updatedDays: stayMockData }), ok: true, status: 200 } as Response)
+      await new Promise((r) => setTimeout(r, 0))
+    })
   })
 
   // ── Revert on API failure ───────────────────────────────────────────────
@@ -1564,7 +1562,7 @@ describe('ItineraryTab - Stay Edit Feature', () => {
 })
 
 describe('ItineraryTab - Itinerary Scoped API wiring', () => {
-  afterEach(() => jest.restoreAllMocks())
+  afterEach(async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); jest.restoreAllMocks() })
 
   it('renders Add next stay as a floating button (not a table-top strip) in itinerary-scoped mode', () => {
     setupFetchForStayEdit()
@@ -1622,7 +1620,7 @@ describe('ItineraryTab - Itinerary Scoped API wiring', () => {
           json: async () => ({ ...mockRouteData[0], note: 'Scoped note' }),
         } as Response)
       }
-      return Promise.resolve({ ok: true, status: 200, json: async () => null } as Response)
+      return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
     })
 
     render(<ItineraryTab initialData={mockRouteData} itineraryId="iti-1" />)
@@ -1661,7 +1659,7 @@ describe('ItineraryTab move stay buttons', () => {
     daySimple('Rome', 4),
   ]
 
-  afterEach(() => jest.restoreAllMocks())
+  afterEach(async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); jest.restoreAllMocks() })
 
   it('first stay has no move-up button and has move-down button', () => {
     render(
@@ -1743,15 +1741,18 @@ describe('ItineraryTab move stay buttons', () => {
 })
 
 describe('ItineraryTab - Attractions', () => {
-  afterEach(() => jest.restoreAllMocks())
+  afterEach(async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); jest.restoreAllMocks() })
 
   function setupFetch(overrides: Record<string, unknown> = {}) {
     global.fetch = jest.fn((url: RequestInfo | URL) => {
       const path = url.toString().split('?')[0].replace('http://localhost', '')
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(overrides[path] ?? {}),
-      } as Response)
+      if (path in overrides) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(overrides[path]),
+        } as Response)
+      }
+      return new Promise<Response>(() => {}) // pending — prevents out-of-act state updates
     })
   }
 

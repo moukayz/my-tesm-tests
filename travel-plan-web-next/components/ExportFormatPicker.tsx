@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect } from 'react'
 import { FileText, FileImage, X } from 'lucide-react'
+import { useOutsideClick } from '../app/lib/hooks/useOutsideClick'
 
 export interface ExportFormatPickerProps {
   /** Called when the user selects "Markdown (.md)" */
@@ -33,16 +34,7 @@ export default function ExportFormatPicker({
 }: ExportFormatPickerProps) {
   const pickerRef = useRef<HTMLDivElement>(null)
 
-  // Outside click handler
-  useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        onClose()
-      }
-    }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
-  }, [onClose])
+  useOutsideClick(pickerRef, onClose)
 
   // Escape key handler
   useEffect(() => {

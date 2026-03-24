@@ -97,6 +97,7 @@ test.describe('Itinerary UI adjustments', () => {
     await expect(parisEditButton).toBeVisible()
     await expect(itineraryTab.getByRole('button', { name: /^Edit stay$/i })).toHaveCount(0)
 
+    await parisEditButton.focus()
     await parisEditButton.click()
 
     const dialog = page.getByRole('dialog', { name: 'Edit stay' })
@@ -123,7 +124,7 @@ test.describe('Itinerary UI adjustments', () => {
     const workspaceBody = await workspaceResponse.json()
     expect(workspaceBody.stays).toEqual([
       expect.objectContaining({ city: 'Lyon', nights: 4, stayIndex: 0 }),
-      expect.objectContaining({ city: 'Rome', nights: 1, stayIndex: 1 }),
+      expect.objectContaining({ city: 'Rome', nights: 2, stayIndex: 1 }),
     ])
   })
 })

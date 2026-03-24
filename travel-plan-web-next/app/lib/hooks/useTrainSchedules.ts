@@ -1,20 +1,12 @@
 import { useState, useEffect } from 'react'
 import { normalizeTrainId, getRailwayFromTrainId, findMatchingStation, type RouteDay } from '../itinerary'
-import { formatTime } from '../trainTimetable'
+import { formatTime, type TimetableRow } from '../trainTimetable'
 
 export interface TrainStopsResult {
   fromStation: string
   depTime: string
   toStation: string
   arrTime: string
-}
-
-interface TimetableRow {
-  station_name: string
-  station_num: number
-  arrival_planned_time: string | null
-  departure_planned_time: string | null
-  ride_date: string | null
 }
 
 export function buildScheduleKey(trainId: string, start?: string, end?: string) {
@@ -26,12 +18,16 @@ export function useTrainSchedules(days: RouteDay[]) {
   const [schedulesLoading, setSchedulesLoading] = useState(false)
 
   useEffect(() => {
+    const controller = new AbortController()
+    const { signal } = controller
+
     const fetchSchedules = async () => {
       setSchedulesLoading(true)
       const schedules: Record<string, TrainStopsResult | null> = {}
 
       for (const day of days) {
         for (const trainEntry of day.train) {
+          if (signal.aborted) break
           if (!('start' in trainEntry) || !trainEntry.start || !trainEntry.end) continue
 
           const trainId = normalizeTrainId(trainEntry.train_id)
@@ -41,7 +37,7 @@ export function useTrainSchedules(days: RouteDay[]) {
           try {
             const railway = getRailwayFromTrainId(trainEntry.train_id)
             const url = `/api/timetable?train=${encodeURIComponent(trainId)}${railway ? `&railway=${railway}` : ''}`
-            const res = await fetch(url)
+            const res = await fetch(url, { signal })
             const rows = (await res.json()) as TimetableRow[]
             if (!rows || rows.length === 0) { schedules[key] = null; continue }
 
@@ -62,17 +58,24 @@ export function useTrainSchedules(days: RouteDay[]) {
               toStation: toStation.station_name,
               arrTime: formatTime(toStation.arrival_planned_time),
             }
-          } catch {
+          } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') return
             schedules[key] = null
           }
         }
       }
 
-      setTrainSchedules(schedules)
-      setSchedulesLoading(false)
+      if (!signal.aborted) {
+        setTrainSchedules(schedules)
+        setSchedulesLoading(false)
+      }
     }
 
     fetchSchedules()
+
+    return () => {
+      controller.abort()
+    }
   }, [days])
 
   return { trainSchedules, schedulesLoading }

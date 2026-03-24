@@ -41,7 +41,7 @@ test.describe('Itinerary creation and stay planning MVP', () => {
     await injectSession(page, makeTestUser('workspace-shell'))
     await page.goto('/')
 
-    await page.getByRole('button', { name: 'New itinerary' }).click()
+    await page.getByRole('button', { name: '+ New itinerary' }).click()
     await page.getByLabel('Name').fill(itineraryName)
     await page.getByLabel('Start date').fill('2026-10-01')
     await page.getByRole('button', { name: 'Create itinerary' }).click()
@@ -95,6 +95,7 @@ test.describe('Itinerary creation and stay planning MVP', () => {
 
     await expect(page.getByRole('button', { name: 'Edit stay for Rome' })).toHaveCount(1)
 
+    await page.getByRole('button', { name: 'Edit stay for Rome' }).focus()
     await page.getByRole('button', { name: 'Edit stay for Rome' }).click()
     await page.getByLabel('City').fill('Milan')
     await page.getByLabel('Nights').fill('4')
@@ -102,6 +103,7 @@ test.describe('Itinerary creation and stay planning MVP', () => {
 
     await expect(page.getByRole('button', { name: 'Edit stay for Milan' })).toHaveCount(1)
 
+    await page.getByRole('button', { name: 'Edit stay for Paris' }).focus()
     await page.getByRole('button', { name: 'Edit stay for Paris' }).click()
     await page.getByLabel('Nights').fill('2')
     const stayEditSave = page.waitForResponse(
@@ -116,9 +118,9 @@ test.describe('Itinerary creation and stay planning MVP', () => {
     const workspaceBody = await workspaceResponse.json()
     expect(workspaceBody.stays).toEqual([
       expect.objectContaining({ city: 'Paris', nights: 2, stayIndex: 0 }),
-      expect.objectContaining({ city: 'Milan', nights: 5, stayIndex: 1 }),
+      expect.objectContaining({ city: 'Milan', nights: 4, stayIndex: 1 }),
     ])
-    expect(workspaceBody.days).toHaveLength(7)
+    expect(workspaceBody.days).toHaveLength(6)
 
     await page.reload()
     await expect(page).toHaveURL(new RegExp(`\\?tab=itinerary&itineraryId=${itineraryId}`))

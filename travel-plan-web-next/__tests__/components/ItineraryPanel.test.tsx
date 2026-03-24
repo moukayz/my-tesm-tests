@@ -99,6 +99,7 @@ describe('ItineraryPanel', () => {
       />
     )
 
+    expect(screen.getByTestId('itinerary-detail-shell')).toBeInTheDocument()
     expect(screen.getByTestId('itinerary-workspace')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /back to all itineraries/i }))
 

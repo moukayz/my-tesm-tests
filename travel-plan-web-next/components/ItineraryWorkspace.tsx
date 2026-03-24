@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
-import type { ItineraryWorkspace as ItineraryWorkspaceType, StayLocation } from '../app/lib/itinerary-store/types'
+import type { ItineraryWorkspace as ItineraryWorkspaceType } from '../app/lib/itinerary-store/types'
 import { applyMoveStay, deriveStays, regenerateDerivedDates } from '../app/lib/itinerary-store/domain'
+import { formatTripDate, getCountryFromLocation } from '../app/lib/itineraryUtils'
 import ItineraryTab from './ItineraryTab'
 import ItineraryEmptyState from './ItineraryEmptyState'
 import ItineraryRouteMap from './ItineraryRouteMap'
@@ -15,22 +16,6 @@ interface ItineraryWorkspaceProps {
   initialErrorCode?: string | null
   onDirtyStateChange?: (isDirty: boolean) => void
   onBackToCards?: () => void
-}
-
-function formatTripDate(dateStr: string): string {
-  const parts = dateStr.split(/[\/\-]/).map(Number)
-  if (parts.length !== 3 || parts.some(isNaN)) return dateStr
-  const [year, month, day] = parts
-  const d = new Date(year, month - 1, day)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function getCountryFromLocation(location?: StayLocation): string | undefined {
-  if (!location) return undefined
-  if (location.kind === 'resolved') return location.place.country ?? location.place.countryCode
-  if (location.kind === 'mapbox') return location.place.country ?? location.place.countryCode
-  if (location.kind === 'geonames') return location.place.countryName ?? location.place.countryCode
-  return undefined
 }
 
 function mapStayError(code: string): string {

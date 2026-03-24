@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
+import { useOutsideClick } from '../app/lib/hooks/useOutsideClick'
 
 interface AutocompleteInputProps {
   id: string
@@ -32,15 +33,8 @@ export default function AutocompleteInput({
       ? options.slice(0, 50)
       : []
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  const closeDropdown = useCallback(() => setOpen(false), [])
+  useOutsideClick(containerRef, closeDropdown)
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     onChange(e.target.value)

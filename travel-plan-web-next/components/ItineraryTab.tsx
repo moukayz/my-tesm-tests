@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Pencil, Plus } from 'lucide-react'
 import {
@@ -10,6 +10,7 @@ import {
   processItinerary,
   normalizeTrainId,
   type RouteDay,
+  type ProcessedDay,
 } from '../app/lib/itinerary'
 import { getStaysWithMeta } from '../app/lib/stayUtils'
 import { renderMarkdown } from '../app/lib/markdown'
@@ -24,16 +25,7 @@ import FloatingExportButton from './FloatingExportButton'
 import ExportFormatPicker from './ExportFormatPicker'
 import ExportSuccessToast from './ExportSuccessToast'
 import StayEditControl from './StayEditControl'
-
-const DAY_COLORS = [
-  { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
-  { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200' },
-  { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
-  { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200' },
-  { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-200' },
-  { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200' },
-  { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-200' },
-]
+import { DAY_COLORS } from '../app/lib/dayColors'
 
 interface ItineraryTabProps {
   initialData: RouteDay[]
@@ -67,13 +59,13 @@ export default function ItineraryTab({
   const noteEditor = useNoteEditor({ days, itineraryId })
   const stayEdit = useStayEdit({ days, itineraryId, setDays })
 
-  function getEffectiveData(): RouteDay[] {
+  const getEffectiveData = useCallback((): RouteDay[] => {
     return days.map((day, i) => ({
       ...day,
       note: noteEditor.noteOverrides[i] ?? day.note,
       train: trainOverrides[i] ?? day.train,
     }))
-  }
+  }, [days, noteEditor.noteOverrides, trainOverrides])
 
   const exportState = useExport({ getEffectiveData })
 
@@ -284,7 +276,7 @@ export default function ItineraryTab({
 // ─── Inline sub-components ──────────────────────────────────────────────────
 
 interface OvernightCellProps {
-  day: RouteDay
+  day: ProcessedDay
   stay: ReturnType<typeof getStaysWithMeta>[number] | undefined
   isItineraryScopedStayEdit: boolean
   stayEditSaving: boolean

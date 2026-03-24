@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Load current state from store
-    const store = getRouteStore(tabKey)
+    const store = getRouteStore()
     const days = await store.getAll()
 
     // Step 4: Domain validation (requires days to compute stay boundaries)

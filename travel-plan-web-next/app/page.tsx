@@ -1,5 +1,4 @@
 import { auth } from '../auth'
-import { getRouteStore } from './lib/routeStore'
 import TravelPlan from '../components/TravelPlan'
 import { deriveStays } from './lib/itinerary-store/domain'
 import { getItineraryStore } from './lib/itinerary-store/store'
@@ -44,7 +43,6 @@ export default async function Home({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {}
   const selectedItineraryId = readParam(params.itineraryId)
   const session = await auth()
-  const initialRouteData = session?.user ? await getRouteStore().getAll() : undefined
 
   let initialItineraryWorkspace: ItineraryWorkspace | null = null
   let initialItinerarySummaries: ItinerarySummary[] = []
@@ -86,7 +84,6 @@ export default async function Home({ searchParams }: HomePageProps) {
     <main className="max-w-6xl mx-auto px-8 py-8">
       <TravelPlan
         isLoggedIn={!!session?.user}
-        initialRouteData={initialRouteData}
         initialItineraryWorkspace={initialItineraryWorkspace}
         initialItinerarySummaries={initialItinerarySummaries}
         initialItineraryId={initialItineraryId}

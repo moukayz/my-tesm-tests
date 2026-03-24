@@ -83,7 +83,7 @@ describe('POST /api/note-update', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.note).toBe(note)
-    expect(mockGetRouteStore).toHaveBeenCalledWith('route')
+    expect(mockGetRouteStore).toHaveBeenCalledWith()
     expect(mockRouteStore.updateNote).toHaveBeenCalledWith(0, note)
   })
 

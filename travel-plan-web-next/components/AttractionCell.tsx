@@ -7,16 +7,7 @@ import { searchLocationSuggestions } from '../app/lib/locations/search'
 import type { StayLocationResolved } from '../app/lib/itinerary-store/types'
 import type { RouteDay, DayAttraction } from '../app/lib/itinerary'
 import AttractionMiniMap from './AttractionMiniMap'
-
-const TAG_COLORS = [
-  { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
-  { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200' },
-  { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
-  { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200' },
-  { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-200' },
-  { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200' },
-  { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-200' },
-]
+import { DAY_COLORS } from '../app/lib/dayColors'
 
 interface AttractionCellProps {
   dayIndex: number
@@ -261,7 +252,7 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
       <div className="flex flex-col gap-1">
         <div className="relative flex flex-col gap-1 items-start">
           {attractions.map((attraction, aIdx) => {
-            const color = TAG_COLORS[aIdx % TAG_COLORS.length]
+            const color = DAY_COLORS[aIdx % DAY_COLORS.length]
             const isDragged = draggedId === attraction.id
             return (
               <div

@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tabKey: TabKey = (body.tabKey as TabKey) ?? 'route'
-    const store = getRouteStore(tabKey)
+    const store = getRouteStore()
     const allData = await store.getAll()
 
     if (body.dayIndex < 0 || body.dayIndex >= allData.length) {

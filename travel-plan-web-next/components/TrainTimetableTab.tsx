@@ -1,73 +1,29 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import AutocompleteInput from './AutocompleteInput'
+import TrainSelectorControl from './TrainSelectorControl'
+import { useTrainList } from '../app/lib/hooks/useTrainList'
 import { formatTime, type TimetableRow } from '../app/lib/trainTimetable'
-import { type TrainRow } from '../app/lib/trainDelay'
-
-const TRAIN_FETCH_MAX_ATTEMPTS = 3
-const TRAIN_FETCH_RETRY_DELAY_MS = 350
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-async function fetchTrainsWithRetry(): Promise<TrainRow[]> {
-  let lastError: unknown
-
-  for (let attempt = 1; attempt <= TRAIN_FETCH_MAX_ATTEMPTS; attempt += 1) {
-    try {
-      const response = await fetch('/api/trains')
-      const data = await response.json()
-      const rows = Array.isArray(data) ? data : []
-      if (rows.length > 0) return rows as TrainRow[]
-      lastError = new Error('empty_train_list')
-    } catch (error) {
-      lastError = error
-    }
-
-    if (attempt < TRAIN_FETCH_MAX_ATTEMPTS) {
-      await sleep(TRAIN_FETCH_RETRY_DELAY_MS * attempt)
-    }
-  }
-
-  throw lastError ?? new Error('train_list_unavailable')
-}
 
 export default function TrainTimetableTab() {
-  const [trains, setTrains] = useState<TrainRow[]>([])
-  const [trainInput, setTrainInput] = useState('')
-  const [selectedTrain, setSelectedTrain] = useState('')
-  const [selectedRailway, setSelectedRailway] = useState('')
+  const {
+    trains,
+    trainInput,
+    selectedTrain,
+    selectedRailway,
+    trainsLoading,
+    error: trainListError,
+    handleTrainChange,
+    handleTrainSelect,
+  } = useTrainList()
+
   const [timetable, setTimetable] = useState<TimetableRow[]>([])
-  const [trainsLoading, setTrainsLoading] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    let isActive = true
-
-    setTrainsLoading(true)
-    setError(null)
-
-    fetchTrainsWithRetry()
-      .then((rows) => {
-        if (!isActive) return
-        setTrains(rows)
-      })
-      .catch(() => {
-        if (!isActive) return
-        setError('Failed to load train list')
-      })
-      .finally(() => {
-        if (!isActive) return
-        setTrainsLoading(false)
-      })
-
-    return () => {
-      isActive = false
-    }
-  }, [])
+    if (trainListError) setError(trainListError)
+  }, [trainListError])
 
   useEffect(() => {
     if (!selectedTrain) {
@@ -89,45 +45,22 @@ export default function TrainTimetableTab() {
       })
   }, [selectedTrain, selectedRailway])
 
-  function handleTrainChange(text: string) {
-    setTrainInput(text)
-    if (text !== selectedTrain) {
-      setSelectedTrain('')
-      setSelectedRailway('')
-    }
-  }
-
-  function handleTrainSelect(name: string) {
-    setTrainInput(name)
-    setSelectedTrain(name)
-    setSelectedRailway(trains.find((t) => t.train_name === name)?.railway ?? 'german')
-  }
-
   const rideDate = timetable[0]?.ride_date?.slice(0, 10) ?? null
 
   return (
     <div className="w-full flex flex-col gap-5">
       {/* Controls */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 flex gap-8 p-5 items-end flex-wrap">
-        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-          <div className="flex items-baseline gap-2">
-            <label
-              htmlFor="timetable-train-input"
-              className="text-xs font-semibold uppercase tracking-wider text-gray-700"
-            >
-              Train
-            </label>
-            <span className="text-xs text-gray-400">e.g. ICE 905, TGV 8088, EST 9423</span>
-          </div>
-          <AutocompleteInput
-            id="timetable-train-input"
-            value={trainInput}
-            onChange={handleTrainChange}
-            onSelect={handleTrainSelect}
-            options={trains.map((t) => t.train_name)}
-            placeholder="Type to search, e.g. ICE 905"
-          />
-        </div>
+        <TrainSelectorControl
+          id="timetable-train-input"
+          value={trainInput}
+          options={trains.map((t) => t.train_name)}
+          onChange={handleTrainChange}
+          onSelect={handleTrainSelect}
+          isLoading={false}
+          hint="e.g. ICE 905, TGV 8088, EST 9423"
+          placeholder="Type to search, e.g. ICE 905"
+        />
       </div>
 
       {error && <p className="text-red-600 text-sm">{error}</p>}

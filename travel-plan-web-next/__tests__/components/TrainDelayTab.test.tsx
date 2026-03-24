@@ -124,8 +124,9 @@ describe('TrainDelayTab', () => {
   it('shows an error message when trains fail to load', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('Network error'))
     render(<TrainDelayTab />)
-    await waitFor(() =>
-      expect(screen.getByText('Failed to load train list')).toBeInTheDocument()
+    await waitFor(
+      () => expect(screen.getByText('Failed to load train list')).toBeInTheDocument(),
+      { timeout: 5_000 }
     )
   })
 

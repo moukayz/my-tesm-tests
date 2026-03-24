@@ -12,36 +12,39 @@ import {
   ReferenceLine,
 } from 'recharts'
 import AutocompleteInput from './AutocompleteInput'
+import TrainSelectorControl from './TrainSelectorControl'
+import { useTrainList } from '../app/lib/hooks/useTrainList'
 import {
   formatDay,
   buildStatItems,
   type DelayStats,
   type TrendPoint,
-  type TrainRow,
   type StationRow,
 } from '../app/lib/trainDelay'
 
 export default function TrainDelayTab() {
-  const [trains, setTrains] = useState<TrainRow[]>([])
-  const [trainInput, setTrainInput] = useState('')
-  const [selectedTrain, setSelectedTrain] = useState('')
+  const {
+    trains,
+    trainInput,
+    selectedTrain,
+    trainsLoading,
+    error: trainListError,
+    handleTrainChange,
+    handleTrainSelect,
+  } = useTrainList({ url: '/api/trains?railway=german' })
+
   const [stations, setStations] = useState<StationRow[]>([])
   const [stationInput, setStationInput] = useState('')
   const [selectedStation, setSelectedStation] = useState('')
   const [stats, setStats] = useState<DelayStats | null>(null)
   const [trends, setTrends] = useState<TrendPoint[]>([])
-  const [trainsLoading, setTrainsLoading] = useState(true)
   const [stationsLoading, setStationsLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/trains?railway=german')
-      .then((r) => r.json())
-      .then((data) => setTrains(Array.isArray(data) ? data : []))
-      .catch(() => setError('Failed to load train list'))
-      .finally(() => setTrainsLoading(false))
-  }, [])
+    if (trainListError) setError(trainListError)
+  }, [trainListError])
 
   useEffect(() => {
     if (!selectedTrain) {
@@ -85,16 +88,6 @@ export default function TrainDelayTab() {
       })
   }, [selectedTrain, selectedStation])
 
-  function handleTrainChange(text: string) {
-    setTrainInput(text)
-    if (text !== selectedTrain) setSelectedTrain('')
-  }
-
-  function handleTrainSelect(name: string) {
-    setTrainInput(name)
-    setSelectedTrain(name)
-  }
-
   function handleStationChange(text: string) {
     setStationInput(text)
     if (text !== selectedStation) setSelectedStation('')
@@ -111,25 +104,16 @@ export default function TrainDelayTab() {
     <div className="w-full flex flex-col gap-5">
       {/* Controls */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 flex gap-8 p-5 items-end flex-wrap">
-        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-          <div className="flex items-baseline gap-2">
-            <label
-              htmlFor="train-input"
-              className="text-xs font-semibold uppercase tracking-wider text-gray-700"
-            >
-              Train
-            </label>
-            <span className="text-xs text-gray-400">e.g. ICE 905, TGV 8088, EST 9423</span>
-          </div>
-          <AutocompleteInput
-            id="train-input"
-            value={trainInput}
-            onChange={handleTrainChange}
-            onSelect={handleTrainSelect}
-            options={trains.map((t) => t.train_name)}
-            placeholder="Type to search, e.g. ICE 905"
-          />
-        </div>
+        <TrainSelectorControl
+          id="train-input"
+          value={trainInput}
+          options={trains.map((t) => t.train_name)}
+          onChange={handleTrainChange}
+          onSelect={handleTrainSelect}
+          isLoading={false}
+          hint="e.g. ICE 905, TGV 8088, EST 9423"
+          placeholder="Type to search, e.g. ICE 905"
+        />
 
         <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
           <div className="flex items-center gap-2">

@@ -48,7 +48,12 @@ test.describe('Navigation and Tab Visibility', () => {
   })
 
   test('logged in users land on itinerary by default', async ({ page }) => {
-    await injectSession(page)
+    const user = { email: `nav-${Date.now()}@example.com`, name: 'Test User' }
+    await injectSession(page, user)
+    const res = await page.request.post('/api/itineraries', {
+      data: { name: 'Nav test itinerary', startDate: '2026-01-01' },
+    })
+    expect(res.status()).toBe(201)
     await page.goto('/')
     await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
   })

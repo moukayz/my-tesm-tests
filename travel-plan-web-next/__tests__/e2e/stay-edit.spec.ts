@@ -65,7 +65,12 @@ test.describe('Tab visibility', () => {
   })
 
   test('AC-1: authenticated — default itinerary view is cards-first', async ({ page }) => {
-    await injectSession(page)
+    const user = { email: `stay-edit-cards-${Date.now()}@example.com`, name: 'Test User' }
+    await injectSession(page, user)
+    const res = await page.request.post('/api/itineraries', {
+      data: { name: 'Stay edit test itinerary', startDate: '2026-01-01' },
+    })
+    expect(res.status()).toBe(201)
     await page.goto('/?tab=itinerary')
     await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
   })

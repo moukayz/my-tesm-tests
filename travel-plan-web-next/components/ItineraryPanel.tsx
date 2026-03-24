@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { ItinerarySummary, ItineraryWorkspace as ItineraryWorkspaceType } from '../app/lib/itinerary-store/types'
 import ItineraryCardsView from './ItineraryCardsView'
-import ItineraryDetailShell from './ItineraryDetailShell'
+import ItineraryWorkspace from './ItineraryWorkspace'
 
 interface ItineraryPanelProps {
   selectedItineraryId?: string
@@ -29,11 +29,6 @@ export default function ItineraryPanel({
   const [hasUnsavedInlineEdits, setHasUnsavedInlineEdits] = useState(false)
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
 
-  const selectedSummary = useMemo(
-    () => itinerarySummaries.find((item) => item.id === selectedItineraryId),
-    [itinerarySummaries, selectedItineraryId]
-  )
-
   const handleDirtyStateChange = (isDirty: boolean) => {
     setHasUnsavedInlineEdits(isDirty)
     onDirtyStateChange?.(isDirty)
@@ -56,14 +51,15 @@ export default function ItineraryPanel({
           onCreateItinerary={onRequestCreateItinerary}
         />
       ) : (
-        <ItineraryDetailShell
-          selectedItineraryId={selectedItineraryId}
-          selectedSummary={selectedSummary}
-          initialWorkspace={initialWorkspace}
-          initialErrorCode={initialErrorCode}
-          onBackToCards={requestBackToCards}
-          onDirtyStateChange={handleDirtyStateChange}
-        />
+        <div data-testid="itinerary-detail-shell" className="w-full space-y-4">
+          <ItineraryWorkspace
+            selectedItineraryId={selectedItineraryId}
+            initialWorkspace={initialWorkspace}
+            initialErrorCode={initialErrorCode}
+            onDirtyStateChange={handleDirtyStateChange}
+            onBackToCards={requestBackToCards}
+          />
+        </div>
       )}
 
       {showDiscardDialog && (

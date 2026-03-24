@@ -194,10 +194,7 @@ test.describe('Location autocomplete UI', () => {
     const itineraryTab = page.getByTestId('itinerary-tab')
     await expect(itineraryTab).toBeVisible({ timeout: 15000 })
 
-    // Country column header present
-    await expect(itineraryTab.getByRole('columnheader', { name: /^country$/i })).toBeVisible()
-
-    // Country cell shows "France"
+    // Country tag shows "France" inside the overnight cell
     await expect(itineraryTab.getByText('France')).toBeVisible()
 
     // Overnight cell shows "Paris" only, not the full label

@@ -78,7 +78,7 @@ test.describe('Itinerary Tab', () => {
 
   test('all 5 days are shown (5 date cells matching date pattern)', async ({ page }) => {
     const panel = page.getByTestId('itinerary-tab')
-    const dateCells = panel.locator('td').filter({ hasText: /^\d{4}\/\d+\/\d+$/ })
+    const dateCells = panel.getByTestId('itinerary-date')
     await expect(dateCells).toHaveCount(5)
   })
 
