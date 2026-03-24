@@ -50,4 +50,16 @@ describe('AttractionMiniMap', () => {
     render(<AttractionMiniMap attractions={[]} />)
     expect(screen.getByTestId('attraction-minimap-placeholder')).toBeInTheDocument()
   })
+
+  it('renders map container at 600×450', () => {
+    render(<AttractionMiniMap attractions={attractionsWithCoords} />)
+    const mapContainer = screen.getByTestId('attraction-minimap')
+    expect(mapContainer).toHaveStyle({ width: '600px', height: '450px' })
+  })
+
+  it('renders placeholder at 600×450', () => {
+    render(<AttractionMiniMap attractions={attractionsNoCoords} />)
+    const placeholder = screen.getByTestId('attraction-minimap-placeholder')
+    expect(placeholder).toHaveStyle({ width: '600px', height: '450px' })
+  })
 })

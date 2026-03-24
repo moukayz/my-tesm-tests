@@ -87,7 +87,7 @@ export default function AttractionMiniMap({ attractions }: AttractionMiniMapProp
       <div
         data-testid="attraction-minimap-placeholder"
         className="flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-xs text-gray-400"
-        style={{ width: 400, height: 300 }}
+        style={{ width: 600, height: 450 }}
       >
         No location data
       </div>
@@ -98,9 +98,9 @@ export default function AttractionMiniMap({ attractions }: AttractionMiniMapProp
     <div
       data-testid="attraction-minimap"
       className="rounded-lg border border-gray-200 overflow-hidden"
-      style={{ width: 400, height: 300 }}
+      style={{ width: 600, height: 450 }}
     >
-      <div ref={containerRef} style={{ width: 400, height: 300 }} />
+      <div ref={containerRef} style={{ width: 600, height: 450 }} />
     </div>
   )
 }

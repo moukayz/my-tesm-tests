@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Plus, X, Map as MapIcon } from 'lucide-react'
 import { searchLocationSuggestions } from '../app/lib/locations/search'
@@ -38,6 +38,12 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
   const searchRef = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const miniMapButtonRef = useRef<HTMLButtonElement | null>(null)
+
+  // Drag-and-drop state
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const tagRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const prevRectsRef = useRef<Map<string, DOMRect>>(new Map())
+  const animatingRef = useRef(false)
 
   const attractions = overrides ?? (day.attractions ?? [])
 
@@ -106,6 +112,102 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
     setMiniMapRect(null)
   }
 
+  // --- Drag-and-drop handlers ---
+
+  function capturePositions() {
+    const rects = new Map<string, DOMRect>()
+    tagRefs.current.forEach((el, id) => {
+      rects.set(id, el.getBoundingClientRect())
+    })
+    prevRectsRef.current = rects
+  }
+
+  const handleDragStart = useCallback((e: React.DragEvent, attractionId: string) => {
+    capturePositions()
+    setDraggedId(attractionId)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', attractionId)
+    // Use a transparent drag image so we rely on opacity styling
+    const el = tagRefs.current.get(attractionId)
+    if (el) {
+      e.dataTransfer.setDragImage(el, 0, 0)
+    }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent, targetId: string) => {
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+    if (!draggedId || draggedId === targetId || animatingRef.current) return
+
+    const fromIdx = attractions.findIndex((a) => a.id === draggedId)
+    const toIdx = attractions.findIndex((a) => a.id === targetId)
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return
+
+    // Capture positions before reorder for FLIP animation
+    capturePositions()
+
+    const next = [...attractions]
+    const [moved] = next.splice(fromIdx, 1)
+    next.splice(toIdx, 0, moved)
+    setOverrides(next)
+  }, [draggedId, attractions])
+
+  const handleDragEnd = useCallback(() => {
+    if (draggedId) {
+      saveAttractions(attractions).catch(() => {})
+    }
+    setDraggedId(null)
+    prevRectsRef.current.clear()
+  }, [draggedId, attractions])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
+
+  // FLIP animation after reorder
+  useLayoutEffect(() => {
+    if (prevRectsRef.current.size === 0) return
+
+    const prevRects = prevRectsRef.current
+    let hasAnimation = false
+
+    tagRefs.current.forEach((el, id) => {
+      const prev = prevRects.get(id)
+      if (!prev) return
+      const curr = el.getBoundingClientRect()
+      const dy = prev.top - curr.top
+      if (Math.abs(dy) < 1) return
+
+      hasAnimation = true
+      el.style.transform = `translateY(${dy}px)`
+      el.style.transition = 'none'
+    })
+
+    if (!hasAnimation) return
+
+    animatingRef.current = true
+    // Force a reflow so the initial transform is applied
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    document.body.offsetHeight
+
+    tagRefs.current.forEach((el, id) => {
+      const prev = prevRects.get(id)
+      if (!prev) return
+      const curr = el.getBoundingClientRect()
+      // curr was already measured before transform was applied via reflow
+      // but we set transform above, so we just animate to 0
+      el.style.transition = 'transform 200ms ease'
+      el.style.transform = ''
+    })
+
+    const cleanup = setTimeout(() => {
+      animatingRef.current = false
+      prevRectsRef.current.clear()
+    }, 200)
+
+    return () => clearTimeout(cleanup)
+  }, [attractions])
+
   // Debounced search
   useEffect(() => {
     if (!isAdding) return
@@ -146,21 +248,41 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [miniMapOpen])
 
+  const setTagRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
+    if (el) {
+      tagRefs.current.set(id, el)
+    } else {
+      tagRefs.current.delete(id)
+    }
+  }, [])
+
   return (
-    <td className="px-4 py-3 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[200px] max-w-[300px] group/attraction-cell">
+    <td className="px-4 py-6 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[200px] max-w-[300px] group/attraction-cell relative">
       <div className="flex flex-col gap-1">
-        <div className="flex flex-col gap-1 items-start">
+        <div className="relative flex flex-col gap-1 items-start">
           {attractions.map((attraction, aIdx) => {
             const color = TAG_COLORS[aIdx % TAG_COLORS.length]
+            const isDragged = draggedId === attraction.id
             return (
-              <div key={attraction.id} className="group/tag relative inline-flex items-center">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${color.bg} ${color.text} ${color.border}`}>
+              <div
+                key={attraction.id}
+                ref={setTagRef(attraction.id)}
+                className={`group/tag relative inline-flex items-center ${isDragged ? 'opacity-40' : ''}`}
+                draggable
+                onDragStart={(e) => handleDragStart(e, attraction.id)}
+                onDragOver={(e) => handleDragOver(e, attraction.id)}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
+              >
+                <span
+                  aria-label="Drag to reorder"
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border cursor-grab active:cursor-grabbing ${color.bg} ${color.text} ${color.border}`}>
                   {attraction.label}
                 </span>
                 <button
                   type="button"
                   aria-label={`Remove ${attraction.label}`}
-                  className="absolute left-full ml-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/tag:opacity-100 transition-opacity rounded-full hover:bg-black/10 p-0.5"
+                  className="ml-0.5 opacity-0 group-hover/tag:opacity-100 transition-opacity rounded-full hover:bg-black/10 p-0.5"
                   onClick={() => removeAttraction(attraction.id)}
                 >
                   <X size={10} aria-hidden="true" />
@@ -168,6 +290,37 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
               </div>
             )
           })}
+
+          {/* Button row — absolutely positioned right below last tag, no extra space */}
+          <div
+            data-testid="attraction-buttons"
+            className="absolute top-full left-0 flex justify-start gap-2 pt-1 opacity-0 group-hover/attraction-cell:opacity-100 transition-opacity"
+          >
+            {!isAdding && (
+              <button
+                type="button"
+                aria-label={`Add attraction for day ${day.dayNum}`}
+                title="Add attraction"
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                onClick={openSearch}
+              >
+                <Plus size={10} aria-hidden="true" />
+                Add
+              </button>
+            )}
+            {attractions.length > 0 && (
+              <button
+                type="button"
+                ref={miniMapButtonRef}
+                aria-label={`Preview attractions map for day ${day.dayNum}`}
+                title="Preview map"
+                className="inline-flex items-center px-2 py-1 rounded-full text-xs text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                onClick={openMiniMap}
+              >
+                <MapIcon size={12} aria-hidden="true" />
+              </button>
+            )}
+          </div>
         </div>
 
         {isAdding && (
@@ -225,36 +378,6 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
                   </li>
                 ))}
               </ul>
-            )}
-          </div>
-        )}
-
-        {(attractions.length > 0 || !isAdding) && (
-          <div className="flex justify-start gap-2 opacity-0 group-hover/attraction-cell:opacity-100 transition-opacity">
-            {!isAdding && (
-              <button
-                type="button"
-                aria-label={`Add attraction for day ${day.dayNum}`}
-                title="Add attraction"
-                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                onClick={openSearch}
-              >
-                <Plus size={10} aria-hidden="true" />
-                Add
-              </button>
-            )}
-
-            {attractions.length > 0 && (
-              <button
-                type="button"
-                ref={miniMapButtonRef}
-                aria-label={`Preview attractions map for day ${day.dayNum}`}
-                title="Preview map"
-                className="inline-flex items-center px-2 py-1 rounded-full text-xs text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
-                onClick={openMiniMap}
-              >
-                <MapIcon size={12} aria-hidden="true" />
-              </button>
             )}
           </div>
         )}
