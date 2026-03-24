@@ -242,15 +242,6 @@ export default function ItineraryWorkspace({
         >
           <ArrowLeft size={16} aria-hidden="true" />
         </button>
-        {hasDays && (
-          <button
-            type="button"
-            onClick={openAddNextStay}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Add next stay
-          </button>
-        )}
       </div>
 
       {hasDays && tripSummary && (

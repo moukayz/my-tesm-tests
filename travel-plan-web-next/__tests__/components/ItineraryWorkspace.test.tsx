@@ -18,10 +18,12 @@ jest.mock('../../components/ItineraryTab', () => ({
     initialData,
     onRequestEditStay,
     onMoveStay,
+    onRequestAddStay,
   }: {
     initialData: RouteDay[]
     onRequestEditStay?: (stayIndex: number) => void
     onMoveStay?: (stayIndex: number, direction: 'up' | 'down') => void
+    onRequestAddStay?: () => void
   }) => (
     <div data-testid="itinerary-tab">
       <span data-testid="first-overnight">{initialData[0]?.overnight ?? ''}</span>
@@ -31,6 +33,11 @@ jest.mock('../../components/ItineraryTab', () => ({
       <button type="button" onClick={() => onMoveStay?.(0, 'down')}>
         Move stay 0 down
       </button>
+      {onRequestAddStay && (
+        <button type="button" onClick={onRequestAddStay}>
+          Add next stay
+        </button>
+      )}
     </div>
   ),
 }))
@@ -251,7 +258,7 @@ describe('ItineraryWorkspace', () => {
     expect(screen.queryByRole('button', { name: /edit stay for paris/i })).not.toBeInTheDocument()
   })
 
-  it('renders back button alongside Add next stay in the same control row', () => {
+  it('renders back button in workspace header and Add next stay inside ItineraryTab', () => {
     const onBackToCards = jest.fn()
     render(
       <ItineraryWorkspace
@@ -265,8 +272,8 @@ describe('ItineraryWorkspace', () => {
     const addBtn = screen.getByRole('button', { name: /add next stay/i })
     expect(backBtn).toBeInTheDocument()
     expect(addBtn).toBeInTheDocument()
-    // Both buttons share the same parent container (same control row)
-    expect(backBtn.parentElement).toBe(addBtn.parentElement)
+    // Add next stay is inside ItineraryTab, back button is in the workspace header — different parents
+    expect(backBtn.parentElement).not.toBe(addBtn.parentElement)
   })
 
   it('renders back button without Add next stay when workspace is empty', () => {
@@ -425,6 +432,20 @@ describe('ItineraryWorkspace', () => {
     await waitFor(() => {
       expect(screen.getByTestId('first-overnight').textContent).toBe('Paris')
     })
+  })
+
+  it('passes onRequestAddStay to ItineraryTab so the floating button can open add stay sheet', async () => {
+    const onRequestAddStay = jest.fn()
+    render(
+      <ItineraryWorkspace
+        selectedItineraryId="iti-1"
+        initialWorkspace={filledWorkspace}
+      />
+    )
+    // Add next stay button is exposed by the ItineraryTab mock and wired to openAddNextStay
+    await userEvent.click(screen.getByRole('button', { name: /add next stay/i }))
+    // StaySheet should open (isOpen=true means the sheet portal renders)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
   it('shows recoverable back action for not-found workspace errors', async () => {

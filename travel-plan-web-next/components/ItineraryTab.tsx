@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Sunrise, Sun, Moon, GripVertical, Pencil } from 'lucide-react'
+import { Sunrise, Sun, Moon, GripVertical, Pencil, Plus } from 'lucide-react'
 import {
   getCityColor,
   getCountryColor,
@@ -108,6 +108,7 @@ export default function ItineraryTab({
   const [exportError, setExportError] = useState<string | null>(null)
   const [isPdfGenerating, setIsPdfGenerating] = useState(false)
   const [exportSuccess, setExportSuccess] = useState(false)
+  const [pickerAnchorRect, setPickerAnchorRect] = useState<DOMRect | null>(null)
   const floatingButtonRef = useRef<HTMLButtonElement>(null)
 
   // ── Derived stays (for stay edit controls) ────────────────────────────────
@@ -214,6 +215,9 @@ export default function ItineraryTab({
   }
 
   function openFloatingPicker() {
+    if (floatingButtonRef.current) {
+      setPickerAnchorRect(floatingButtonRef.current.getBoundingClientRect())
+    }
     setFloatingPickerOpen(true)
     setExportError(null)
   }
@@ -589,10 +593,37 @@ export default function ItineraryTab({
   return (
     <div
       data-testid={tabKey === 'route-test' ? 'itinerary-test-tab' : 'itinerary-tab'}
-      className="bg-white rounded-xl shadow-lg overflow-hidden w-full border border-gray-200"
+      className="w-full"
     >
+      {/* Relative wrapper so the zero-height sticky anchor is contained */}
+      <div className="relative">
+        {/* Zero-height sticky anchor — stays at top-0 while scrolling, doesn't occupy layout height */}
+        <div className="sticky top-0 z-20 h-0 pointer-events-none">
+          {/* Buttons: absolute at left:100% so they sit outside the table's right edge */}
+          <div className="absolute top-2 left-full ml-2 flex flex-col gap-1 pointer-events-auto">
+            {onRequestAddStay && (
+              <button
+                type="button"
+                onClick={onRequestAddStay}
+                aria-label="Add next stay"
+                title="Add next stay"
+                className="flex items-center justify-center w-10 h-10 rounded-full shadow-lg bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-shadow"
+              >
+                <Plus size={20} aria-hidden="true" />
+              </button>
+            )}
+            <FloatingExportButton
+              hasData={days.length > 0}
+              isPickerOpen={floatingPickerOpen}
+              onOpen={openFloatingPicker}
+              buttonRef={floatingButtonRef}
+            />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-lg overflow-clip border border-gray-200">
       <table className="w-full border-collapse text-left">
-        <thead className="bg-gray-50 border-b-2 border-gray-200">
+        <thead className="bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-10 shadow-sm">
           <tr>
             {['Date', 'Weekday', 'Day', 'Country', 'Overnight', 'Plan', 'Train Schedule'].map((h) => (
               <th
@@ -855,6 +886,8 @@ export default function ItineraryTab({
           })}
         </tbody>
       </table>
+        </div>{/* end table card */}
+      </div>{/* end relative wrapper */}
 
       {trainEditorDayIndex !== null && (
         <div
@@ -1033,22 +1066,13 @@ export default function ItineraryTab({
         </div>
       )}
 
-      {/* Floating export button. Keep it inside this panel so panel-scoped locators can find it. */}
-      <FloatingExportButton
-        hasData={days.length > 0}
-        isPickerOpen={floatingPickerOpen}
-        onOpen={openFloatingPicker}
-        buttonRef={floatingButtonRef}
-      />
-
-      {/* Export format picker — portal to document.body, positioned beside the FAB */}
-      {typeof document !== 'undefined' && floatingPickerOpen && createPortal(
+      {/* Export format picker — portal to document.body, positioned to the left of the export button */}
+      {typeof document !== 'undefined' && floatingPickerOpen && pickerAnchorRect && createPortal(
         <div
           className="fixed z-[45]"
           style={{
-            top: '50%',
-            right: 'calc(1rem + 2.5rem + 0.75rem)',
-            transform: 'translateY(-50%)',
+            top: `${pickerAnchorRect.top}px`,
+            right: `${window.innerWidth - pickerAnchorRect.left + 8}px`,
           }}
         >
           <ExportFormatPicker

@@ -172,11 +172,6 @@ export default function TravelPlan({
     }
   }
 
-  const canOpenCreate = useMemo(
-    () => isLoggedIn && displayTab === 'itinerary',
-    [displayTab, isLoggedIn]
-  )
-
   return (
     <div className="flex flex-col items-center">
       <div className="mb-8 text-center">
@@ -202,17 +197,17 @@ export default function TravelPlan({
             {label}
           </button>
         ))}
-        {canOpenCreate && (
+        {isLoggedIn && (
           <button
             type="button"
             onClick={() => {
               if (hasUnsavedInlineEdits) return
               setIsCreateModalOpen(true)
             }}
-            className="ml-auto mb-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             disabled={hasUnsavedInlineEdits}
+            className="ml-auto px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            New itinerary
+            + New itinerary
           </button>
         )}
       </div>

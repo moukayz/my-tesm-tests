@@ -27,26 +27,24 @@ export default function FloatingExportButton({
   buttonRef,
 }: FloatingExportButtonProps) {
   return (
-    <div className="fixed top-1/2 right-4 -translate-y-1/2 z-40">
-      <button
-        ref={buttonRef}
-        data-testid="export-fab"
-        disabled={!hasData}
-        aria-label={hasData ? 'Export itinerary' : 'Export itinerary (nothing to export)'}
-        aria-haspopup="true"
-        aria-expanded={isPickerOpen}
-        aria-disabled={!hasData}
-        title={!hasData ? 'Nothing to export' : undefined}
-        onClick={hasData ? onOpen : undefined}
-        className="flex items-center justify-center w-10 h-10 rounded-full shadow-lg
-                   bg-white border border-gray-200 text-gray-700
-                   hover:bg-gray-50 hover:shadow-xl
-                   disabled:opacity-40 disabled:cursor-not-allowed
-                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                   transition-shadow"
-      >
-        <Download size={20} aria-hidden="true" />
-      </button>
-    </div>
+    <button
+      ref={buttonRef}
+      data-testid="export-fab"
+      disabled={!hasData}
+      aria-label={hasData ? 'Export itinerary' : 'Export itinerary (nothing to export)'}
+      aria-haspopup="true"
+      aria-expanded={isPickerOpen}
+      aria-disabled={!hasData}
+      title={!hasData ? 'Nothing to export' : undefined}
+      onClick={hasData ? onOpen : undefined}
+      className="flex items-center justify-center w-10 h-10 rounded-full shadow-lg
+                 bg-white border border-gray-200 text-gray-700
+                 hover:bg-gray-50 hover:shadow-xl
+                 disabled:opacity-40 disabled:cursor-not-allowed
+                 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                 transition-shadow"
+    >
+      <Download size={20} aria-hidden="true" />
+    </button>
   )
 }

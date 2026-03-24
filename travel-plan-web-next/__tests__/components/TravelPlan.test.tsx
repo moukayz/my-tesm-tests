@@ -21,6 +21,7 @@ jest.mock('../../components/ItineraryPanel', () => ({
     onBackToCards,
     onSelectItinerary,
     onSelectStarterRoute,
+    onRequestCreateItinerary,
   }: {
     onDirtyStateChange?: (isDirty: boolean) => void
     selectedItineraryId?: string
@@ -28,6 +29,7 @@ jest.mock('../../components/ItineraryPanel', () => ({
     onBackToCards: () => void
     onSelectItinerary: (id: string) => void
     onSelectStarterRoute: (legacyTabKey: 'route') => void
+    onRequestCreateItinerary?: () => void
   }) => (
     <div>
       <div data-testid="itinerary-panel">ItineraryPanel</div>
@@ -44,6 +46,9 @@ jest.mock('../../components/ItineraryPanel', () => ({
       </button>
       <button type="button" onClick={() => onSelectStarterRoute('route')}>
         Open starter route
+      </button>
+      <button type="button" onClick={onRequestCreateItinerary}>
+        Create itinerary via panel
       </button>
     </div>
   ),
@@ -122,7 +127,7 @@ describe('TravelPlan', () => {
     } as Response)
   })
 
-  it('shows new itinerary button on itinerary tab for logged-in user', () => {
+  it('shows New itinerary button in the tab bar for logged-in users', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
@@ -134,6 +139,22 @@ describe('TravelPlan', () => {
     )
 
     expect(screen.getByRole('button', { name: /new itinerary/i })).toBeInTheDocument()
+  })
+
+  it('passes onRequestCreateItinerary to ItineraryPanel so floating button can open create modal', async () => {
+    render(
+      <TravelPlan
+        isLoggedIn={true}
+        initialRouteData={mockRouteData}
+        initialItineraryWorkspace={mockWorkspace}
+        initialItineraryId="iti-1"
+        initialItinerarySummaries={mockSummaries}
+      />
+    )
+
+    // Clicking the panel's exposed create trigger calls TravelPlan's create handler → opens modal
+    await userEvent.click(screen.getByRole('button', { name: /create itinerary via panel/i }))
+    expect(screen.getByRole('button', { name: /submit create/i })).toBeInTheDocument()
   })
 
   it('updates browser URL when user switches tabs', async () => {
@@ -200,7 +221,7 @@ describe('TravelPlan', () => {
       />
     )
 
-    await userEvent.click(screen.getByRole('button', { name: /new itinerary/i }))
+    await userEvent.click(screen.getByRole('button', { name: /create itinerary via panel/i }))
     await userEvent.click(screen.getByRole('button', { name: /submit create/i }))
 
     expect(window.location.search).toContain('tab=itinerary')
@@ -220,7 +241,7 @@ describe('TravelPlan', () => {
 
     expect(screen.getByTestId('selected-itinerary-id')).toHaveTextContent('iti-1')
 
-    await userEvent.click(screen.getByRole('button', { name: /new itinerary/i }))
+    await userEvent.click(screen.getByRole('button', { name: /create itinerary via panel/i }))
     await userEvent.click(screen.getByRole('button', { name: /submit create/i }))
 
     expect(screen.getByTestId('selected-itinerary-id')).toHaveTextContent('iti-new')

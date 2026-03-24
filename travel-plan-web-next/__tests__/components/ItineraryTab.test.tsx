@@ -78,6 +78,27 @@ describe('ItineraryTab', () => {
     })
   })
 
+  it('thead has sticky class for always-visible column headers on scroll', () => {
+    setupFetch()
+    const { container } = render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
+    const thead = container.querySelector('thead')
+    expect(thead).toHaveClass('sticky')
+  })
+
+  it('renders floating Add next stay button and calls onRequestAddStay on click', async () => {
+    setupFetch()
+    const onRequestAddStay = jest.fn()
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" onRequestAddStay={onRequestAddStay} />)
+    await userEvent.click(screen.getByRole('button', { name: /add next stay/i }))
+    expect(onRequestAddStay).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not render Add next stay button when onRequestAddStay is not provided', () => {
+    setupFetch()
+    render(<ItineraryTab initialData={mockRouteData} tabKey="route" />)
+    expect(screen.queryByRole('button', { name: /add next stay/i })).not.toBeInTheDocument()
+  })
+
   it('shows country from resolved location in country cell', async () => {
     setupFetch()
     const dataWithResolvedLocation: RouteDay[] = [
@@ -1968,7 +1989,7 @@ describe('ItineraryTab - Stay Edit Feature', () => {
 describe('ItineraryTab - Itinerary Scoped API wiring', () => {
   afterEach(() => jest.restoreAllMocks())
 
-  it('does not render a table-top Add next stay strip in itinerary-scoped mode', () => {
+  it('renders Add next stay as a floating button (not a table-top strip) in itinerary-scoped mode', () => {
     setupFetchForStayEdit()
     const onRequestAddStay = jest.fn()
 
@@ -1980,7 +2001,12 @@ describe('ItineraryTab - Itinerary Scoped API wiring', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: /^add next stay$/i })).not.toBeInTheDocument()
+    // Floating button is rendered outside the table (in the sticky anchor)
+    const btn = screen.getByRole('button', { name: /^add next stay$/i })
+    expect(btn).toBeInTheDocument()
+    // It should NOT be inside a <td> or <th> (not a table strip)
+    expect(btn.closest('td')).toBeNull()
+    expect(btn.closest('th')).toBeNull()
   })
 
   it('renders one icon-triggered full Edit stay control in itinerary-scoped mode', async () => {
