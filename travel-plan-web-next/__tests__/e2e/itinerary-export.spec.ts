@@ -37,6 +37,14 @@ import { encode } from 'next-auth/jwt'
 const AUTH_SECRET = process.env.AUTH_SECRET || 'test-auth-secret-32chars!!!!!!!!'
 const COOKIE_NAME = 'authjs.session-token'
 
+function makeTestUser(label: string): { email: string; name: string } {
+  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  return {
+    email: `${label}-${uniqueSuffix}@example.com`,
+    name: 'Test User',
+  }
+}
+
 async function injectSession(
   page: Page,
   user = { email: 'test@gmail.com', name: 'Test User' }
@@ -88,20 +96,20 @@ const INJECT_SAVE_FILE_PICKER_MOCK = `
 // ─── Shared setup ─────────────────────────────────────────────────────────────
 
 /**
- * Navigates to the home page as an authenticated user.
- * The Itinerary tab is the default tab for authenticated users.
- *
- * NOTE: Both ItineraryTab instances (tabKey='route' and tabKey='route-test') are always
- * mounted in the DOM (keep-alive pattern). Selectors that could match both panels (e.g.
- * 'export-fab', 'train-json-edit-btn-N') MUST be scoped to `primaryPanel` to avoid
- * Playwright strict-mode violations. Use `primaryPanel(page)` helper in tests.
+ * Creates a fresh itinerary and navigates directly to it as an authenticated user.
  */
 async function gotoItineraryAsAuth(page: Page) {
-  await injectSession(page)
-  await page.goto('/?tab=itinerary')
-  await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
-  await page.getByTestId('itinerary-card-starter-route').click()
-  // Wait for the PRIMARY itinerary panel to be present
+  const user = makeTestUser('export')
+  await injectSession(page, user)
+  const createRes = await page.request.post('/api/itineraries', {
+    data: { name: `Export Test ${Date.now()}`, startDate: '2026-09-25' },
+  })
+  expect(createRes.status()).toBe(201)
+  const { itinerary } = await createRes.json()
+  await page.request.post(`/api/itineraries/${itinerary.id}/stays`, {
+    data: { city: 'Paris', nights: 3 },
+  })
+  await page.goto(`/?tab=itinerary&itineraryId=${itinerary.id}`)
   const panel = page.getByTestId('itinerary-tab')
   await expect(panel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
 }
@@ -362,10 +370,11 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     expect(content).toContain('Date')
     expect(content).toContain('Day')
     expect(content).toContain('Overnight')
-    expect(content).toContain('Plan')
+    expect(content).toContain('Note')
     expect(content).toContain('Train Schedule')
 
-    // Weekday column must be absent
+    // Plan and Weekday columns must be absent
+    expect(content).not.toMatch(/\|\s*Plan\s*\|/)
     expect(content).not.toMatch(/\|\s*Weekday\s*\|/)
 
     // Must have a GFM separator row (|---|...)
@@ -375,16 +384,23 @@ test.describe('Itinerary Export — "Export to files…"', () => {
   test('exported Markdown Note cell shows note content', async ({ page }) => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
 
-    // Set day 0 note to known value via API before page load
-    await injectSession(page)
-    const res = await page.request.post('/api/note-update', {
-      data: { dayIndex: 0, note: 'e2e-note-export' },
+    // Create itinerary with a stay, then set day 0 note via itinerary-scoped API
+    const user = makeTestUser('export-note')
+    await injectSession(page, user)
+    const createRes = await page.request.post('/api/itineraries', {
+      data: { name: `Export Note Test ${Date.now()}`, startDate: '2026-09-25' },
     })
-    expect(res.status()).toBe(200)
+    expect(createRes.status()).toBe(201)
+    const { itinerary } = await createRes.json()
+    await page.request.post(`/api/itineraries/${itinerary.id}/stays`, {
+      data: { city: 'Paris', nights: 3 },
+    })
+    const noteRes = await page.request.patch(`/api/itineraries/${itinerary.id}/days/0/note`, {
+      data: { note: 'e2e-note-export' },
+    })
+    expect(noteRes.status()).toBe(200)
 
-    await page.goto('/?tab=itinerary')
-    await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
-    await page.getByTestId('itinerary-card-starter-route').click()
+    await page.goto(`/?tab=itinerary&itineraryId=${itinerary.id}`)
     await expect(primaryPanel(page).getByRole('columnheader', { name: /^date$/i })).toBeVisible()
 
     await primaryPanel(page).getByTestId('export-fab').click()
@@ -406,7 +422,7 @@ test.describe('Itinerary Export — "Export to files…"', () => {
     expect(content).toContain('e2e-note-export')
   })
 
-  test('exported Markdown Train Schedule cell: DB trains show normalised ID only (no station names or times)', async ({ page }) => {
+  test('exported Markdown Train Schedule cell: days with no trains show "—"', async ({ page }) => {
     await page.addInitScript(INJECT_SAVE_FILE_PICKER_MOCK)
     await gotoItineraryAsAuth(page)
 
@@ -433,28 +449,12 @@ test.describe('Itinerary Export — "Export to files…"', () => {
       .filter((l) => l.trim().startsWith('|') && !l.includes('---'))
       .slice(1) // skip header row
 
-    // Verify the day with DB trains (day 5, EST9423 + ICE1011, start/end defined)
-    // should have "EST 9423\nICE 1011" (literal \n in Markdown table) and NOT contain
-    // the station names "paris", "cologne", "augsburg" in the Train Schedule cell
-    const day5Row = dataRows.find((r) => r.includes('EST 9423'))
-    expect(day5Row).toBeDefined()
-
-    if (day5Row) {
-      const cells = day5Row.split('|').map((c) => c.trim()).filter(Boolean)
-      // Train Schedule is the last cell (index 4: Date, Day, Overnight, Plan, TrainSchedule)
-      const trainCell = cells[4]
-      expect(trainCell).toContain('EST 9423')
-      expect(trainCell).toContain('ICE 1011')
-      // No station names (FR-09: train numbers only for DB trains)
-      expect(trainCell).not.toMatch(/\b(paris|cologne|augsburg|munich)\b/i)
-      // No time strings (FR-09: no departure/arrival times)
-      expect(trainCell).not.toMatch(/\d{2}:\d{2}/)
-    }
-
-    // Also verify a day with no trains shows "—" (FR-10 / AC-08)
-    const day1Row = dataRows[0] // Day 1 has no trains
-    const cells1 = day1Row.split('|').map((c) => c.trim()).filter(Boolean)
-    expect(cells1[4]).toBe('—')
+    // All days in a fresh itinerary have no trains — Train Schedule cell (index 3) shows "—"
+    // Column order: Overnight | Date | Day | Train Schedule | Note
+    const firstRow = dataRows[0]
+    expect(firstRow).toBeDefined()
+    const cells = firstRow.split('|').map((c) => c.trim()).filter(Boolean)
+    expect(cells[3]).toBe('—') // Train Schedule column
   })
 
   // ── 10. Anchor fallback when showSaveFilePicker is undefined ─────────────────

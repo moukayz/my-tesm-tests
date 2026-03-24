@@ -126,22 +126,22 @@ export function toExportRows(
  * Serialises RouteDay[] into a GFM (GitHub Flavoured Markdown) pipe table.
  *
  * Output structure:
- *   | Date | Day | Overnight | Train Schedule | Note |
- *   |------|-----|-----------|----------------|------|
- *   | …    | …   | …         | …              | …    |
+ *   | Overnight | Date | Day | Train Schedule | Note |
+ *   |-----------|------|-----|----------------|------|
+ *   | …         | …    | …   | …              | …    |
  *
  * Weekday column is never included.
  * Newlines inside cells are represented as literal \n (not real newlines).
  */
 export function buildMarkdownTable(data: RouteDay[]): string {
-  const header = '| Date | Day | Overnight | Train Schedule | Note |'
-  const separator = '|------|-----|-----------|----------------|------|'
+  const header = '| Overnight | Date | Day | Train Schedule | Note |'
+  const separator = '|-----------|------|-----|----------------|------|'
 
   const rows = toExportRows(data, { stripMarkdownInNote: false }).map((row) => {
     // Represent newlines inside cells as literal \n (GFM tables can't have real newlines in cells)
     const trainCell = row.trainSchedule.replace(/\n/g, '\\n')
     const noteCell = row.note.replace(/\n/g, '\\n')
-    return `| ${row.date} | ${row.day} | ${row.overnight} | ${trainCell} | ${noteCell} |`
+    return `| ${row.overnight} | ${row.date} | ${row.day} | ${trainCell} | ${noteCell} |`
   })
 
   return [header, separator, ...rows].join('\n')
@@ -204,9 +204,9 @@ export async function buildPdfBlob(data: RouteDay[]): Promise<Blob> {
 
   const rows = toExportRows(data, { stripMarkdownInNote: true })
   const tableBody = rows.map((row) => [
+    row.overnight,
     row.date,
     row.day,
-    row.overnight,
     row.trainSchedule,
     row.note,
   ])
@@ -214,15 +214,15 @@ export async function buildPdfBlob(data: RouteDay[]): Promise<Blob> {
   // Use the named autoTable(doc, opts) API — avoids prototype-augmentation
   // failures in dynamic-import / ESM environments (fixes DEF-001).
   autoTable(doc, {
-    head: [['Date', 'Day', 'Overnight', 'Train Schedule', 'Note']],
+    head: [['Overnight', 'Date', 'Day', 'Train Schedule', 'Note']],
     body: tableBody,
     // DEF-002: do NOT set font here — keeps helvetica default for ASCII-only cells
     // so dates, day numbers, train IDs always render correctly.
     styles: { fontSize: 9, cellPadding: 3 },
     columnStyles: {
-      0: { cellWidth: 25 },  // Date
-      1: { cellWidth: 12 },  // Day
-      2: { cellWidth: 25 },  // Overnight
+      0: { cellWidth: 25 },  // Overnight
+      1: { cellWidth: 25 },  // Date
+      2: { cellWidth: 12 },  // Day
       3: { cellWidth: 35 },  // Train Schedule
       4: { cellWidth: 'auto' }, // Note — takes remaining space
     },

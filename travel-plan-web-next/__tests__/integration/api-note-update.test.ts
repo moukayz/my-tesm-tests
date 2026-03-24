@@ -9,15 +9,11 @@ const mockRouteStore = {
   getAll: jest.fn(),
   updateNote: jest.fn(),
 }
-const mockRouteTestStore = {
-  getAll: jest.fn(),
-  updateNote: jest.fn(),
-}
 
 jest.mock('../../auth', () => ({ auth: mockAuth }))
 jest.mock('../../app/lib/routeStore', () => ({
   getRouteStore: mockGetRouteStore,
-  VALID_TAB_KEYS: ['route', 'route-test'] as const,
+  VALID_TAB_KEYS: ['route'] as const,
 }))
 
 const mockRouteData = [
@@ -59,27 +55,14 @@ describe('POST /api/note-update', () => {
     mockGetRouteStore.mockReset()
     mockRouteStore.getAll.mockReset()
     mockRouteStore.updateNote.mockReset()
-    mockRouteTestStore.getAll.mockReset()
-    mockRouteTestStore.updateNote.mockReset()
 
     // Default: authenticated
     mockAuth.mockResolvedValue({ user: { email: 'test@example.com' } })
 
-    mockGetRouteStore.mockImplementation((tabKey: string) => {
-      if (tabKey === 'route-test') {
-        return mockRouteTestStore
-      }
-      return mockRouteStore
-    })
+    mockGetRouteStore.mockReturnValue(mockRouteStore)
 
     mockRouteStore.getAll.mockResolvedValue(JSON.parse(JSON.stringify(mockRouteData)))
     mockRouteStore.updateNote.mockImplementation(async (dayIndex: number, note: string) => ({
-      ...mockRouteData[dayIndex],
-      note,
-    }))
-
-    mockRouteTestStore.getAll.mockResolvedValue(JSON.parse(JSON.stringify(mockRouteData)))
-    mockRouteTestStore.updateNote.mockImplementation(async (dayIndex: number, note: string) => ({
       ...mockRouteData[dayIndex],
       note,
     }))
@@ -102,15 +85,6 @@ describe('POST /api/note-update', () => {
     expect(body.note).toBe(note)
     expect(mockGetRouteStore).toHaveBeenCalledWith('route')
     expect(mockRouteStore.updateNote).toHaveBeenCalledWith(0, note)
-  })
-
-  it("uses route-test store when tabKey='route-test'", async () => {
-    const handler = await getHandler()
-    const res = await handler(makeRequest({ tabKey: 'route-test', dayIndex: 1, note: 'test note' }))
-    expect(res.status).toBe(200)
-    expect(mockGetRouteStore).toHaveBeenCalledWith('route-test')
-    expect(mockRouteTestStore.updateNote).toHaveBeenCalledWith(1, 'test note')
-    expect(mockRouteStore.updateNote).not.toHaveBeenCalled()
   })
 
   it.each([

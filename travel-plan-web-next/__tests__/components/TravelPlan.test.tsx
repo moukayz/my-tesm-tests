@@ -2,7 +2,6 @@ import React from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TravelPlan from '../../components/TravelPlan'
-import type { RouteDay } from '../../app/lib/itinerary'
 import type { ItinerarySummary, ItineraryWorkspace } from '../../app/lib/itinerary-store/types'
 
 let searchParams = new URLSearchParams('tab=itinerary&itineraryId=iti-1')
@@ -17,24 +16,19 @@ jest.mock('../../components/ItineraryPanel', () => ({
   default: ({
     onDirtyStateChange,
     selectedItineraryId,
-    selectedLegacyTabKey,
     onBackToCards,
     onSelectItinerary,
-    onSelectStarterRoute,
     onRequestCreateItinerary,
   }: {
     onDirtyStateChange?: (isDirty: boolean) => void
     selectedItineraryId?: string
-    selectedLegacyTabKey?: 'route'
     onBackToCards: () => void
     onSelectItinerary: (id: string) => void
-    onSelectStarterRoute: (legacyTabKey: 'route') => void
     onRequestCreateItinerary?: () => void
   }) => (
     <div>
       <div data-testid="itinerary-panel">ItineraryPanel</div>
       <div data-testid="selected-itinerary-id">{selectedItineraryId ?? 'none'}</div>
-      <div data-testid="selected-legacy-tab-key">{selectedLegacyTabKey ?? 'none'}</div>
       <button type="button" onClick={() => onDirtyStateChange?.(true)}>
         Mark dirty
       </button>
@@ -43,9 +37,6 @@ jest.mock('../../components/ItineraryPanel', () => ({
       </button>
       <button type="button" onClick={() => onSelectItinerary('iti-2')}>
         Open itinerary 2
-      </button>
-      <button type="button" onClick={() => onSelectStarterRoute('route')}>
-        Open starter route
       </button>
       <button type="button" onClick={onRequestCreateItinerary}>
         Create itinerary via panel
@@ -82,16 +73,6 @@ jest.mock('../../components/CreateItineraryModal', () => ({
     ) : null,
 }))
 
-const mockRouteData: RouteDay[] = [
-  {
-    date: '2026/9/25',
-    weekDay: '星期五',
-    dayNum: 1,
-    overnight: '巴黎',
-    plan: { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' },
-    train: [],
-  },
-]
 
 const mockWorkspace: ItineraryWorkspace = {
   itinerary: {
@@ -131,7 +112,6 @@ describe('TravelPlan', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
-        initialRouteData={mockRouteData}
         initialItineraryWorkspace={mockWorkspace}
         initialItineraryId="iti-1"
         initialItinerarySummaries={mockSummaries}
@@ -145,7 +125,6 @@ describe('TravelPlan', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
-        initialRouteData={mockRouteData}
         initialItineraryWorkspace={mockWorkspace}
         initialItineraryId="iti-1"
         initialItinerarySummaries={mockSummaries}
@@ -161,7 +140,6 @@ describe('TravelPlan', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
-        initialRouteData={mockRouteData}
         initialItineraryWorkspace={mockWorkspace}
         initialItineraryId="iti-1"
         initialItinerarySummaries={mockSummaries}
@@ -178,7 +156,6 @@ describe('TravelPlan', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
-        initialRouteData={mockRouteData}
         initialItineraryWorkspace={mockWorkspace}
         initialItineraryId="iti-1"
         initialItinerarySummaries={mockSummaries}
@@ -197,7 +174,6 @@ describe('TravelPlan', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
-        initialRouteData={mockRouteData}
         initialItineraryWorkspace={mockWorkspace}
         initialItineraryId="iti-1"
         initialItinerarySummaries={mockSummaries}
@@ -214,7 +190,6 @@ describe('TravelPlan', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
-        initialRouteData={mockRouteData}
         initialItineraryWorkspace={mockWorkspace}
         initialItineraryId="iti-1"
         initialItinerarySummaries={mockSummaries}
@@ -232,7 +207,6 @@ describe('TravelPlan', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
-        initialRouteData={mockRouteData}
         initialItineraryWorkspace={mockWorkspace}
         initialItineraryId="iti-1"
         initialItinerarySummaries={mockSummaries}
@@ -261,7 +235,6 @@ describe('TravelPlan', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
-        initialRouteData={mockRouteData}
         initialItineraryWorkspace={null}
         initialItinerarySummaries={mockSummaries}
       />
@@ -274,7 +247,6 @@ describe('TravelPlan', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
-        initialRouteData={mockRouteData}
         initialItineraryWorkspace={mockWorkspace}
         initialItineraryId="iti-1"
         initialItinerarySummaries={mockSummaries}
@@ -292,7 +264,6 @@ describe('TravelPlan', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
-        initialRouteData={mockRouteData}
         initialItineraryWorkspace={null}
         initialItinerarySummaries={mockSummaries}
       />
@@ -304,37 +275,4 @@ describe('TravelPlan', () => {
     expect(window.location.search).toContain('itineraryId=iti-2')
   })
 
-  it('opens starter route card via legacyTabKey url param', async () => {
-    searchParams = new URLSearchParams('tab=itinerary')
-
-    render(
-      <TravelPlan
-        isLoggedIn={true}
-        initialRouteData={mockRouteData}
-        initialItineraryWorkspace={null}
-        initialItinerarySummaries={mockSummaries}
-      />
-    )
-
-    await userEvent.click(screen.getByRole('button', { name: /open starter route/i }))
-
-    expect(window.location.search).toContain('tab=itinerary')
-    expect(window.location.search).toContain('legacyTabKey=route')
-  })
-
-  it('prioritizes itineraryId over legacyTabKey when both are present', () => {
-    searchParams = new URLSearchParams('tab=itinerary&itineraryId=iti-1&legacyTabKey=route')
-
-    render(
-      <TravelPlan
-        isLoggedIn={true}
-        initialRouteData={mockRouteData}
-        initialItineraryWorkspace={mockWorkspace}
-        initialItinerarySummaries={mockSummaries}
-      />
-    )
-
-    expect(screen.getByTestId('selected-itinerary-id')).toHaveTextContent('iti-1')
-    expect(screen.getByTestId('selected-legacy-tab-key')).toHaveTextContent('none')
-  })
 })

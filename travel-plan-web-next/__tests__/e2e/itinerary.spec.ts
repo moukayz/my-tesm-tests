@@ -4,6 +4,14 @@ import { encode } from 'next-auth/jwt'
 const AUTH_SECRET = process.env.AUTH_SECRET || 'test-auth-secret-32chars!!!!!!!!'
 const COOKIE_NAME = 'authjs.session-token'
 
+function makeTestUser(label: string): { email: string; name: string } {
+  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  return {
+    email: `${label}-${uniqueSuffix}@example.com`,
+    name: 'Test User',
+  }
+}
+
 async function injectSession(
   page: import('@playwright/test').Page,
   user = { email: 'test@gmail.com', name: 'Test User' }
@@ -25,26 +33,37 @@ async function injectSession(
   ])
 }
 
-async function openStarterRouteTable(page: import('@playwright/test').Page) {
-  await page.goto('/?tab=itinerary')
-  await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
-  await page.getByTestId('itinerary-card-starter-route').click()
-  const panel = page.getByTestId('itinerary-tab')
-  await expect(panel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
-}
-
 test.describe('Itinerary Tab', () => {
+  let itineraryId: string
+
   test.beforeEach(async ({ page }) => {
-    // Inject auth session
-    await injectSession(page)
+    const user = makeTestUser('itinerary-tab')
+    await injectSession(page, user)
 
-    // Reset day 0 note to a known e2e value via API
-    const res = await page.request.post('/api/note-update', {
-      data: { dayIndex: 0, note: 'e2e-note' },
+    // Create a fresh itinerary with 2 stays (5 days total: Paris 3 + Rome 2)
+    const createRes = await page.request.post('/api/itineraries', {
+      data: { name: `Itinerary Tab E2E ${Date.now()}`, startDate: '2026-09-25' },
     })
-    expect(res.status()).toBe(200)
+    expect(createRes.status()).toBe(201)
+    const body = await createRes.json()
+    itineraryId = body.itinerary.id
 
-    await openStarterRouteTable(page)
+    await page.request.post(`/api/itineraries/${itineraryId}/stays`, {
+      data: { city: 'Paris', nights: 3 },
+    })
+    await page.request.post(`/api/itineraries/${itineraryId}/stays`, {
+      data: { city: 'Rome', nights: 2 },
+    })
+
+    // Set day 0 note to a known e2e value via itinerary-scoped API
+    const noteRes = await page.request.patch(`/api/itineraries/${itineraryId}/days/0/note`, {
+      data: { note: 'e2e-note' },
+    })
+    expect(noteRes.status()).toBe(200)
+
+    await page.goto(`/?tab=itinerary&itineraryId=${itineraryId}`)
+    const panel = page.getByTestId('itinerary-tab')
+    await expect(panel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
   })
 
   test('itinerary table renders with date "2026/9/25"', async ({ page }) => {
@@ -57,10 +76,10 @@ test.describe('Itinerary Tab', () => {
     await expect(panel.getByRole('columnheader', { name: /^note$/i })).toBeVisible()
   })
 
-  test('all 16 days are shown (16 date cells matching date pattern)', async ({ page }) => {
+  test('all 5 days are shown (5 date cells matching date pattern)', async ({ page }) => {
     const panel = page.getByTestId('itinerary-tab')
     const dateCells = panel.locator('td').filter({ hasText: /^\d{4}\/\d+\/\d+$/ })
-    await expect(dateCells).toHaveCount(16)
+    await expect(dateCells).toHaveCount(5)
   })
 
   test('clicking the pencil button on day 1 note opens a textarea', async ({ page }) => {

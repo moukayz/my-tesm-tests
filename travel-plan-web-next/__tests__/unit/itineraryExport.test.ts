@@ -296,7 +296,7 @@ describe('buildPdfBlob', () => {
     const [firstArg, secondArg] = mockAutoTable.mock.calls[0]
     expect(firstArg).toBe(mockJsPDFInstance)
     expect(secondArg).toMatchObject({
-      head: [['Date', 'Day', 'Overnight', 'Train Schedule', 'Note']],
+      head: [['Overnight', 'Date', 'Day', 'Train Schedule', 'Note']],
     })
   })
 

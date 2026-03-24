@@ -53,7 +53,6 @@ interface TimetableRow {
 
 interface ItineraryTabProps {
   initialData: RouteDay[]
-  tabKey?: 'route' | 'route-test'
   itineraryId?: string
   onRequestAddStay?: () => void
   onRequestEditStay?: (stayIndex: number) => void
@@ -63,7 +62,6 @@ interface ItineraryTabProps {
 
 export default function ItineraryTab({
   initialData,
-  tabKey = 'route',
   itineraryId,
   onRequestAddStay,
   onRequestEditStay,
@@ -131,7 +129,7 @@ export default function ItineraryTab({
       await fetch('/api/attraction-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dayIndex, attractions, tabKey }),
+        body: JSON.stringify({ dayIndex, attractions }),
       })
     }
   }
@@ -277,7 +275,7 @@ export default function ItineraryTab({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             keepalive: true,
-            body: JSON.stringify({ tabKey, stayIndex, newNights }),
+            body: JSON.stringify({ stayIndex, newNights }),
           })
 
       if (!response.ok) {
@@ -315,7 +313,7 @@ export default function ItineraryTab({
     return fetch('/api/note-update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dayIndex, note, tabKey }),
+      body: JSON.stringify({ dayIndex, note }),
     })
   }
 
@@ -531,7 +529,6 @@ export default function ItineraryTab({
         body: JSON.stringify({
           dayIndex: trainEditorDayIndex,
           trainJson: serializeDraftRows(trainEditorRows),
-          tabKey,
         }),
       })
 
@@ -629,7 +626,7 @@ export default function ItineraryTab({
 
   return (
     <div
-      data-testid={tabKey === 'route-test' ? 'itinerary-test-tab' : 'itinerary-tab'}
+      data-testid="itinerary-tab"
       className="w-full"
     >
       {/* Relative wrapper so the zero-height sticky anchor is contained */}
@@ -662,7 +659,7 @@ export default function ItineraryTab({
       <table className="w-full border-collapse text-left">
         <thead className="bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-10 shadow-sm">
           <tr>
-            {(['Date', 'Overnight', 'Attractions', 'Train Schedule', 'Note'] as const).map((h) => (
+            {(['Overnight', 'Date', 'Attractions', 'Train Schedule', 'Note'] as const).map((h) => (
               <th
                 key={h}
                 className={`px-6 py-4 font-semibold text-gray-700 uppercase text-xs tracking-wider${h === 'Train Schedule' ? ' border-r border-gray-200' : ''}`}
@@ -683,18 +680,6 @@ export default function ItineraryTab({
 
             return (
               <tr key={index} className="group hover:bg-gray-50">
-                <td className="px-6 py-4 border-b border-gray-200 align-middle whitespace-nowrap tabular-nums group-last:border-b-0">
-                  <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 leading-tight items-center">
-                    <span
-                      className={`inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full text-xs font-semibold border ${dayColor.bg} ${dayColor.text} ${dayColor.border}`}
-                    >
-                      {dayNum}
-                    </span>
-                    <span data-testid="itinerary-date" className="text-gray-600">{day.date}</span>
-                    <span className="col-start-2 text-sm text-gray-500">{day.weekDay}</span>
-                  </div>
-                </td>
-
                 {day.overnightRowSpan > 0 && (
                   <td
                     rowSpan={day.overnightRowSpan}
@@ -781,6 +766,18 @@ export default function ItineraryTab({
                     })()}
                   </td>
                 )}
+
+                <td className="px-6 py-4 border-b border-gray-200 align-middle whitespace-nowrap tabular-nums group-last:border-b-0">
+                  <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 leading-tight items-center">
+                    <span
+                      className={`inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full text-xs font-semibold border ${dayColor.bg} ${dayColor.text} ${dayColor.border}`}
+                    >
+                      {dayNum}
+                    </span>
+                    <span data-testid="itinerary-date" className="text-gray-600">{day.date}</span>
+                    <span className="col-start-2 text-sm text-gray-500">{day.weekDay}</span>
+                  </div>
+                </td>
 
                 {/* ── Attractions cell ─────────────────────────────────── */}
                 <td className="px-4 py-3 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[200px] max-w-[300px] group/attraction-cell">

@@ -4,6 +4,14 @@ import { encode } from 'next-auth/jwt'
 const AUTH_SECRET = process.env.AUTH_SECRET || 'test-auth-secret-32chars!!!!!!!!'
 const COOKIE_NAME = 'authjs.session-token'
 
+function makeTestUser(label: string): { email: string; name: string } {
+  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  return {
+    email: `${label}-${uniqueSuffix}@example.com`,
+    name: 'Test User',
+  }
+}
+
 async function injectSession(
   page: import('@playwright/test').Page,
   user = { email: 'test@gmail.com', name: 'Test User' }
@@ -25,45 +33,37 @@ async function injectSession(
   ])
 }
 
-async function openStarterRouteTable(page: import('@playwright/test').Page) {
-  await page.goto('/?tab=itinerary')
-  await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
-  await page.getByTestId('itinerary-card-starter-route').click()
-  const primaryPanel = page.getByTestId('itinerary-tab')
-  await expect(primaryPanel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
-}
-
 test.describe.configure({ mode: 'serial' })
 
 test.describe('Train Schedule Editor', () => {
   const DAY_WITH_TRAIN = 1
-  const RESET_TRAIN_JSON = '[{"train_id":"TGV 456"}]'
-
-  async function setDayTrain(page: import('@playwright/test').Page, trainJson: string) {
-    await page.request.post('/api/train-update', {
-      data: {
-        dayIndex: DAY_WITH_TRAIN,
-        trainJson,
-      },
-    })
-  }
-
-  async function resetDayTrain(page: import('@playwright/test').Page) {
-    await setDayTrain(page, RESET_TRAIN_JSON)
-  }
+  let itineraryId: string
 
   test.beforeEach(async ({ page }) => {
-    await injectSession(page)
-    await resetDayTrain(page)
-    await openStarterRouteTable(page)
+    const user = makeTestUser('train-editor')
+    await injectSession(page, user)
+
+    // Create a fresh itinerary with 2 stays (so DAY_WITH_TRAIN=1 exists)
+    const createRes = await page.request.post('/api/itineraries', {
+      data: { name: `Train Editor E2E ${Date.now()}`, startDate: '2026-09-25' },
+    })
+    expect(createRes.status()).toBe(201)
+    const body = await createRes.json()
+    itineraryId = body.itinerary.id
+
+    await page.request.post(`/api/itineraries/${itineraryId}/stays`, {
+      data: { city: 'Paris', nights: 3 },
+    })
+    await page.request.post(`/api/itineraries/${itineraryId}/stays`, {
+      data: { city: 'Rome', nights: 2 },
+    })
+
+    await page.goto(`/?tab=itinerary&itineraryId=${itineraryId}`)
+    const panel = page.getByTestId('itinerary-tab')
+    await expect(panel.getByRole('columnheader', { name: /^date$/i })).toBeVisible()
   })
 
-  test.afterEach(async ({ page }) => {
-    await injectSession(page)
-    await resetDayTrain(page)
-  })
-
-  test('pencil button is visible for a day that has train data', async ({ page }) => {
+  test('pencil button is visible for any day in the itinerary table', async ({ page }) => {
     const primaryPanel = page.getByTestId('itinerary-tab')
     const editBtn = primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`)
     await expect(editBtn).toBeVisible()
@@ -79,13 +79,12 @@ test.describe('Train Schedule Editor', () => {
     await expect(page.getByRole('dialog', { name: /edit train schedule/i })).toBeVisible()
   })
 
-  test('editor shows structured fields for existing row', async ({ page }) => {
+  test('editor opens with no rows for a day with no train data', async ({ page }) => {
     const primaryPanel = page.getByTestId('itinerary-tab')
     await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
 
-    await expect(page.getByLabel(/train id for row 1/i)).toHaveValue('TGV 456')
-    await expect(page.getByLabel(/start station for row 1/i)).toHaveValue('')
-    await expect(page.getByLabel(/end station for row 1/i)).toHaveValue('')
+    // No row fields visible initially (day has no trains)
+    await expect(page.getByLabel(/train id for row 1/i)).not.toBeVisible()
   })
 
   test('add row and validation errors are shown before save', async ({ page }) => {
@@ -122,6 +121,7 @@ test.describe('Train Schedule Editor', () => {
     await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
     await expect(page.locator('[data-testid="train-schedule-editor-modal"]')).toBeVisible()
 
+    await page.getByTestId('train-editor-add-row').click()
     await page.getByLabel(/train id for row 1/i).fill('ICE 777')
     await page.getByLabel(/start station for row 1/i).fill('Berlin')
     await page.getByLabel(/end station for row 1/i).fill('Munich')
@@ -144,6 +144,7 @@ test.describe('Train Schedule Editor', () => {
       })
     })
 
+    await page.getByTestId('train-editor-add-row').click()
     await page.getByLabel(/train id for row 1/i).fill('ICE 999')
     await page.locator('[data-testid="train-editor-save"]').click()
 
@@ -154,20 +155,32 @@ test.describe('Train Schedule Editor', () => {
   })
 
   test('rows reorder by drag-and-drop and keep row-end delete only', async ({ page }) => {
-    const twoRowsJson = JSON.stringify([
-      { train_id: 'ICE 111', start: 'Berlin', end: 'Munich' },
-      { train_id: 'ICE 222', start: 'Paris', end: 'Lyon' },
-    ])
-    await setDayTrain(page, twoRowsJson)
-    await page.reload()
-
     const primaryPanel = page.getByTestId('itinerary-tab')
+
+    // Open editor and add two rows via the UI
+    await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
+
+    await page.getByTestId('train-editor-add-row').click()
+    await page.getByLabel(/train id for row 1/i).fill('ICE 111')
+    await page.getByLabel(/start station for row 1/i).fill('Berlin')
+    await page.getByLabel(/end station for row 1/i).fill('Munich')
+
+    await page.getByTestId('train-editor-add-row').click()
+    await page.getByLabel(/train id for row 2/i).fill('ICE 222')
+    await page.getByLabel(/start station for row 2/i).fill('Paris')
+    await page.getByLabel(/end station for row 2/i).fill('Lyon')
+
+    await page.getByTestId('train-editor-save').click()
+    await expect(page.locator('[data-testid="train-schedule-editor-modal"]')).not.toBeVisible({ timeout: 10000 })
+
+    // Reopen editor and verify no move-up button (drag only)
     await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
 
     await expect(page.locator('[data-testid="train-editor-move-up-1"]')).toHaveCount(0)
     await expect(page.locator('[data-testid="train-editor-move-down-1"]')).toHaveCount(0)
     await expect(page.getByTestId('train-editor-delete-1')).toBeVisible()
 
+    // Drag row 2 onto row 1
     const firstRow = page.getByTestId('train-editor-row-1')
     const secondRow = page.getByTestId('train-editor-row-2')
     await secondRow.dragTo(firstRow)
@@ -175,6 +188,7 @@ test.describe('Train Schedule Editor', () => {
 
     await expect(page.locator('[data-testid="train-schedule-editor-modal"]')).not.toBeVisible({ timeout: 10000 })
 
+    // Reopen and verify order swapped
     await primaryPanel.locator(`[data-testid="train-json-edit-btn-${DAY_WITH_TRAIN}"]`).click()
     await expect(page.getByLabel(/train id for row 1/i)).toHaveValue('ICE 222')
   })

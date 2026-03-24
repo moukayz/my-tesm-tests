@@ -3,11 +3,6 @@ import { render, screen } from '@testing-library/react'
 import type { ItinerarySummary } from '../../app/lib/itinerary-store/types'
 import ItineraryDetailShell from '../../components/ItineraryDetailShell'
 
-jest.mock('../../components/ItineraryTab', () => ({
-  __esModule: true,
-  default: () => <div data-testid="itinerary-tab">legacy-tab</div>,
-}))
-
 jest.mock('../../components/ItineraryWorkspace', () => ({
   __esModule: true,
   default: () => <div data-testid="itinerary-workspace">workspace</div>,
@@ -27,9 +22,7 @@ describe('ItineraryDetailShell', () => {
     render(
       <ItineraryDetailShell
         selectedItineraryId="iti-1"
-        selectedLegacyTabKey={undefined}
         selectedSummary={summary}
-        initialRouteData={[]}
         onBackToCards={jest.fn()}
       />
     )
@@ -41,21 +34,5 @@ describe('ItineraryDetailShell', () => {
     expect(screen.getByTestId('itinerary-workspace')).toBeInTheDocument()
     expect(screen.queryByText('Paris Sprint')).not.toBeInTheDocument()
     expect(screen.queryByText('Start date: 2026-07-01')).not.toBeInTheDocument()
-  })
-
-  it('renders legacy route detail when legacy tab key is selected', () => {
-    render(
-      <ItineraryDetailShell
-        selectedItineraryId={undefined}
-        selectedLegacyTabKey="route"
-        initialRouteData={[]}
-        onBackToCards={jest.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: /back to all itineraries/i })).toBeInTheDocument()
-    expect(screen.queryByText('Back to all itineraries')).not.toBeInTheDocument()
-    expect(screen.getByTestId('itinerary-tab')).toBeInTheDocument()
-    expect(screen.queryByTestId('itinerary-workspace')).not.toBeInTheDocument()
   })
 })

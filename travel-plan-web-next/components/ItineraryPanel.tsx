@@ -2,39 +2,28 @@
 
 import { useMemo, useState } from 'react'
 import type { ItinerarySummary, ItineraryWorkspace as ItineraryWorkspaceType } from '../app/lib/itinerary-store/types'
-import type { RouteDay } from '../app/lib/itinerary'
-import ItineraryCardsView, { type StarterRouteCard } from './ItineraryCardsView'
+import ItineraryCardsView from './ItineraryCardsView'
 import ItineraryDetailShell from './ItineraryDetailShell'
 
 interface ItineraryPanelProps {
   selectedItineraryId?: string
-  selectedLegacyTabKey?: 'route'
   itinerarySummaries: ItinerarySummary[]
-  starterRouteCard: StarterRouteCard | null
-  initialRouteData?: RouteDay[]
   initialWorkspace?: ItineraryWorkspaceType | null
   initialErrorCode?: string | null
   onSelectItinerary: (itineraryId: string) => void
-  onSelectStarterRoute: (legacyTabKey: 'route') => void
   onBackToCards: () => void
   onRequestCreateItinerary: () => void
-  onCopyStarterRoute?: () => void
   onDirtyStateChange?: (isDirty: boolean) => void
 }
 
 export default function ItineraryPanel({
   selectedItineraryId,
-  selectedLegacyTabKey,
   itinerarySummaries,
-  starterRouteCard,
-  initialRouteData,
   initialWorkspace,
   initialErrorCode,
   onSelectItinerary,
-  onSelectStarterRoute,
   onBackToCards,
   onRequestCreateItinerary,
-  onCopyStarterRoute,
   onDirtyStateChange,
 }: ItineraryPanelProps) {
   const [hasUnsavedInlineEdits, setHasUnsavedInlineEdits] = useState(false)
@@ -58,25 +47,18 @@ export default function ItineraryPanel({
     setShowDiscardDialog(true)
   }
 
-  const isDetailMode = !!selectedItineraryId || selectedLegacyTabKey === 'route'
-
   return (
     <div className="w-full space-y-4">
-      {!isDetailMode ? (
+      {!selectedItineraryId ? (
         <ItineraryCardsView
           itineraries={itinerarySummaries}
-          starterRouteCard={starterRouteCard}
-          onOpenStarterRoute={onSelectStarterRoute}
           onOpenItinerary={onSelectItinerary}
           onCreateItinerary={onRequestCreateItinerary}
-          onCopyStarterRoute={onCopyStarterRoute}
         />
       ) : (
         <ItineraryDetailShell
           selectedItineraryId={selectedItineraryId}
-          selectedLegacyTabKey={selectedLegacyTabKey}
           selectedSummary={selectedSummary}
-          initialRouteData={initialRouteData}
           initialWorkspace={initialWorkspace}
           initialErrorCode={initialErrorCode}
           onBackToCards={requestBackToCards}

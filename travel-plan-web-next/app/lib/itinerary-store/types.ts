@@ -80,15 +80,6 @@ export interface ItinerarySummary {
   updatedAt: string
 }
 
-export interface StarterRouteCard {
-  name: 'Original seeded route'
-  sourceBadge: 'Starter route'
-  legacyTabKey: 'route'
-  startDate: string
-  dayCount: number
-  stayCount: number
-}
-
 export interface StaySummary {
   stayIndex: number
   city: string

@@ -35,7 +35,7 @@ async function injectSession(
 }
 
 test.describe('Itinerary desktop surface adjustments', () => {
-  test('desktop cards rail, wider detail rail, and starter route access stay intact', async ({ page }) => {
+  test('desktop cards rail, wider detail rail stay intact', async ({ page }) => {
     test.slow()
 
     await page.setViewportSize({ width: 1440, height: 1200 })
@@ -60,24 +60,18 @@ test.describe('Itinerary desktop surface adjustments', () => {
     await page.goto('/?tab=itinerary')
 
     const cardsRail = page.getByTestId('itinerary-cards-rail')
-    const starterCard = page.getByTestId('itinerary-card-starter-route')
     const savedCard = page.getByTestId(`itinerary-card-${itineraryId}`)
 
     await expect(cardsRail).toBeVisible()
-    await expect(starterCard).toBeVisible()
     await expect(savedCard).toBeVisible()
 
     const cardsRailBox = await cardsRail.boundingBox()
-    const starterCardBox = await starterCard.boundingBox()
     const savedCardBox = await savedCard.boundingBox()
 
     expect(cardsRailBox).not.toBeNull()
-    expect(starterCardBox).not.toBeNull()
     expect(savedCardBox).not.toBeNull()
 
-    expect(Math.abs((starterCardBox?.x ?? 0) - (cardsRailBox?.x ?? 0))).toBeLessThanOrEqual(1)
     expect(Math.abs((savedCardBox?.x ?? 0) - (cardsRailBox?.x ?? 0))).toBeLessThanOrEqual(1)
-    expect(starterCardBox?.width ?? 0).toBeGreaterThanOrEqual(900)
     expect(savedCardBox?.width ?? 0).toBeGreaterThanOrEqual(900)
 
     await page.getByRole('button', { name: new RegExp(`Open itinerary ${itineraryName}`) }).click()
@@ -94,10 +88,5 @@ test.describe('Itinerary desktop surface adjustments', () => {
     await page.goto(`/?tab=itinerary&itineraryId=${itineraryId}`)
     await page.getByRole('button', { name: 'Back to all itineraries' }).click()
     await expect(page).toHaveURL(/\?tab=itinerary$/)
-
-    await page.getByTestId('itinerary-card-starter-route').click()
-    await expect(page).toHaveURL(/\?tab=itinerary/)
-    await expect(page.getByRole('button', { name: 'Back to all itineraries' })).toBeVisible()
-    await expect(page.getByTestId('itinerary-tab')).toBeVisible()
   })
 })

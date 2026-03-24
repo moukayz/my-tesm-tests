@@ -12,17 +12,11 @@ const mockRouteStore = {
   updateTrain: jest.fn(),
   updateDays: jest.fn(),
 }
-const mockRouteTestStore = {
-  getAll: jest.fn(),
-  updatePlan: jest.fn(),
-  updateTrain: jest.fn(),
-  updateDays: jest.fn(),
-}
 
 jest.mock('../../auth', () => ({ auth: mockAuth }))
 jest.mock('../../app/lib/routeStore', () => ({
   getRouteStore: mockGetRouteStore,
-  VALID_TAB_KEYS: ['route', 'route-test'] as const,
+  VALID_TAB_KEYS: ['route'] as const,
 }))
 
 function makeRouteData(): RouteDay[] {
@@ -70,20 +64,13 @@ describe('POST /api/stay-update', () => {
     mockGetRouteStore.mockReset()
     mockRouteStore.getAll.mockReset()
     mockRouteStore.updateDays.mockReset()
-    mockRouteTestStore.getAll.mockReset()
-    mockRouteTestStore.updateDays.mockReset()
 
     mockAuth.mockResolvedValue({ user: { email: 'test@example.com' } })
-    mockGetRouteStore.mockImplementation((tabKey: string) => {
-      if (tabKey === 'route-test') return mockRouteTestStore
-      return mockRouteStore
-    })
+    mockGetRouteStore.mockReturnValue(mockRouteStore)
 
     const data = makeRouteData()
     mockRouteStore.getAll.mockResolvedValue(JSON.parse(JSON.stringify(data)))
     mockRouteStore.updateDays.mockImplementation(async (days: RouteDay[]) => days)
-    mockRouteTestStore.getAll.mockResolvedValue(JSON.parse(JSON.stringify(data)))
-    mockRouteTestStore.updateDays.mockImplementation(async (days: RouteDay[]) => days)
   })
 
   it.each([null, {}])('returns 401 when session is not usable (%p)', async (session) => {
@@ -110,15 +97,11 @@ describe('POST /api/stay-update', () => {
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe(error)
     expect(mockRouteStore.updateDays).not.toHaveBeenCalled()
-    expect(mockRouteTestStore.updateDays).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['route', mockRouteStore, mockRouteTestStore],
-    ['route-test', mockRouteTestStore, mockRouteStore],
-  ])('returns 200 and persists into the correct store for tabKey=%s', async (tabKey, expectedStore, otherStore) => {
+  it('returns 200 and persists the updated days', async () => {
     const handler = await getHandler()
-    const res = await handler(makeRequest({ tabKey, stayIndex: 0, newNights: 2 }))
+    const res = await handler(makeRequest({ tabKey: 'route', stayIndex: 0, newNights: 2 }))
     expect(res.status).toBe(200)
 
     const body = await res.json()
@@ -126,8 +109,7 @@ describe('POST /api/stay-update', () => {
     expect(body.updatedDays.slice(0, 2).every((d: RouteDay) => d.overnight === 'Paris')).toBe(true)
     expect(body.updatedDays.slice(2).every((d: RouteDay) => d.overnight === 'Lyon')).toBe(true)
 
-    expect(expectedStore.updateDays).toHaveBeenCalledTimes(1)
-    expect(otherStore.updateDays).not.toHaveBeenCalled()
+    expect(mockRouteStore.updateDays).toHaveBeenCalledTimes(1)
   })
 
   it('returns 200 for a valid extend operation', async () => {

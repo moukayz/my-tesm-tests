@@ -16,7 +16,7 @@ const mockRouteStore = {
 jest.mock('../../auth', () => ({ auth: mockAuth }))
 jest.mock('../../app/lib/routeStore', () => ({
   getRouteStore: mockGetRouteStore,
-  VALID_TAB_KEYS: ['route', 'route-test'] as const,
+  VALID_TAB_KEYS: ['route'] as const,
 }))
 
 const mockRouteData = [

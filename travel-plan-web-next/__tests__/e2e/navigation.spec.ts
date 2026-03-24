@@ -51,6 +51,5 @@ test.describe('Navigation and Tab Visibility', () => {
     await injectSession(page)
     await page.goto('/')
     await expect(page.getByTestId('itinerary-cards-rail')).toBeVisible()
-    await expect(page.getByTestId('itinerary-card-starter-route')).toBeVisible()
   })
 })

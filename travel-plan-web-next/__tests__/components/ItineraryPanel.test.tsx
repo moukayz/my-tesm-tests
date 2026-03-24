@@ -54,11 +54,8 @@ describe('ItineraryPanel', () => {
     render(
       <ItineraryPanel
         selectedItineraryId={undefined}
-        selectedLegacyTabKey={undefined}
         itinerarySummaries={summaries}
-        starterRouteCard={null}
         onSelectItinerary={onSelectItinerary}
-        onSelectStarterRoute={jest.fn()}
         onBackToCards={jest.fn()}
         onRequestCreateItinerary={jest.fn()}
       />
@@ -75,11 +72,8 @@ describe('ItineraryPanel', () => {
     render(
       <ItineraryPanel
         selectedItineraryId={undefined}
-        selectedLegacyTabKey={undefined}
         itinerarySummaries={[]}
-        starterRouteCard={null}
         onSelectItinerary={jest.fn()}
-        onSelectStarterRoute={jest.fn()}
         onBackToCards={jest.fn()}
         onRequestCreateItinerary={onRequestCreateItinerary}
       />
@@ -97,12 +91,9 @@ describe('ItineraryPanel', () => {
     render(
       <ItineraryPanel
         selectedItineraryId="iti-1"
-        selectedLegacyTabKey={undefined}
         itinerarySummaries={summaries}
-        starterRouteCard={null}
         initialWorkspace={workspace}
         onSelectItinerary={jest.fn()}
-        onSelectStarterRoute={jest.fn()}
         onBackToCards={onBackToCards}
         onRequestCreateItinerary={jest.fn()}
       />
@@ -120,12 +111,9 @@ describe('ItineraryPanel', () => {
     render(
       <ItineraryPanel
         selectedItineraryId="iti-1"
-        selectedLegacyTabKey={undefined}
         itinerarySummaries={summaries}
-        starterRouteCard={null}
         initialWorkspace={workspace}
         onSelectItinerary={jest.fn()}
-        onSelectStarterRoute={jest.fn()}
         onBackToCards={onBackToCards}
         onRequestCreateItinerary={jest.fn()}
       />
@@ -143,32 +131,5 @@ describe('ItineraryPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: /leave without saving/i }))
 
     expect(onBackToCards).toHaveBeenCalled()
-  })
-
-  it('opens starter route card when present', async () => {
-    const onSelectStarterRoute = jest.fn()
-
-    render(
-      <ItineraryPanel
-        selectedItineraryId={undefined}
-        selectedLegacyTabKey={undefined}
-        itinerarySummaries={summaries}
-        starterRouteCard={{
-          legacyTabKey: 'route',
-          name: 'Original seeded route',
-          startDate: '2026/9/25',
-          dayCount: 16,
-          stayCount: 4,
-        }}
-        onSelectItinerary={jest.fn()}
-        onSelectStarterRoute={onSelectStarterRoute}
-        onBackToCards={jest.fn()}
-        onRequestCreateItinerary={jest.fn()}
-      />
-    )
-
-    await userEvent.click(screen.getByRole('button', { name: /open itinerary original seeded route/i }))
-
-    expect(onSelectStarterRoute).toHaveBeenCalledWith('route')
   })
 })

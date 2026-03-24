@@ -1,11 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
-import ItineraryTab from './ItineraryTab'
 import TrainDelayTab from './TrainDelayTab'
 import TrainTimetableTab from './TrainTimetableTab'
-import type { RouteDay } from '../app/lib/itinerary'
 import type {
   CreateItineraryResponse,
   ItinerarySummary,
@@ -13,47 +11,19 @@ import type {
 } from '../app/lib/itinerary-store/types'
 import CreateItineraryModal from './CreateItineraryModal'
 import ItineraryPanel from './ItineraryPanel'
-import type { StarterRouteCard } from './ItineraryCardsView'
 
 type Tab = 'itinerary' | 'delays' | 'timetable'
 
 interface TravelPlanProps {
   isLoggedIn?: boolean
-  initialRouteData?: RouteDay[]
   initialItineraryWorkspace?: ItineraryWorkspaceType | null
   initialItinerarySummaries?: ItinerarySummary[]
   initialItineraryId?: string
   initialItineraryErrorCode?: string | null
 }
 
-type ItineraryDetailTarget =
-  | { kind: 'itinerary'; itineraryId: string }
-  | { kind: 'legacy'; legacyTabKey: 'route' }
-  | null
-
-function countStays(days: RouteDay[]): number {
-  if (days.length === 0) return 0
-  let count = 1
-  for (let index = 1; index < days.length; index += 1) {
-    if (days[index].overnight !== days[index - 1].overnight) count += 1
-  }
-  return count
-}
-
-function buildStarterRouteCard(days?: RouteDay[]): StarterRouteCard | null {
-  if (!days || days.length === 0) return null
-  return {
-    legacyTabKey: 'route',
-    name: 'Original seeded route',
-    startDate: days[0].date,
-    dayCount: days.length,
-    stayCount: countStays(days),
-  }
-}
-
 export default function TravelPlan({
   isLoggedIn = false,
-  initialRouteData,
   initialItineraryWorkspace,
   initialItinerarySummaries = [],
   initialItineraryId,
@@ -76,24 +46,12 @@ export default function TravelPlan({
   const currentTab = (searchParams.get('tab') as Tab | null) ?? defaultTab
   const tab = tabs.some((t) => t.id === currentTab) ? currentTab : defaultTab
   const urlItineraryId = searchParams.get('itineraryId') ?? undefined
-  const urlLegacyTabKey = searchParams.get('legacyTabKey') === 'route' ? 'route' : undefined
 
   const [selectedItineraryId, setSelectedItineraryId] = useState<string | undefined>(urlItineraryId ?? initialItineraryId)
-  const [selectedLegacyTabKey, setSelectedLegacyTabKey] = useState<'route' | undefined>(
-    !urlItineraryId && urlLegacyTabKey ? 'route' : undefined
-  )
   const [displayTab, setDisplayTab] = useState<Tab>(tab)
   const [itinerarySummaries, setItinerarySummaries] = useState<ItinerarySummary[]>(initialItinerarySummaries)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [hasUnsavedInlineEdits, setHasUnsavedInlineEdits] = useState(false)
-
-  const starterRouteCard = useMemo(() => buildStarterRouteCard(initialRouteData), [initialRouteData])
-
-  const selectedDetailTarget: ItineraryDetailTarget = selectedItineraryId
-    ? { kind: 'itinerary', itineraryId: selectedItineraryId }
-    : selectedLegacyTabKey
-      ? { kind: 'legacy', legacyTabKey: selectedLegacyTabKey }
-      : null
 
   useEffect(() => {
     setDisplayTab(tab)
@@ -102,27 +60,20 @@ export default function TravelPlan({
   useEffect(() => {
     const nextItineraryId = urlItineraryId ?? initialItineraryId
     setSelectedItineraryId((current) => (current === nextItineraryId ? current : nextItineraryId))
-    const nextLegacyTabKey = nextItineraryId ? undefined : urlLegacyTabKey
-    setSelectedLegacyTabKey((current) => (current === nextLegacyTabKey ? current : nextLegacyTabKey))
-  }, [initialItineraryId, urlItineraryId, urlLegacyTabKey])
+  }, [initialItineraryId, urlItineraryId])
 
   useEffect(() => {
     if (tab !== 'itinerary') return
 
     if (selectedItineraryId && urlItineraryId !== selectedItineraryId) {
-      setSearchParams('itinerary', { kind: 'itinerary', itineraryId: selectedItineraryId }, true)
+      setSearchParams('itinerary', selectedItineraryId, true)
       return
     }
 
-    if (!selectedItineraryId && selectedLegacyTabKey === 'route' && urlLegacyTabKey !== 'route') {
-      setSearchParams('itinerary', { kind: 'legacy', legacyTabKey: 'route' }, true)
-      return
-    }
-
-    if (!selectedItineraryId && !selectedLegacyTabKey && (urlItineraryId || urlLegacyTabKey)) {
+    if (!selectedItineraryId && urlItineraryId) {
       setSearchParams('itinerary', null, true)
     }
-  }, [selectedItineraryId, selectedLegacyTabKey, tab, urlItineraryId, urlLegacyTabKey])
+  }, [selectedItineraryId, tab, urlItineraryId])
 
   useEffect(() => {
     setItinerarySummaries(initialItinerarySummaries)
@@ -141,24 +92,18 @@ export default function TravelPlan({
         if (!isActive || !Array.isArray(body.items)) return
         setItinerarySummaries(body.items)
       })
-      .catch(() => {
-        // Keep starter route cards usable even if summaries fail to load.
-      })
+      .catch(() => {})
 
     return () => {
       isActive = false
     }
   }, [initialItinerarySummaries.length, isLoggedIn])
 
-  const setSearchParams = (nextTab: Tab, detailTarget: ItineraryDetailTarget, replace = false) => {
+  const setSearchParams = (nextTab: Tab, itineraryId: string | null, replace = false) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', nextTab)
-
     params.delete('itineraryId')
-    params.delete('legacyTabKey')
-
-    if (detailTarget?.kind === 'itinerary') params.set('itineraryId', detailTarget.itineraryId)
-    if (detailTarget?.kind === 'legacy') params.set('legacyTabKey', detailTarget.legacyTabKey)
+    if (itineraryId) params.set('itineraryId', itineraryId)
 
     const nextUrl = `${pathname}?${params.toString()}`
 
@@ -185,7 +130,7 @@ export default function TravelPlan({
             onClick={() => {
               if (hasUnsavedInlineEdits && id !== displayTab) return
               setDisplayTab(id)
-              setSearchParams(id, selectedDetailTarget)
+              setSearchParams(id, selectedItineraryId ?? null)
             }}
             className={`px-5 py-2.5 border-0 bg-transparent cursor-pointer text-sm font-medium border-b-2 -mb-0.5 transition-colors ${
               displayTab === id
@@ -215,48 +160,21 @@ export default function TravelPlan({
         <div className={displayTab === 'itinerary' ? 'w-full' : 'hidden'}>
           <ItineraryPanel
             selectedItineraryId={selectedItineraryId}
-            selectedLegacyTabKey={selectedLegacyTabKey}
             itinerarySummaries={itinerarySummaries}
-            starterRouteCard={starterRouteCard}
-            initialRouteData={initialRouteData}
             initialWorkspace={initialItineraryWorkspace}
             initialErrorCode={initialItineraryErrorCode}
             onDirtyStateChange={setHasUnsavedInlineEdits}
             onBackToCards={() => {
               setSelectedItineraryId(undefined)
-              setSelectedLegacyTabKey(undefined)
               setSearchParams('itinerary', null)
             }}
             onSelectItinerary={(itineraryId) => {
               setSelectedItineraryId(itineraryId)
-              setSelectedLegacyTabKey(undefined)
-              setSearchParams('itinerary', { kind: 'itinerary', itineraryId })
-            }}
-            onSelectStarterRoute={(legacyTabKey) => {
-              setSelectedItineraryId(undefined)
-              setSelectedLegacyTabKey(legacyTabKey)
-              setSearchParams('itinerary', { kind: 'legacy', legacyTabKey })
+              setSearchParams('itinerary', itineraryId)
             }}
             onRequestCreateItinerary={() => {
               if (hasUnsavedInlineEdits) return
               setIsCreateModalOpen(true)
-            }}
-            onCopyStarterRoute={async () => {
-              try {
-                const res = await fetch('/api/itineraries/seed', { method: 'POST' })
-                if (!res.ok) return
-                const body = (await res.json()) as CreateItineraryResponse
-                const nextId = body.itinerary.id
-                setItinerarySummaries((current) => [
-                  body.itinerary,
-                  ...current.filter((item) => item.id !== body.itinerary.id),
-                ])
-                setSelectedItineraryId(nextId)
-                setSelectedLegacyTabKey(undefined)
-                setSearchParams('itinerary', { kind: 'itinerary', itineraryId: nextId }, true)
-              } catch {
-                // silently ignore network errors
-              }
             }}
           />
         </div>
@@ -278,9 +196,8 @@ export default function TravelPlan({
             ...current.filter((item) => item.id !== response.itinerary.id),
           ])
           setSelectedItineraryId(nextId)
-          setSelectedLegacyTabKey(undefined)
           setIsCreateModalOpen(false)
-          setSearchParams('itinerary', { kind: 'itinerary', itineraryId: nextId }, true)
+          setSearchParams('itinerary', nextId, true)
         }}
       />
     </div>

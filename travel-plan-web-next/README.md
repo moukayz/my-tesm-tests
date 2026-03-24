@@ -7,11 +7,10 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 ## Features
 
 - **Itinerary tab** — cards-first itinerary library with click-to-open workspace + in-app back navigation
-  - **Cards-first entry** — authenticated users land on an itinerary cards view (`/?tab=itinerary`) that lists the server-shaped starter route card plus saved itineraries
-  - **Starter route handoff** — selecting `Original seeded route` opens seeded-route detail at `/?tab=itinerary&legacyTabKey=route`
+  - **Cards-first entry** — authenticated users land on an itinerary cards view (`/?tab=itinerary`) that lists saved itineraries
   - **Detail workspace handoff** — card selection opens the existing itinerary editor at `/?tab=itinerary&itineraryId=<id>`
   - **Desktop detail cleanup** — selected itinerary workspace renders a single control row with `Back to all itineraries` (left) and `Add next stay` (right) on the same line, followed by a trip summary banner (date range, total days, city breakdown, country breakdown when location data is available)
-  - **Back to cards** — detail mode shows a clear in-app `Back to all itineraries` action in the workspace control row; legacy route mode keeps the back button in the detail shell
+  - **Back to cards** — detail mode shows a clear in-app `Back to all itineraries` action in the workspace control row
   - **New itinerary shell** — authenticated users can create a draft itinerary (`name` optional, `startDate` required) and land on `/?tab=itinerary&itineraryId=<id>`
   - **Empty workspace guidance** — newly created itineraries render an empty state with `Add first stay` before mounting the day table
   - **Stay planning sheet** — reusable add/edit dialog supports `Add first stay`, `Add next stay`, and full `Edit stay` (city + nights) from stay cells
@@ -22,7 +21,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
   - **Multi-railway timetable** — Train Schedule column auto-detects TGV (French) and EST (Eurostar) trains from the train ID prefix and fetches from the correct railway data source; German trains remain the default
   - **Export to files** — A floating action button (FAB, fixed at viewport mid-right) lets authenticated users download their itinerary as Markdown (`.md`) or PDF (`.pdf`). Uses the File System Access API where available (Chrome/Edge native save dialog), with a silent anchor-download fallback for Firefox/Safari. PDF generation is client-side only (jsPDF + jspdf-autotable, dynamically imported). CJK characters (Chinese/Japanese/Korean) render correctly in PDF via a lazily-loaded NotoSansSC font subset. A success toast confirms each export. Exported columns: Date, Day, Overnight, Train Schedule, Note (Weekday omitted).
 - **Editable stay duration** — quick inline nights edit remains for non-last stays; full stay city+nights edits are available from one table stay-cell trigger per stay. Optimistic quick-edit with revert-on-failure is preserved.
-- Legacy tab edits persist via `POST /api/note-update` and `POST /api/stay-update` → `RouteStore` (file locally, Upstash Redis in production)
+- Legacy route store edits persist via `POST /api/note-update` and `POST /api/stay-update` → `RouteStore` (file locally, Upstash Redis in production)
 - New itinerary workspace backend is available under `/api/itineraries*` with owner-scoped itinerary listing, itinerary-scoped shell creation, detail load, stay append/edit, and day-note save backed by `ItineraryStore`
 - Server-side backend-selection logs show which persistence services are active (FileRouteStore vs Upstash Redis, local `pg` pool vs Neon serverless)
 - **Train Timetable tab** — unified search across German (DB), French (SNCF), and Eurostar trains; type any train ID and the correct data source is queried automatically — no railway selector needed
@@ -73,7 +72,7 @@ travel-plan-web-next/
 │   │   │   ├── domain.ts        # Pure itinerary stay/day mutation helpers
 │   │   │   ├── service.ts       # API-facing orchestration + validation/error mapping
 │   │   │   └── types.ts         # Itinerary record/workspace contracts
-│   │   ├── itineraryCards.ts    # Server-side starter-route card metadata composition for itinerary cards
+│   │   ├── itineraryCards.ts    # (deleted — starter route removed)
 │   │   ├── stayUtils.ts         # Pure stay utilities: getStays, getStaysWithMeta, validateStayEdit, applyStayEdit, applyStayEditOptimistic
 │   │   ├── trainScheduleDraft.ts # Train editor draft parse/validate/serialize/reorder helpers
 │   │   └── trainDelay.ts        # DelayStats/TrendPoint types, formatDay, buildStatItems
@@ -116,7 +115,6 @@ travel-plan-web-next/
 │   │   ├── db.test.ts              # convertBigInt
 │   │   ├── trainDelay.test.ts      # formatDay, buildStatItems
 │   │   ├── routeStore.test.ts      # FileRouteStore + UpstashRouteStore
-│   │   ├── routeStore.tabKey.test.ts  # tabKey dual-key isolation, updateDays, auto-seed
 │   │   ├── stayUtils.test.ts       # getStays, validateStayEdit, applyStayEdit, StayEditError
 │   │   └── pgdb.test.ts            # pgQuery local (pg.Pool) + Vercel (neon) paths
 │   ├── middleware/
@@ -164,7 +162,7 @@ travel-plan-web-next/
 
 ### Frontend
 
-`TravelPlan` manages top-level tabs and synchronizes `tab`/`itineraryId` with URL search params. The authenticated itinerary flow now enters through `ItineraryPanel`: cards view when `itineraryId` is absent, and detail shell + `ItineraryWorkspace` when present. `ItineraryTab` still powers day-level editing and quick inline nights edits; itinerary-scoped writes use `/api/itineraries/:id/...` while the sandbox `Itinerary (Test)` tab continues using legacy `tabKey` APIs. The home route (`app/page.tsx`) stays `force-dynamic` to always re-read current itinerary summaries and workspace state.
+`TravelPlan` manages top-level tabs and synchronizes `tab`/`itineraryId` with URL search params. The authenticated itinerary flow now enters through `ItineraryPanel`: cards view when `itineraryId` is absent, and detail shell + `ItineraryWorkspace` when present. `ItineraryTab` powers day-level editing; itinerary-scoped writes use `/api/itineraries/:id/...`. The home route (`app/page.tsx`) stays `force-dynamic` to always re-read current itinerary summaries and workspace state.
 
 ### Editable Stays
 

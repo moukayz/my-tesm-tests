@@ -35,7 +35,7 @@ async function injectSession(
 }
 
 test.describe('Itinerary cards navigation', () => {
-  test('cards-first entry supports starter route and saved itinerary details', async ({ page }) => {
+  test('cards-first entry supports saved itinerary details', async ({ page }) => {
     const idSuffix = Date.now()
     const firstName = `Cards Nav A ${idSuffix}`
     const secondName = `Cards Nav B ${idSuffix}`
@@ -58,17 +58,8 @@ test.describe('Itinerary cards navigation', () => {
     await page.goto('/?tab=itinerary')
 
     await expect(page).toHaveURL(/\?tab=itinerary$/)
-    await expect(page.getByRole('button', { name: /Open itinerary Original seeded route/i })).toBeVisible()
     await expect(page.getByRole('button', { name: new RegExp(`Open itinerary ${firstName}`) })).toBeVisible()
     await expect(page.getByRole('button', { name: new RegExp(`Open itinerary ${secondName}`) })).toBeVisible()
-
-    await page.getByRole('button', { name: /Open itinerary Original seeded route/i }).click()
-    await expect(page).toHaveURL(/\?tab=itinerary&legacyTabKey=route$/)
-    await expect(page.getByRole('button', { name: 'Back to all itineraries' })).toBeVisible()
-
-    await page.getByRole('button', { name: 'Back to all itineraries' }).click()
-    await expect(page).toHaveURL(/\?tab=itinerary$/)
-    await expect(page.getByRole('button', { name: /Open itinerary Original seeded route/i })).toBeVisible()
 
     await page.getByRole('button', { name: new RegExp(`Open itinerary ${firstName}`) }).click()
     await expect(page).toHaveURL(new RegExp(`\\?tab=itinerary&itineraryId=${firstItineraryId}`))

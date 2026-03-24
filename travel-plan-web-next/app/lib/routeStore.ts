@@ -5,8 +5,8 @@ import logger from './logger'
 
 // ── TabKey ────────────────────────────────────────────────────────────────────
 
-export type TabKey = 'route' | 'route-test'
-export const VALID_TAB_KEYS: readonly TabKey[] = ['route', 'route-test']
+export type TabKey = 'route'
+export const VALID_TAB_KEYS: readonly TabKey[] = ['route']
 
 // ── RouteStore interface ──────────────────────────────────────────────────────
 
@@ -22,13 +22,7 @@ export interface RouteStore {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function resolveRouteFilePath(tabKey: TabKey): string {
-  if (tabKey === 'route-test') {
-    return path.join(
-      process.cwd(),
-      process.env.ROUTE_TEST_DATA_PATH ?? 'data/route-test.json'
-    )
-  }
+function resolveRouteFilePath(): string {
   return path.join(process.cwd(), process.env.ROUTE_DATA_PATH ?? 'data/route.json')
 }
 
@@ -49,20 +43,13 @@ function writeJsonAtomic(filePath: string, value: unknown): void {
 class FileRouteStore implements RouteStore {
   private readonly filePath: string
   private readonly seedFilePath: string
-  private readonly isTestTab: boolean
 
-  constructor(filePath: string, seedFilePath: string, isTestTab = false) {
+  constructor(filePath: string, seedFilePath: string) {
     this.filePath = filePath
     this.seedFilePath = seedFilePath
-    this.isTestTab = isTestTab
   }
 
   async getAll(): Promise<RouteDay[]> {
-    // Auto-seed for the test tab if the test file does not exist yet
-    if (this.isTestTab && !fs.existsSync(this.filePath)) {
-      const seed = fs.readFileSync(this.seedFilePath, 'utf-8')
-      writeJsonAtomic(this.filePath, JSON.parse(seed) as RouteDay[])
-    }
     return JSON.parse(fs.readFileSync(this.filePath, 'utf-8'))
   }
 
@@ -174,21 +161,16 @@ class UpstashRouteStore implements RouteStore {
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
-/** Returns the appropriate store based on the runtime environment and tabKey. */
-export function getRouteStore(tabKey: TabKey = 'route'): RouteStore {
+/** Returns the appropriate store based on the runtime environment. */
+export function getRouteStore(): RouteStore {
   const hasKvRestApiUrl = Boolean(process.env.KV_REST_API_URL)
   const hasKvRestApiToken = Boolean(process.env.KV_REST_API_TOKEN)
 
   if (hasKvRestApiUrl && hasKvRestApiToken) {
-    const redisKey =
-      tabKey === 'route-test'
-        ? (process.env.ROUTE_TEST_REDIS_KEY ?? 'route-test')
-        : (process.env.ROUTE_REDIS_KEY ?? 'route')
-
+    const redisKey = process.env.ROUTE_REDIS_KEY ?? 'route'
     const seedFilePath = resolveSeedFilePath()
-
     logger.info(
-      { backend: 'upstash-redis', tabKey, redisKey, hasKvRestApiUrl, hasKvRestApiToken },
+      { backend: 'upstash-redis', redisKey, hasKvRestApiUrl, hasKvRestApiToken },
       'RouteStore backend selected'
     )
     return new UpstashRouteStore(redisKey, seedFilePath)
@@ -201,10 +183,8 @@ export function getRouteStore(tabKey: TabKey = 'route'): RouteStore {
     )
   }
 
-  const filePath = resolveRouteFilePath(tabKey)
+  const filePath = resolveRouteFilePath()
   const seedFilePath = resolveSeedFilePath()
-  const isTestTab = tabKey === 'route-test'
-
-  logger.info({ backend: 'local-file', tabKey, routeFilePath: filePath }, 'RouteStore backend selected')
-  return new FileRouteStore(filePath, seedFilePath, isTestTab)
+  logger.info({ backend: 'local-file', routeFilePath: filePath }, 'RouteStore backend selected')
+  return new FileRouteStore(filePath, seedFilePath)
 }
