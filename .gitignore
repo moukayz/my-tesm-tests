@@ -34,3 +34,4 @@ blog-website/.qa-logs/
 *.zip
 
 .mcp.json
+.vercel
