@@ -9,7 +9,7 @@ A travel itinerary viewer with train delay analytics, built with Next.js 15, Tai
 - **Itinerary tab** — cards-first itinerary library with click-to-open workspace + in-app back navigation
   - **Cards-first entry** — authenticated users land on an itinerary cards view (`/?tab=itinerary`) that lists saved itineraries
   - **Detail workspace handoff** — card selection opens the existing itinerary editor at `/?tab=itinerary&itineraryId=<id>`
-  - **Desktop detail cleanup** — selected itinerary workspace renders a single control row with `Back to all itineraries` (left) and `Add next stay` (right) on the same line, followed by a trip summary banner (date range, total days, city breakdown, country breakdown when location data is available)
+  - **Desktop detail cleanup** — selected itinerary workspace renders a single control row with `Back to all itineraries` (left) and `Add next stay` (right) on the same line, followed by a trip summary banner: itinerary title with a total-days pill badge, date range on its own line, then a country/city breakdown (each country in bold with a blue dot accent, cities indented below; country rows only rendered when location data is available)
   - **Back to cards** — detail mode shows a clear in-app `Back to all itineraries` action in the workspace control row
   - **New itinerary shell** — authenticated users can create a draft itinerary (`name` optional, `startDate` required) and land on `/?tab=itinerary&itineraryId=<id>`
   - **Empty workspace guidance** — newly created itineraries render an empty state with `Add first stay` before mounting the day table

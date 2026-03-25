@@ -1,13 +1,13 @@
 # Product Brief — Travel Plan Web
 
-**Status:** Live, deployed product (not a greenfield proposal)  
-**Date:** 2026-03-16
+**Status:** Live, deployed product (not a greenfield proposal)
+**Date:** 2026-03-25 (updated)
 
 ---
 
 ## Overview
 
-Travel Plan Web is a personal, authenticated web app for planning and reviewing a 16-day multi-day European train journey. It combines an editable trip itinerary with real-time timetable lookup and historical delay analytics in a single tab-based interface. Self-hosted on Vercel.
+Travel Plan Web is a personal, authenticated web app for planning and reviewing a multi-day European train journey. It combines an editable trip itinerary with real-time timetable lookup and historical delay analytics in a single tab-based interface. Self-hosted on Vercel.
 
 ---
 
@@ -15,7 +15,7 @@ Travel Plan Web is a personal, authenticated web app for planning and reviewing 
 
 | User | Access |
 |------|--------|
-| **Authenticated traveller** | Full app — Itinerary, Timetable, and Train Delays tabs |
+| **Authenticated traveller** | Full app — Itinerary, Train Delays, and Timetable tabs |
 | **Unauthenticated visitor** | Train Delays and Timetable tabs only |
 
 - Auth: Google OAuth via NextAuth.js v5.
@@ -27,27 +27,47 @@ Travel Plan Web is a personal, authenticated web app for planning and reviewing 
 ## Feature Set
 
 ### Itinerary *(authenticated only)*
-- 16-day trip schedule table: Date, Weekday, Day #, Overnight Location, Morning / Afternoon / Evening activity rows.
+
+**Cards view (entry point)**
+- Authenticated users land on a cards list showing all saved itineraries.
+- "+ New itinerary" creates a draft via `CreateItineraryModal` (name optional, startDate required).
+- Selecting a card opens the itinerary workspace.
+
+**Workspace**
+- Trip summary banner: itinerary name, total days, date range, country/city breakdown (when resolved location data is available).
+- Day table with columns: **Overnight**, **Date**, **Attractions**, **Train Schedule**, **Note**.
 - Overnight location cells are merged and colour-coded for consecutive same-city days.
-- Each day can list associated trains; live departure/arrival times are fetched and shown inline.
-- **Inline edit:** double-click any activity cell to edit; commit with Enter or click-away; reverts on API failure.
-- **Drag-and-drop reorder:** drag grip handle to swap activity rows within a day; optimistic update reverts on API failure.
-- Changes persisted via `POST /api/plan-update` -> Upstash Redis (production) / local JSON (dev).
-- Activity text supports Markdown.
-- **Export to files:** "Export to files…" button triggers a format picker (Markdown or PDF); purely client-side download via File System Access API with anchor-download fallback. Exported table omits the Weekday column, combines time-of-day activity sections into a single Plan cell, and includes train numbers only (no timetable detail). See `docs/itinerary-export/PRODUCT_BRIEF.md`.
-- **Editable overnight stays** *(planned)*: each city-stay block (non-last) exposes an edit control; shrinking a stay reassigns leftover days to the next stay; extending borrows from the next stay. Day total is conserved. See `docs/editable-itinerary-stays/feature-analysis.md`.
+- "Back to all itineraries" returns to the cards view; unsaved inline edits trigger a discard confirmation.
 
-### Itinerary (Test) *(authenticated only, planned)*
-- Duplicate of the Itinerary tab backed by a separate persistence key (`route-test` in Redis / separate JSON file in dev).
-- Intended as a safe sandbox for validating the editable-stays feature without affecting live itinerary data.
-- All editable-stays behaviours are present; data is independent from the original Itinerary tab.
+**Stay management**
+- Add first stay, add next stay, and full edit stay (city + nights + location) via `StaySheet`.
+- Location autocomplete resolves coordinates and place metadata; custom-location entry also supported.
+- Stay reorder via up/down controls; optimistic UI with revert on API failure.
 
-### Train Schedule JSON Editor *(authenticated only)*
-- Pencil icon on each train row opens a modal with the raw `TrainRoute[]` JSON for that day.
-- Modal supports editing and saving via `POST /api/train-update`.
-- After save, the UI re-fetches timetable info for that day (`GET /api/train-stops`) and refreshes derived times.
-- Train tags with no resolved timetable data are shown in **red** to flag data gaps.
-- Modal dismissed via Close button, Escape, or backdrop click.
+**Note column**
+- Each day row has a per-day free-form Note column.
+- Click the pencil icon (hover) to open a textarea; blur or Escape to commit/discard.
+- Content is rendered as Markdown. Persisted via `PATCH /api/itineraries/[id]/days/[dayIndex]/note` (itinerary-scoped) or `POST /api/note-update` (legacy route).
+
+**Attractions column**
+- Each day row has an Attractions column.
+- Click "+ Add" to search by name via GeoNames; pick a result to append a colour-coded tag.
+- Hover a tag to reveal image (📷) and delete (×) buttons.
+- Click the map icon to open a MapLibre minimap popover (280×200 px) showing all day attraction pins connected by a line.
+- Supports image upload (paste or pick) stored in Vercel Blob; thumbnail strip shown on hover for tags with images.
+
+**Structured train schedule editor**
+- Pencil icon on each Train Schedule cell opens `TrainScheduleEditorModal`.
+- Supports add, drag-and-drop reorder, delete, and inline validation of train rows (`train_id`, optional `start`/`end`).
+- Save persists via `POST /api/train-update`; the tab re-fetches timetable for that day on success.
+- Multi-railway: TGV (French) and EST (Eurostar) trains auto-detected from the train ID prefix.
+- Train tags with unresolved timetable data are shown in red.
+
+**Export**
+- Floating action button exports the itinerary as Markdown (`.md`) or PDF (`.pdf`).
+- Purely client-side; uses the File System Access API with anchor-download fallback.
+- PDF CJK characters rendered via lazily-loaded NotoSansSC font subset.
+- Exported columns: Date, Day, Overnight, Train Schedule, Note (Weekday omitted).
 
 ### Train Timetable *(all users)*
 - Autocomplete search across DB (German), SNCF (French), and Eurostar trains.
@@ -66,7 +86,6 @@ Travel Plan Web is a personal, authenticated web app for planning and reviewing 
 ## Out of Scope
 
 - Multi-user collaboration or shared editing.
-- Trip creation from scratch (data pre-seeded via `route.json`).
 - Mobile native app (web only).
 - Real-time live train tracking.
 - Delay data for French or Eurostar trains.
@@ -83,11 +102,11 @@ Travel Plan Web is a personal, authenticated web app for planning and reviewing 
 | Auth | Google OAuth only |
 | Delay data | German long-distance trains only (ICE, IC, EC, EN, RJX, RJ, NJ, ECE); last ~3 months |
 | Timetable data | Static GTFS data (not live); manual refresh required when schedules change |
-| Storage | Upstash Redis (prod) / local JSON (dev) for itinerary |
+| Itinerary storage | `ItineraryStore` — `FileItineraryStore` (local dev) / `UpstashItineraryStore` (production) |
+| Legacy route storage | `RouteStore` — `FileRouteStore` (local dev) / `KvRouteStore` (production) |
 
 ---
 
 ## Open Questions
 
-- Is there a planned mechanism to update the itinerary seed data for a future trip?
 - Should delay data eventually cover French and Eurostar trains?

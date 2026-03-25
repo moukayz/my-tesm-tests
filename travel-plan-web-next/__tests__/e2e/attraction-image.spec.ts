@@ -172,7 +172,7 @@ test.describe('Attraction image feature', () => {
     const viewer = page.getByTestId('image-scroll')
     await expect(viewer).toBeVisible()
     await expect(viewer.getByRole('img')).toHaveCount(4)
-    // No pagination buttons — all images are in a scrollable strip
-    await expect(viewer.getByRole('button')).toHaveCount(0)
+    // No pagination buttons — all images shown in a scrollable strip with one delete button per image
+    await expect(viewer.getByRole('button')).toHaveCount(4)
   })
 })

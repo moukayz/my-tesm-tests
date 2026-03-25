@@ -1,3 +1,5 @@
+import { hashString } from './itinerary'
+
 export const DAY_COLORS = [
   { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
   { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200' },
@@ -8,15 +10,6 @@ export const DAY_COLORS = [
   { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-200' },
 ]
 
-function hashId(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619) >>> 0
-  }
-  return h
-}
-
 export function getAttractionColor(id: string): typeof DAY_COLORS[number] {
-  return DAY_COLORS[hashId(id) % DAY_COLORS.length]
+  return DAY_COLORS[hashString(id) % DAY_COLORS.length]
 }

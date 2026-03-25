@@ -230,27 +230,35 @@ export default function ItineraryWorkspace({
       </div>
 
       {hasDays && tripSummary && (
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 space-y-1">
-          <h2 className="text-base font-semibold text-gray-900">{workspace.itinerary.name}</h2>
-          <p className="text-sm text-gray-500">
-            {formatTripDate(tripSummary.startDate)} – {formatTripDate(tripSummary.endDate)}
-            <span className="mx-1.5 text-gray-300">·</span>
-            {tripSummary.totalDays} {tripSummary.totalDays === 1 ? 'day' : 'days'}
-          </p>
-          <div className="space-y-0.5 text-sm">
-            {tripSummary.countryGroups.map((group) => (
-              <div key={group.name ?? '__none__'}>
-                {group.name && (
-                  <p className="text-gray-500">{group.name} ({group.nights}n)</p>
-                )}
-                {group.cities.map((c, i) => (
-                  <p key={i} className={group.name ? 'pl-3 text-gray-400' : 'text-gray-500'}>
-                    {c.city} ({c.nights}n)
-                  </p>
-                ))}
-              </div>
-            ))}
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-lg font-bold text-gray-900 leading-tight">{workspace.itinerary.name}</h2>
+            <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 mt-0.5">
+              {tripSummary.totalDays} {tripSummary.totalDays === 1 ? 'day' : 'days'}
+            </span>
           </div>
+          <p className="mt-1 text-sm text-gray-500">
+            {formatTripDate(tripSummary.startDate)} – {formatTripDate(tripSummary.endDate)}
+          </p>
+          {tripSummary.countryGroups.length > 0 && (
+            <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+              {tripSummary.countryGroups.map((group) => (
+                <div key={group.name ?? '__none__'}>
+                  {group.name && (
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-blue-400 shrink-0" aria-hidden="true" />
+                      <p className="text-sm font-semibold text-gray-800">{group.name} ({group.nights}n)</p>
+                    </div>
+                  )}
+                  <div className={group.name ? 'pl-4 mt-0.5 space-y-0.5' : 'space-y-0.5'}>
+                    {group.cities.map((c, i) => (
+                      <p key={i} className="text-sm text-gray-500">{c.city} ({c.nights}n)</p>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

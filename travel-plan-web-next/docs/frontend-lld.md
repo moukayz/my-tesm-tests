@@ -4,7 +4,7 @@
 
 | Path | Component | Notes |
 |---|---|---|
-| `/` | `app/page.tsx` (RSC) | Renders `TravelPlan`; passes `isLoggedIn` + `initialRouteData` |
+| `/` | `app/page.tsx` (RSC) | Renders `TravelPlan`; passes `isLoggedIn` + itinerary bootstrap props |
 | `/login` | `app/login/page.tsx` (Client) | Google OAuth sign-in button |
 | `/auth-error` | `app/auth-error/page.tsx` (Client) | 5-second countdown then `router.push('/')` |
 
@@ -12,63 +12,93 @@
 
 `app/layout.tsx` and `app/page.tsx` are RSC. They call `auth()` server-side and pass serializable props into client components.
 
+RSC props passed to `TravelPlan`:
+- `isLoggedIn: boolean`
+- `initialItineraryWorkspace: ItineraryWorkspace | null` — server-fetched workspace for the URL's `itineraryId` param
+- `initialItinerarySummaries: ItinerarySummary[]` — list summaries (only populated when `itineraryId` is present in URL)
+- `initialItineraryId: string | undefined`
+- `initialItineraryErrorCode: string | null`
+
 Client components:
 - `AuthHeader` — reads `user` prop; calls `signOut` on logout
-- `TravelPlan` — owns tab state
-- `ItineraryTab`, `TrainDelayTab`, `TrainTimetableTab` — tab panels
+- `TravelPlan` — owns tab state and itinerary selection
+- `ItineraryPanel` — cards vs detail routing + unsaved-edit back guard
+- `ItineraryCardsView` — cards list with empty state and open/create actions
+- `ItineraryWorkspace` — workspace shell: trip summary banner, stay mutations, stay sheet wiring
+- `ItineraryTab` — day-level editing table (note, train schedule, attractions, export)
+- `CreateItineraryModal`, `StaySheet` — creation and stay add/edit dialogs
+- `TrainScheduleEditorModal` — structured per-day train row editor
+- `AttractionCell`, `AttractionMiniMap`, `AttractionImageViewer` — attraction column UI
+- `TrainDelayTab`, `TrainTimetableTab` — tab panels
 - `AutocompleteInput` — reusable controlled input with local dropdown state
 - `LoginPage`, `AuthErrorPage`
 
-RSC to client props are limited to simple values such as `isLoggedIn: boolean` and `initialRouteData: RouteDay[]`.
-
 ## TravelPlan
 
-- Four tabs when authenticated: **Itinerary** (`itinerary`), **Itinerary (Test)** (`itinerary-test`), **Train Delays** (`delays`), **Timetable** (`timetable`).
+- Three tabs when authenticated: **Itinerary** (`itinerary`), **Train Delays** (`delays`), **Timetable** (`timetable`).
+- Unauthenticated users see only **Train Delays** and **Timetable**.
 - `tab` defaults to `itinerary` when logged in, otherwise `delays`.
-- Tab panels stay mounted and are shown/hidden with Tailwind `hidden`. This preserves loaded data, selected options, and in-progress UI state across tab switches.
-- Both `ItineraryTab` instances are rendered only when `isLoggedIn && initialRouteData` are both truthy; both tab buttons hidden for unauthenticated users.
-- Each `ItineraryTab` receives a distinct `tabKey` prop (`"route"` or `"route-test"`) that is forwarded to all API calls.
+- Tab panels stay mounted and are shown/hidden with Tailwind `hidden`. This preserves loaded data and in-progress UI state across tab switches.
+- Owns `selectedItineraryId` state; syncs with `?itineraryId=` URL param.
+- Lazy-fetches `GET /api/itineraries` for summaries when none are server-provided.
+
+## ItineraryPanel
+
+- Renders `ItineraryCardsView` when no itinerary is selected; `ItineraryWorkspace` when one is selected.
+- Guards "back to cards" navigation: if `ItineraryTab` reports unsaved inline edits, shows a discard confirmation dialog before allowing the back action.
+
+## ItineraryWorkspace
+
+Receives `selectedItineraryId`, `initialWorkspace`, and stay-mutation callbacks.
+
+- Fetches `GET /api/itineraries/[id]` when `selectedItineraryId` changes and the workspace doesn't match.
+- Derives `tripSummary` (date range, total days, country/city breakdown) from workspace stays.
+- Manages stay sheet state: open/close, mode (`add-first` | `add-next` | `edit`), submit, error.
+- Handles optimistic stay reorder: calls `POST /api/itineraries/[id]/stays/[index]/move`, reverts on failure.
+- Stay add/edit submits to `POST /api/itineraries/[id]/stays` or `PATCH /api/itineraries/[id]/stays/[index]`.
 
 ## ItineraryTab
 
-Receives `initialData: RouteDay[]` and `tabKey: 'route' | 'route-test'` (required).
+Receives `initialData: RouteDay[]`, `itineraryId?: string`, and optional stay-action callbacks.
 
-- On mount, fetches timetable details for DB-queryable trains and caches results in `trainSchedules`.
-- Non-DB trains display raw `train_id` only.
-- `days` is the mutable itinerary overlay (initialized from `initialData`). Stay edits update `days`; optimistic reverts restore the snapshot.
-- `planOverrides` is the client-side write layer: `planOverrides[dayIndex] ?? days[dayIndex].plan`.
+- Table columns: **Overnight**, **Date**, **Attractions**, **Train Schedule**, **Note**.
+- Overnight cells are merged (rowspan) and colour-coded per stay.
+- Delegates functionality to custom hooks:
+  - `useTrainSchedules` — fetches timetable data for all trains in the itinerary on mount; caches results.
+  - `useTrainEditor` — manages structured train row editor state and `POST /api/train-update` persistence.
+  - `useNoteEditor` — manages per-day note editing state; saves via `PATCH /api/itineraries/[id]/days/[dayIndex]/note` (itinerary-scoped) or `POST /api/note-update` (legacy).
+  - `useStayEdit` — manages legacy inline stay-duration edit; saves via `PATCH /api/itineraries/[id]/stays/[index]` (itinerary-scoped) or `POST /api/stay-update` (legacy).
+  - `useExport` — controls the floating export picker state and triggers Markdown/PDF download.
+- `trainOverrides` and `noteOverrides` are client-side write overlays on top of server `days`.
 - `initialData` is never mutated in place.
 
-### Inline Edit
+### Note Column Editing
 
-- Triggered by double-click on a plan row.
-- Uses a `<textarea autoFocus>`.
-- Commits on blur or `Enter`; `Shift+Enter` keeps multiline editing.
-- Applies optimistic update to `planOverrides`.
-- On save failure, reverts and shows a per-day error.
+- Click the pencil icon (visible on hover) to enter edit mode for a day's note.
+- Uses a `<textarea>` that fills the cell; blur commits; Escape discards.
+- Applies optimistic update to `noteOverrides`; reverts on save failure.
 
-### Drag-and-Drop Reorder
+### Train Schedule Editor
 
-- Uses native HTML5 drag-and-drop.
-- Reordering is same-day only; cross-day drops are ignored.
-- Swaps the source and target plan sections, applies optimistic update, and persists via `POST /api/plan-update`.
-- Rows are not draggable while a save is in flight for that day.
-
-### Train Schedule JSON Modal / Editor
-
-- Each train schedule cell includes a pencil button.
-- Clicking opens a modal for the current day's raw `TrainRoute[]` JSON.
-- Modal supports close via button, Escape, and backdrop click.
-- Authenticated save flow posts to `POST /api/train-update`.
-- After save, the tab re-fetches derived timetable data for that day so displayed times refresh immediately.
+- Each Train Schedule cell includes a pencil button.
+- Clicking opens `TrainScheduleEditorModal` with structured rows (`train_id`, optional `start`/`end`).
+- Supports add row, drag-and-drop reorder, delete, and inline validation.
+- Modal closed via button, Escape, or backdrop click; focus returns to trigger button.
+- Save posts to `POST /api/train-update`; re-fetches timetable for that day on success.
 - Train tags with unresolved timetable data are shown in red.
+
+### Drag-and-Drop Reorder (Train Rows)
+
+- Native HTML5 drag-and-drop within `TrainScheduleEditorModal`.
+- Reordering is within the current day's train list only.
+- Rows are not draggable while a save is in flight.
 
 ## TrainDelayTab
 
 Self-contained client state with three fetch stages:
-1. Mount -> `GET /api/trains?railway=german`
-2. Selected train -> `GET /api/stations?train=<name>`
-3. Selected train + station -> `GET /api/delay-stats?train=<name>&station=<name>`
+1. Mount → `GET /api/trains?railway=german`
+2. Selected train → `GET /api/stations?train=<name>`
+3. Selected train + station → `GET /api/delay-stats?train=<name>&station=<name>`
 
 - Renders loading, error, empty, and success states explicitly.
 - Success state shows a 7-item stats grid plus a Recharts line chart.
@@ -77,8 +107,8 @@ Self-contained client state with three fetch stages:
 ## TrainTimetableTab
 
 Self-contained client state with two fetch stages:
-1. Mount -> `GET /api/trains`
-2. Selected train + detected railway -> `GET /api/timetable?train=<name>&railway=<railway>`
+1. Mount → `GET /api/trains`
+2. Selected train + detected railway → `GET /api/timetable?train=<name>&railway=<railway>`
 
 - Railway is auto-detected from the selected train row.
 - No separate operator picker exists.
@@ -100,7 +130,11 @@ Parent components keep separate `input` and `selected` state so API calls happen
 
 | Component | Important states |
 |---|---|
-| `ItineraryTab` | timetable loading, edit mode, DnD drag visuals, save error, JSON modal open/closed, stay edit mode, stay saving, stay edit error toast |
+| `ItineraryPanel` | cards view, detail view, discard confirmation dialog |
+| `ItineraryWorkspace` | loading, error (not-found/forbidden), empty (no days), filled (with trip summary + table) |
+| `ItineraryTab` | timetable loading, note edit mode, train editor modal open/closed, stay edit mode, stay saving, export picker open/closed |
+| `TrainScheduleEditorModal` | row editing, drag-in-progress, validation errors, saving, save error |
+| `StaySheet` | add-first, add-next, edit; submitting, form error |
 | `StayEditControl` | hidden (last stay), read (pencil visible), editing (input form), validating (inline error), saving (confirm disabled) |
 | `TrainDelayTab` | trains loading, stations loading, stats loading, error, empty, success |
 | `TrainTimetableTab` | trains loading, timetable loading, error, empty, success |
@@ -112,28 +146,30 @@ Parent components keep separate `input` and `selected` state so API calls happen
 Implemented:
 - `<label htmlFor>` for train and station inputs
 - `role="status"` and loading labels on spinners
-- `aria-label` on icon-only controls such as login, logout, drag handle, and pencil button
-- Dialog semantics on the train JSON modal
+- `aria-label` on icon-only controls such as login, logout, drag handle, pencil buttons
+- Dialog semantics (`role="dialog"`, `aria-modal`) on modals and sheets
 - `<html lang="zh">`
 
 Known gaps:
 - Autocomplete dropdown does not implement full combobox/listbox keyboard semantics
 - Tab bar does not use `role="tab"` / `role="tabpanel"`
-- Focus is not fully managed for modal open/close or inline edit exit
+- Focus is not fully managed for all modal open/close flows
 
 ## State Ownership
 
 - All frontend state is local `useState`; there is no global store.
-- `days` and `planOverrides` are the two mutable overlays on top of server-provided itinerary data in `ItineraryTab`. `days` is replaced atomically by the `stay-update` server response; `planOverrides` applies inline text edits on top of `days`.
-- Each `ItineraryTab` instance owns its state independently — no sharing between the `route` and `route-test` instances.
+- `ItineraryWorkspace` owns workspace-level state: `workspace`, loading/error flags, sheet open/mode.
+- `ItineraryTab` owns day-level state via hooks: `days` (replaced atomically on server response), `trainOverrides` and `noteOverrides` (client write overlays). `initialData` is never mutated in place.
 - `AutocompleteInput` owns only dropdown visibility; parents own values and selections.
 
 ## Feature-Specific LLD Addenda
 
 | Feature | Document |
 |---------|----------|
-| Itinerary Export (`itinerary-export`) | [`docs/itinerary-export/LLD.md`](./itinerary-export/LLD.md) |
-| Editable Itinerary Stays (`editable-itinerary-stays`) | [`docs/editable-itinerary-stays/frontend-design.md`](./editable-itinerary-stays/frontend-design.md) |
+| Itinerary Export | [`docs/itinerary-export/LLD.md`](./itinerary-export/LLD.md) |
+| Editable Itinerary Stays | [`docs/editable-itinerary-stays/frontend-design.md`](./editable-itinerary-stays/frontend-design.md) |
+| Stay Planning & Creation | [`docs/itinerary-creation-and-stay-planning/frontend-design.md`](./itinerary-creation-and-stay-planning/frontend-design.md) |
+| Train Schedule Editor | [`docs/itinerary-train-schedule-editor/frontend-design.md`](./itinerary-train-schedule-editor/frontend-design.md) |
 
 ---
 
@@ -142,8 +178,8 @@ Known gaps:
 | Tier | Tool | Scope |
 |---|---|---|
 | 0 | `next lint` + TypeScript | Lint and type safety |
-| 1 | Jest + RTL | Utility functions and component interactions |
+| 1 | Jest + RTL | Utility functions, hooks, and component interactions |
 | 2 | Jest | API route handlers with mocked dependencies |
 | 3 | Playwright | End-to-end browser flows |
 
-Frontend coverage should stay focused on tab persistence, itinerary edit/reorder flows, autocomplete behavior, timetable and delay loading states, and train JSON modal/editor behavior.
+Frontend coverage should stay focused on: itinerary cards/workspace navigation, stay add/edit flows, note editing, train schedule editor, autocomplete behavior, timetable and delay loading states, and export.

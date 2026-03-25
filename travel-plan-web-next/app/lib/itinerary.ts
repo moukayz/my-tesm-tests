@@ -37,7 +37,7 @@ export interface ProcessedDay extends RouteDay {
 
 
 // FNV-1a 32-bit — better bit distribution than djb2
-function hashString(s: string): number {
+export function hashString(s: string): number {
   let hash = 2166136261 // FNV offset basis
   for (let i = 0; i < s.length; i++) {
     hash ^= s.charCodeAt(i)

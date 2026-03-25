@@ -1,16 +1,16 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Plus, X, Map as MapIcon, Image as ImageIcon } from 'lucide-react'
-import { searchLocationSuggestions } from '../app/lib/locations/search'
-import type { StayLocationResolved } from '../app/lib/itinerary-store/types'
 import type { RouteDay, DayAttraction } from '../app/lib/itinerary'
 import AttractionMiniMap from './AttractionMiniMap'
 import AttractionImageModal from './AttractionImageModal'
 import AttractionImageViewer from './AttractionImageViewer'
 import AttractionImageLightbox from './AttractionImageLightbox'
 import { getAttractionColor } from '../app/lib/dayColors'
+import { useAttractionSearch } from './hooks/useAttractionSearch'
+import { useAttractionDrag } from './hooks/useAttractionDrag'
 
 interface AttractionCellProps {
   dayIndex: number
@@ -21,22 +21,19 @@ interface AttractionCellProps {
 
 export default function AttractionCell({ dayIndex, day, processedDay, itineraryId }: AttractionCellProps) {
   const [overrides, setOverrides] = useState<DayAttraction[] | null>(null)
-  const [isAdding, setIsAdding] = useState(false)
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<StayLocationResolved[]>([])
-  const [searchLoading, setSearchLoading] = useState(false)
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
   const [miniMapOpen, setMiniMapOpen] = useState(false)
   const [miniMapRect, setMiniMapRect] = useState<DOMRect | null>(null)
   const [imageModalAttractionId, setImageModalAttractionId] = useState<string | null>(null)
   const [viewerState, setViewerState] = useState<{ id: string; rect: DOMRect } | null>(null)
   const [lightboxState, setLightboxState] = useState<{ attractionId: string; index: number } | null>(null)
-  const searchRef = useRef<AbortController | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
   const miniMapButtonRef = useRef<HTMLButtonElement | null>(null)
   const hideViewerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isDraggingRef = useRef(false)
+
+  const attractions = overrides ?? (day.attractions ?? [])
+
+  const countryBias = processedDay?.location?.kind === 'resolved'
+    ? processedDay.location?.place?.countryCode
+    : undefined
 
   function scheduleHideViewer() {
     hideViewerTimer.current = setTimeout(() => setViewerState(null), 80)
@@ -44,14 +41,6 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
   function cancelHideViewer() {
     if (hideViewerTimer.current) { clearTimeout(hideViewerTimer.current); hideViewerTimer.current = null }
   }
-
-  // Drag-and-drop state
-  const [draggedId, setDraggedId] = useState<string | null>(null)
-  const tagRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const prevRectsRef = useRef<Map<string, DOMRect>>(new Map())
-  const animatingRef = useRef(false)
-
-  const attractions = overrides ?? (day.attractions ?? [])
 
   async function saveAttractions(next: DayAttraction[]) {
     if (itineraryId) {
@@ -69,37 +58,46 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
     }
   }
 
-  function openSearch() {
-    setIsAdding(true)
-    setQuery('')
-    setResults([])
-    setSearchOpen(false)
-    setActiveIndex(0)
-  }
+  const {
+    isAdding,
+    query,
+    results,
+    searchLoading,
+    searchOpen,
+    activeIndex,
+    inputRef,
+    openSearch,
+    closeSearch,
+    setQuery,
+    setActiveIndex,
+    selectAttraction,
+  } = useAttractionSearch({
+    existingAttractionIds: attractions.map((a) => a.id),
+    countryBias,
+    onSelect: (attraction) => {
+      const next = [...attractions, attraction]
+      setOverrides(next)
+      saveAttractions(next).catch(() => {})
+    },
+  })
 
-  function closeSearch() {
-    setIsAdding(false)
-    setQuery('')
-    setResults([])
-    setSearchOpen(false)
-    searchRef.current?.abort()
-  }
-
-  function selectAttraction(result: StayLocationResolved) {
-    const attraction: DayAttraction = {
-      id: result.place.placeId,
-      label: result.place.name,
-      coordinates: result.coordinates,
-    }
-    if (attractions.some((a) => a.id === attraction.id)) {
-      closeSearch()
-      return
-    }
-    const next = [...attractions, attraction]
-    setOverrides(next)
-    closeSearch()
-    saveAttractions(next).catch(() => {})
-  }
+  const {
+    draggedId,
+    isDraggingRef,
+    setTagRef,
+    handleDragStart,
+    handleDragOver,
+    handleDragEnd,
+    handleDrop,
+  } = useAttractionDrag({
+    attractions,
+    onReorder: (next) => setOverrides(next),
+    onSave: (next) => saveAttractions(next).catch(() => {}),
+    onDragStart: () => {
+      cancelHideViewer()
+      setViewerState(null)
+    },
+  })
 
   function removeAttraction(attractionId: string) {
     const next = attractions.filter((a) => a.id !== attractionId)
@@ -139,139 +137,6 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
     setMiniMapRect(null)
   }
 
-  // --- Drag-and-drop handlers ---
-
-  function capturePositions() {
-    const rects = new Map<string, DOMRect>()
-    tagRefs.current.forEach((el, id) => {
-      rects.set(id, el.getBoundingClientRect())
-    })
-    prevRectsRef.current = rects
-  }
-
-  const handleDragStart = useCallback((e: React.DragEvent, attractionId: string) => {
-    isDraggingRef.current = true
-    cancelHideViewer()
-    setViewerState(null)
-    capturePositions()
-    setDraggedId(attractionId)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', attractionId)
-    // Use the element as the drag ghost but hide buttons so they don't appear in it
-    const el = tagRefs.current.get(attractionId)
-    if (el) {
-      const buttons = el.querySelectorAll<HTMLElement>('button')
-      buttons.forEach((b) => { b.style.opacity = '0' })
-      e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2)
-      buttons.forEach((b) => { b.style.opacity = '' })
-    }
-  }, [])
-
-  const handleDragOver = useCallback((e: React.DragEvent, targetId: string) => {
-    e.preventDefault()
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-    if (!draggedId || draggedId === targetId || animatingRef.current) return
-
-    const fromIdx = attractions.findIndex((a) => a.id === draggedId)
-    const toIdx = attractions.findIndex((a) => a.id === targetId)
-    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return
-
-    // Capture positions before reorder for FLIP animation
-    capturePositions()
-
-    const next = [...attractions]
-    const [moved] = next.splice(fromIdx, 1)
-    next.splice(toIdx, 0, moved)
-    setOverrides(next)
-  }, [draggedId, attractions])
-
-  const handleDragEnd = useCallback(() => {
-    if (draggedId) {
-      saveAttractions(attractions).catch(() => {})
-    }
-    setDraggedId(null)
-    prevRectsRef.current.clear()
-    setTimeout(() => { isDraggingRef.current = false }, 100)
-  }, [draggedId, attractions])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-  }, [])
-
-  // FLIP animation after reorder
-  useLayoutEffect(() => {
-    if (prevRectsRef.current.size === 0) return
-
-    const prevRects = prevRectsRef.current
-    let hasAnimation = false
-
-    tagRefs.current.forEach((el, id) => {
-      const prev = prevRects.get(id)
-      if (!prev) return
-      const curr = el.getBoundingClientRect()
-      const dy = prev.top - curr.top
-      if (Math.abs(dy) < 1) return
-
-      hasAnimation = true
-      el.style.transform = `translateY(${dy}px)`
-      el.style.transition = 'none'
-    })
-
-    if (!hasAnimation) return
-
-    animatingRef.current = true
-    // Force a reflow so the initial transform is applied
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    document.body.offsetHeight
-
-    tagRefs.current.forEach((el, id) => {
-      const prev = prevRects.get(id)
-      if (!prev) return
-      const curr = el.getBoundingClientRect()
-      // curr was already measured before transform was applied via reflow
-      // but we set transform above, so we just animate to 0
-      el.style.transition = 'transform 200ms ease'
-      el.style.transform = ''
-    })
-
-    const cleanup = setTimeout(() => {
-      animatingRef.current = false
-      prevRectsRef.current.clear()
-    }, 200)
-
-    return () => clearTimeout(cleanup)
-  }, [attractions])
-
-  // Debounced search
-  useEffect(() => {
-    if (!isAdding) return
-    const trimmed = query.trim()
-    if (trimmed.length < 2) {
-      setResults([])
-      setSearchLoading(false)
-      setSearchOpen(false)
-      return
-    }
-    setSearchLoading(true)
-    searchRef.current?.abort()
-    const controller = new AbortController()
-    searchRef.current = controller
-    const timer = window.setTimeout(() => {
-      const countryBias = processedDay?.location?.kind === 'resolved'
-        ? processedDay.location?.place?.countryCode
-        : undefined
-      searchLocationSuggestions(query, { signal: controller.signal, limit: 6, placeTypes: [], countryBias })
-        .then((res) => {
-          setResults(res.results)
-          setSearchOpen(res.results.length > 0)
-          setActiveIndex(0)
-        })
-        .catch(() => {})
-        .finally(() => setSearchLoading(false))
-    }, 300)
-    return () => { window.clearTimeout(timer) }
-  }, [query, isAdding])
-
   // Close minimap on Escape
   useEffect(() => {
     if (!miniMapOpen) return
@@ -281,14 +146,6 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [miniMapOpen])
-
-  const setTagRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
-    if (el) {
-      tagRefs.current.set(id, el)
-    } else {
-      tagRefs.current.delete(id)
-    }
-  }, [])
 
   return (
     <td className="px-4 py-6 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[200px] max-w-[300px] group/attraction-cell relative">

@@ -3,6 +3,7 @@ import { applyAppendStay, applyMoveStay, applyPatchStay, deriveStays, regenerate
 import { getItineraryStore } from './store'
 import type { ItineraryRecord, ItinerarySummary, ItineraryWorkspace, ListItinerariesResponse, StayLocation } from './types'
 import { normalizeStayLocation } from '../stayLocation'
+import { parseAttractions } from '../attractionValidator'
 
 export class ItineraryApiError extends Error {
   constructor(
@@ -362,43 +363,8 @@ export async function patchDayAttractions(
   const record = await requireOwnedItinerary(itineraryId, ownerEmail)
   if (dayIndex >= record.days.length) throw new ItineraryApiError(400, 'INVALID_DAY_INDEX')
 
-  const rawAttractions = payload.attractions
-  if (!Array.isArray(rawAttractions)) throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
-
-  const attractions: DayAttraction[] = []
-  for (const item of rawAttractions) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
-      throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
-    }
-    const { id, label, coordinates } = item as Record<string, unknown>
-    if (typeof id !== 'string' || id.trim().length === 0 || id.trim().length > 80) {
-      throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
-    }
-    if (typeof label !== 'string' || label.trim().length === 0 || label.trim().length > 120) {
-      throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
-    }
-    const attraction: DayAttraction = { id: id.trim(), label: label.trim() }
-    if (coordinates !== undefined) {
-      if (!coordinates || typeof coordinates !== 'object' || Array.isArray(coordinates)) {
-        throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
-      }
-      const { lat, lng } = coordinates as Record<string, unknown>
-      const latNum = Number(lat)
-      const lngNum = Number(lng)
-      if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
-        throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
-      }
-      attraction.coordinates = { lat: latNum, lng: lngNum }
-    }
-    const { images } = item as Record<string, unknown>
-    if (images !== undefined) {
-      if (!Array.isArray(images) || images.some((u) => typeof u !== 'string')) {
-        throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
-      }
-      attraction.images = images as string[]
-    }
-    attractions.push(attraction)
-  }
+  const attractions = parseAttractions(payload.attractions)
+  if (attractions === null) throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
 
   const nextDays = record.days.map((day, index) => {
     if (index !== dayIndex) return day
