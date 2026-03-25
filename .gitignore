@@ -32,3 +32,5 @@ blog-website/.qa-logs/
 
 .next/
 *.zip
+
+.mcp.json

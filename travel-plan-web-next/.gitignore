@@ -17,6 +17,7 @@ dist/
 # Testing
 coverage/
 test-results/
+test-results.json
 playwright-report/
 playwright/.cache/
 
