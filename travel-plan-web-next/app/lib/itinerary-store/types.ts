@@ -13,7 +13,7 @@ export interface ResolvedPlace {
   region?: string
   country?: string
   countryCode?: string
-  featureType?: 'locality' | 'region' | 'country' | 'other'
+  featureType?: 'locality' | 'region' | 'country' | 'continent' | 'other'
 }
 
 export interface StayLocationResolved {

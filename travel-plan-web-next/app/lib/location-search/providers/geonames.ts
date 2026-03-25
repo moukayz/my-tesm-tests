@@ -5,6 +5,7 @@ const FEATURE_TYPE_TO_CLASSES: Record<LocationFeatureType, string[]> = {
   locality: ['P'],
   region: ['A'],
   country: ['A'],
+  continent: ['L'],
   other: ['T', 'S', 'H', 'L', 'R', 'U', 'V'],
 }
 
@@ -69,6 +70,7 @@ function parseFeatureType(row: GeoNamesResultRow): LocationFeatureType {
     if (fcode.startsWith('ADM')) return 'region'
     return 'region'
   }
+  if (fcl === 'L' && fcode === 'CONT') return 'continent'
   if (fcl === 'T' && ISLAND_FCODES.has(fcode)) return 'locality'
   return 'other'
 }
@@ -104,7 +106,7 @@ export class GeoNamesLocationProvider implements LocationProvider {
     }
   ) {}
 
-  async search(query: string, limit: number, placeTypes?: LocationFeatureType[], countryBias?: string): Promise<LocationProviderResult[]> {
+  async search(query: string, limit: number, placeTypes?: LocationFeatureType[], countryBias?: string, countryRestrictions?: string[]): Promise<LocationProviderResult[]> {
     const username = this.options.username.trim()
     if (!username) {
       throw new LocationProviderError('LOOKUP_CONFIG_MISSING', 'GeoNames username missing')
@@ -123,6 +125,11 @@ export class GeoNamesLocationProvider implements LocationProvider {
     }
     if (countryBias) {
       endpoint.searchParams.set('countryBias', countryBias)
+    }
+    if (countryRestrictions && countryRestrictions.length > 0) {
+      for (const code of countryRestrictions) {
+        endpoint.searchParams.append('country', code.toUpperCase())
+      }
     }
 
     const abortController = new AbortController()

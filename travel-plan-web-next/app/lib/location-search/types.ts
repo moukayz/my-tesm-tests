@@ -1,6 +1,6 @@
 import type { StayLocationResolved } from '../itinerary-store/types'
 
-export type LocationFeatureType = 'locality' | 'region' | 'country' | 'other'
+export type LocationFeatureType = 'locality' | 'region' | 'country' | 'continent' | 'other'
 
 export interface LocationProviderResult {
   sourceId: string

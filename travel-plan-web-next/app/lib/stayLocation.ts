@@ -64,6 +64,7 @@ export function normalizeStayLocation(city: string, location?: StayLocationInput
           location.place.featureType === 'locality' ||
           location.place.featureType === 'region' ||
           location.place.featureType === 'country' ||
+          location.place.featureType === 'continent' ||
           location.place.featureType === 'other'
             ? location.place.featureType
             : undefined,

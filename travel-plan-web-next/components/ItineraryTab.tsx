@@ -146,6 +146,20 @@ export default function ItineraryTab({
                 day={stayDay}
                 onRequestEditStay={onRequestEditStay}
                 onMoveStay={onMoveStay}
+                onActivate={() => {
+                  if (!tableWrapperRef.current) return
+                  const firstRow = rowRefs.current[s.firstDayIndex]
+                  const lastRow = rowRefs.current[s.firstDayIndex + s.nights - 1]
+                  if (!firstRow || !lastRow) return
+                  const containerRect = tableWrapperRef.current.getBoundingClientRect()
+                  const top = firstRow.getBoundingClientRect().top - containerRect.top
+                  const height = lastRow.getBoundingClientRect().bottom - firstRow.getBoundingClientRect().top
+                  const color = getCityColor(
+                    stayDay.location?.kind === 'resolved' ? stayDay.location.place.name : stayDay.overnight,
+                    stayDay.location?.kind === 'resolved' ? (stayDay.location.place.country ?? '') : ''
+                  )
+                  setActionPanel({ stay: s, day: stayDay, top, height, color })
+                }}
               />
             )
           })}
@@ -418,9 +432,10 @@ interface StayActionPanelProps {
   day: ProcessedDay
   onRequestEditStay?: (stayIndex: number) => void
   onMoveStay?: (stayIndex: number, direction: 'up' | 'down') => void
+  onActivate?: () => void
 }
 
-function StayActionPanel({ isActive, top, height, color, stay, day, onRequestEditStay, onMoveStay }: StayActionPanelProps) {
+function StayActionPanel({ isActive, top, height, color, stay, day, onRequestEditStay, onMoveStay, onActivate }: StayActionPanelProps) {
   const [weatherOpen, setWeatherOpen] = useState(false)
   const [cloudOpen, setCloudOpen] = useState(false)
 
@@ -445,6 +460,7 @@ function StayActionPanel({ isActive, top, height, color, stay, day, onRequestEdi
       <div
         style={{ top: displayTop, height: displayHeight, left: 2, width: 36 }}
         className={`absolute z-20 flex flex-col items-center transition-opacity duration-200 ease-in-out ${isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onFocus={onActivate}
       >
         {/* Line above buttons */}
         <div className="w-1 flex-1 min-h-2 rounded-full" style={{ backgroundColor: displayColor }} />

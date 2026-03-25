@@ -21,7 +21,27 @@ describe('LocationSearchService', () => {
 
     await service.search('eiffel', 5, undefined, 'FR')
 
-    expect(mockSearch).toHaveBeenCalledWith('eiffel', 5, undefined, 'FR')
+    expect(mockSearch).toHaveBeenCalledWith('eiffel', 5, undefined, 'FR', undefined)
+  })
+
+  it('forwards countryRestrictions to the provider', async () => {
+    const mockSearch = jest.fn().mockResolvedValue([])
+    const provider: LocationProvider = { search: mockSearch }
+    const service = new LocationSearchService(provider)
+
+    await service.search('par', 5, undefined, undefined, ['FR', 'DE'])
+
+    expect(mockSearch).toHaveBeenCalledWith('par', 5, undefined, undefined, ['FR', 'DE'])
+  })
+
+  it('forwards both countryBias and countryRestrictions to the provider', async () => {
+    const mockSearch = jest.fn().mockResolvedValue([])
+    const provider: LocationProvider = { search: mockSearch }
+    const service = new LocationSearchService(provider)
+
+    await service.search('par', 5, ['locality'], 'FR', ['FR', 'BE'])
+
+    expect(mockSearch).toHaveBeenCalledWith('par', 5, ['locality'], 'FR', ['FR', 'BE'])
   })
 
   it('normalizes labels, dedupes, and applies limit', async () => {

@@ -66,13 +66,13 @@ function parseLimitOrThrow(limit: number | undefined): number {
 export class LocationSearchService {
   constructor(private readonly provider: LocationProvider) {}
 
-  async search(queryInput: string, limitInput?: number, placeTypes?: LocationFeatureType[], countryBias?: string): Promise<LocationSearchResponse> {
+  async search(queryInput: string, limitInput?: number, placeTypes?: LocationFeatureType[], countryBias?: string, countryRestrictions?: string[]): Promise<LocationSearchResponse> {
     const query = parseQueryOrThrow(queryInput)
     const limit = parseLimitOrThrow(limitInput)
 
     let providerResults: LocationProviderResult[]
     try {
-      providerResults = await this.provider.search(query, limit, placeTypes, countryBias)
+      providerResults = await this.provider.search(query, limit, placeTypes, countryBias, countryRestrictions)
       providerResults.sort((a, b) => a.name.length - b.name.length)
     } catch (error) {
       if (error instanceof LocationProviderError) {
@@ -117,9 +117,9 @@ export function getLocationSearchService(): LocationSearchService {
   return singletonService
 }
 
-export async function searchLocations(query: string, limit: number | undefined, userEmail?: string, placeTypes?: LocationFeatureType[], countryBias?: string) {
+export async function searchLocations(query: string, limit: number | undefined, userEmail?: string, placeTypes?: LocationFeatureType[], countryBias?: string, countryRestrictions?: string[]) {
   const startedAt = Date.now()
-  const response = await getLocationSearchService().search(query, limit, placeTypes, countryBias)
+  const response = await getLocationSearchService().search(query, limit, placeTypes, countryBias, countryRestrictions)
   logger.info(
     {
       route: '/api/locations/search',

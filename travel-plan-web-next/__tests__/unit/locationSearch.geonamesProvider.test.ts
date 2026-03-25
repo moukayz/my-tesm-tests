@@ -127,6 +127,118 @@ describe('GeoNamesLocationProvider', () => {
     expect(request.searchParams.has('countryBias')).toBe(false)
   })
 
+  it('sends featureClass L when placeTypes includes continent', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ geonames: [] }),
+    })
+
+    const provider = new GeoNamesLocationProvider({
+      username: 'demo-user',
+      baseUrl: 'https://api.geonames.org',
+      timeoutMs: 1200,
+    })
+
+    await provider.search('eur', 5, ['continent'])
+    const requestedUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string
+    const request = new URL(requestedUrl)
+
+    expect(request.searchParams.getAll('featureClass')).toContain('L')
+  })
+
+  it('maps fcl=L fcode=CONT to featureType continent', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        geonames: [
+          {
+            geonameId: 6255148,
+            name: 'Europe',
+            toponymName: 'Europe',
+            lat: '48.0',
+            lng: '9.0',
+            countryName: '',
+            countryCode: '',
+            adminName1: '',
+            fcl: 'L',
+            fcode: 'CONT',
+          },
+        ],
+      }),
+    })
+
+    const provider = new GeoNamesLocationProvider({
+      username: 'demo-user',
+      baseUrl: 'https://api.geonames.org',
+      timeoutMs: 1200,
+    })
+
+    const results = await provider.search('eur', 5)
+    expect(results[0].featureType).toBe('continent')
+  })
+
+  it('appends country params for each countryRestriction', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ geonames: [] }),
+    })
+
+    const provider = new GeoNamesLocationProvider({
+      username: 'demo-user',
+      baseUrl: 'https://api.geonames.org',
+      timeoutMs: 1200,
+    })
+
+    await provider.search('par', 5, undefined, undefined, ['FR', 'DE'])
+    const requestedUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string
+    const request = new URL(requestedUrl)
+
+    expect(request.searchParams.getAll('country')).toEqual(['FR', 'DE'])
+  })
+
+  it('omits country params when countryRestrictions is not provided', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ geonames: [] }),
+    })
+
+    const provider = new GeoNamesLocationProvider({
+      username: 'demo-user',
+      baseUrl: 'https://api.geonames.org',
+      timeoutMs: 1200,
+    })
+
+    await provider.search('par', 5)
+    const requestedUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string
+    const request = new URL(requestedUrl)
+
+    expect(request.searchParams.has('country')).toBe(false)
+  })
+
+  it('uppercases country codes in outbound country params', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ geonames: [] }),
+    })
+
+    const provider = new GeoNamesLocationProvider({
+      username: 'demo-user',
+      baseUrl: 'https://api.geonames.org',
+      timeoutMs: 1200,
+    })
+
+    await provider.search('par', 5, undefined, undefined, ['fr', 'de'])
+    const requestedUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string
+    const request = new URL(requestedUrl)
+
+    expect(request.searchParams.getAll('country')).toEqual(['FR', 'DE'])
+  })
+
   it('maps island feature codes (T/ISL) to featureType locality', async () => {
     ;(global.fetch as jest.Mock).mockResolvedValue({
       ok: true,

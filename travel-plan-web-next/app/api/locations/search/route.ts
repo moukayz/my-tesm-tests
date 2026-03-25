@@ -33,6 +33,10 @@ export async function GET(request: NextRequest) {
   const countryBias: string | undefined = countryBiasParam && /^[A-Z]{2}$/i.test(countryBiasParam.trim())
     ? countryBiasParam.trim().toUpperCase()
     : undefined
+  const countryRestrictionsParam = searchParams.get('countryRestrictions')
+  const countryRestrictions: string[] | undefined = countryRestrictionsParam !== null
+    ? countryRestrictionsParam.split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z]{2}$/.test(s))
+    : undefined
 
   let limit: number | undefined
   try {
@@ -45,7 +49,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await searchLocations(query, limit, userEmail, placeTypes, countryBias)
+    const result = await searchLocations(query, limit, userEmail, placeTypes, countryBias, countryRestrictions)
     return NextResponse.json(result, { status: 200 })
   } catch (error) {
     if (error instanceof LocationSearchInputError) {

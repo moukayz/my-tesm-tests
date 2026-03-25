@@ -5,6 +5,7 @@ interface SearchLocationSuggestionsOptions {
   limit?: number
   placeTypes?: string[]
   countryBias?: string
+  countryRestrictions?: string[]
 }
 
 interface LocationSearchResponse {
@@ -94,6 +95,9 @@ export async function searchLocationSuggestions(
   }
   if (options.countryBias) {
     params.set('countryBias', options.countryBias)
+  }
+  if (options.countryRestrictions && options.countryRestrictions.length > 0) {
+    params.set('countryRestrictions', options.countryRestrictions.join(','))
   }
   const response = await fetch(`/api/locations/search?${params.toString()}`, {
     method: 'GET',

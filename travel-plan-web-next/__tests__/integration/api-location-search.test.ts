@@ -71,35 +71,56 @@ describe('GET /api/locations/search', () => {
         },
       ],
     })
-    expect(mockSearchLocations).toHaveBeenCalledWith('par', 5, 'owner@example.com', undefined, undefined)
+    expect(mockSearchLocations).toHaveBeenCalledWith('par', 5, 'owner@example.com', undefined, undefined, undefined)
   })
 
   it('forwards placeTypes param as array to searchLocations', async () => {
     const route = await import('../../app/api/locations/search/route')
     await route.GET(new NextRequest('http://localhost/api/locations/search?query=par&placeTypes=locality,region'))
 
-    expect(mockSearchLocations).toHaveBeenCalledWith('par', undefined, 'owner@example.com', ['locality', 'region'], undefined)
+    expect(mockSearchLocations).toHaveBeenCalledWith('par', undefined, 'owner@example.com', ['locality', 'region'], undefined, undefined)
   })
 
   it('passes empty placeTypes array when placeTypes param is empty string', async () => {
     const route = await import('../../app/api/locations/search/route')
     await route.GET(new NextRequest('http://localhost/api/locations/search?query=par&placeTypes='))
 
-    expect(mockSearchLocations).toHaveBeenCalledWith('par', undefined, 'owner@example.com', [], undefined)
+    expect(mockSearchLocations).toHaveBeenCalledWith('par', undefined, 'owner@example.com', [], undefined, undefined)
   })
 
   it('forwards countryBias param to searchLocations', async () => {
     const route = await import('../../app/api/locations/search/route')
     await route.GET(new NextRequest('http://localhost/api/locations/search?query=eiffel&countryBias=FR'))
 
-    expect(mockSearchLocations).toHaveBeenCalledWith('eiffel', undefined, 'owner@example.com', undefined, 'FR')
+    expect(mockSearchLocations).toHaveBeenCalledWith('eiffel', undefined, 'owner@example.com', undefined, 'FR', undefined)
   })
 
   it('omits countryBias when param is absent', async () => {
     const route = await import('../../app/api/locations/search/route')
     await route.GET(new NextRequest('http://localhost/api/locations/search?query=par'))
 
-    expect(mockSearchLocations).toHaveBeenCalledWith('par', undefined, 'owner@example.com', undefined, undefined)
+    expect(mockSearchLocations).toHaveBeenCalledWith('par', undefined, 'owner@example.com', undefined, undefined, undefined)
+  })
+
+  it('forwards countryRestrictions param as uppercase array to searchLocations', async () => {
+    const route = await import('../../app/api/locations/search/route')
+    await route.GET(new NextRequest('http://localhost/api/locations/search?query=par&countryRestrictions=fr,de'))
+
+    expect(mockSearchLocations).toHaveBeenCalledWith('par', undefined, 'owner@example.com', undefined, undefined, ['FR', 'DE'])
+  })
+
+  it('omits countryRestrictions when param is absent', async () => {
+    const route = await import('../../app/api/locations/search/route')
+    await route.GET(new NextRequest('http://localhost/api/locations/search?query=par'))
+
+    expect(mockSearchLocations).toHaveBeenCalledWith('par', undefined, 'owner@example.com', undefined, undefined, undefined)
+  })
+
+  it('filters out invalid country codes from countryRestrictions', async () => {
+    const route = await import('../../app/api/locations/search/route')
+    await route.GET(new NextRequest('http://localhost/api/locations/search?query=par&countryRestrictions=FR,INVALID,D,DE'))
+
+    expect(mockSearchLocations).toHaveBeenCalledWith('par', undefined, 'owner@example.com', undefined, undefined, ['FR', 'DE'])
   })
 
   it('returns 401 when session is missing', async () => {
