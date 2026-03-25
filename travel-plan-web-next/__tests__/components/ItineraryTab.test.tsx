@@ -31,6 +31,26 @@ jest.mock('../../app/lib/locations/search', () => ({
   searchLocationSuggestions: jest.fn().mockResolvedValue({ results: [] }),
 }))
 
+jest.mock('../../components/WeatherForecastModal', () => ({
+  __esModule: true,
+  default: ({ cityName, onClose }: { cityName: string; onClose: () => void }) => (
+    <div data-testid="weather-forecast-modal">
+      <span>{cityName}</span>
+      <button onClick={onClose} aria-label="close weather modal">Close</button>
+    </div>
+  ),
+}))
+
+jest.mock('../../components/CloudForecastModal', () => ({
+  __esModule: true,
+  default: ({ cityName, onClose }: { cityName: string; onClose: () => void }) => (
+    <div data-testid="cloud-forecast-modal">
+      <span>{cityName}</span>
+      <button onClick={onClose} aria-label="close cloud modal">Close</button>
+    </div>
+  ),
+}))
+
 import { saveFile } from '../../app/lib/fileSave'
 import { buildMarkdownTable, buildPdfBlob } from '../../app/lib/itineraryExport'
 
@@ -1852,5 +1872,99 @@ describe('ItineraryTab - Attractions', () => {
     await screen.findByTestId('attraction-minimap')
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByTestId('attraction-minimap')).not.toBeInTheDocument()
+  })
+})
+
+const resolvedLocationData: RouteDay[] = [
+  {
+    date: '2026/9/25',
+    weekDay: '星期五',
+    dayNum: 1,
+    overnight: 'Paris',
+    location: {
+      kind: 'resolved',
+      label: 'Paris, Île-de-France, France',
+      queryText: 'Paris',
+      coordinates: { lat: 48.85, lng: 2.35 },
+      place: { placeId: 'geonames:2988507', name: 'Paris', country: 'France', countryCode: 'FR', featureType: 'locality' },
+    },
+    plan: { morning: '', afternoon: '', evening: '' },
+    train: [],
+  },
+  {
+    date: '2026/9/26',
+    weekDay: '星期六',
+    dayNum: 2,
+    overnight: 'Paris',
+    plan: { morning: '', afternoon: '', evening: '' },
+    train: [],
+  },
+]
+
+const noLocationData: RouteDay[] = [
+  {
+    date: '2026/9/25',
+    weekDay: '星期五',
+    dayNum: 1,
+    overnight: 'SomeCity',
+    plan: { morning: '', afternoon: '', evening: '' },
+    train: [],
+  },
+]
+
+describe('ItineraryTab - Weather Buttons in Overnight Cell', () => {
+  afterEach(async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); jest.restoreAllMocks() })
+
+  it('renders weather forecast button for overnight with resolved location', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={resolvedLocationData} itineraryId="test-id" onRequestEditStay={jest.fn()} onMoveStay={jest.fn()} />)
+    expect(screen.getByRole('button', { name: /weather forecast for Paris/i })).toBeInTheDocument()
+  })
+
+  it('renders cloud forecast button for overnight with resolved location', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={resolvedLocationData} itineraryId="test-id" onRequestEditStay={jest.fn()} onMoveStay={jest.fn()} />)
+    expect(screen.getByRole('button', { name: /cloud forecast for Paris/i })).toBeInTheDocument()
+  })
+
+  it('weather and cloud buttons are disabled when overnight has no location', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={noLocationData} itineraryId="test-id" onRequestEditStay={jest.fn()} onMoveStay={jest.fn()} />)
+    const weatherBtn = screen.getByRole('button', { name: /weather forecast for SomeCity/i })
+    const cloudBtn = screen.getByRole('button', { name: /cloud forecast for SomeCity/i })
+    expect(weatherBtn).toBeDisabled()
+    expect(cloudBtn).toBeDisabled()
+  })
+
+  it('clicking weather button opens WeatherForecastModal', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={resolvedLocationData} itineraryId="test-id" onRequestEditStay={jest.fn()} onMoveStay={jest.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: /weather forecast for Paris/i }))
+    expect(screen.getByTestId('weather-forecast-modal')).toBeInTheDocument()
+  })
+
+  it('clicking cloud button opens CloudForecastModal', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={resolvedLocationData} itineraryId="test-id" onRequestEditStay={jest.fn()} onMoveStay={jest.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: /cloud forecast for Paris/i }))
+    expect(screen.getByTestId('cloud-forecast-modal')).toBeInTheDocument()
+  })
+
+  it('closing WeatherForecastModal removes it from the DOM', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={resolvedLocationData} itineraryId="test-id" onRequestEditStay={jest.fn()} onMoveStay={jest.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: /weather forecast for Paris/i }))
+    expect(screen.getByTestId('weather-forecast-modal')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /close weather modal/i }))
+    expect(screen.queryByTestId('weather-forecast-modal')).not.toBeInTheDocument()
+  })
+
+  it('closing CloudForecastModal removes it from the DOM', async () => {
+    setupFetch()
+    render(<ItineraryTab initialData={resolvedLocationData} itineraryId="test-id" onRequestEditStay={jest.fn()} onMoveStay={jest.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: /cloud forecast for Paris/i }))
+    expect(screen.getByTestId('cloud-forecast-modal')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /close cloud modal/i }))
+    expect(screen.queryByTestId('cloud-forecast-modal')).not.toBeInTheDocument()
   })
 })

@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Pencil, Plus } from 'lucide-react'
+import { Pencil, Plus, Sun, Cloud } from 'lucide-react'
 import {
   getCityColor,
   getCountryColor,
@@ -25,6 +25,8 @@ import FloatingExportButton from './FloatingExportButton'
 import ExportFormatPicker from './ExportFormatPicker'
 import ExportSuccessToast from './ExportSuccessToast'
 import StayEditControl from './StayEditControl'
+import WeatherForecastModal from './WeatherForecastModal'
+import CloudForecastModal from './CloudForecastModal'
 import { DAY_COLORS } from '../app/lib/dayColors'
 
 interface ItineraryTabProps {
@@ -298,10 +300,19 @@ function OvernightCell({
   onStayConfirm,
   onStayCancel,
 }: OvernightCellProps) {
+  const [weatherOpen, setWeatherOpen] = useState(false)
+  const [cloudOpen, setCloudOpen] = useState(false)
+
   const cityName = day.location?.kind === 'resolved' ? day.location.place.name : day.overnight
   const countryName = day.location?.kind === 'resolved'
     ? (day.location.place.country ?? day.location.place.countryCode ?? null)
     : null
+
+  // Extract coordinates for weather API (not available for 'custom' kind)
+  const coords = day.location && day.location.kind !== 'custom'
+    ? (day.location as { coordinates: { lat: number; lng: number } }).coordinates
+    : null
+
   const countryTag = countryName ? (
     <span
       className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium text-gray-600 border border-gray-300/60"
@@ -312,6 +323,7 @@ function OvernightCell({
   ) : null
 
   return (
+    <>
     <td
       rowSpan={day.overnightRowSpan}
       className="relative group px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
@@ -355,6 +367,26 @@ function OvernightCell({
                 ▼
               </button>
             )}
+            <button
+              type="button"
+              className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={coords ? () => setWeatherOpen(true) : undefined}
+              disabled={!coords}
+              aria-label={`Weather forecast for ${cityName}`}
+              title={coords ? `Weather forecast for ${cityName}` : 'No coordinates available'}
+            >
+              <Sun size={12} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={coords ? () => setCloudOpen(true) : undefined}
+              disabled={!coords}
+              aria-label={`Cloud forecast for ${cityName}`}
+              title={coords ? `Cloud forecast for ${cityName}` : 'No coordinates available'}
+            >
+              <Cloud size={12} aria-hidden="true" />
+            </button>
           </div>
         </div>
       ) : stay && !stay.isLast ? (
@@ -378,7 +410,26 @@ function OvernightCell({
         </div>
       )}
     </td>
-  )
+    {weatherOpen && coords && typeof document !== 'undefined' && createPortal(
+      <WeatherForecastModal
+        cityName={cityName}
+        lat={coords.lat}
+        lng={coords.lng}
+        onClose={() => setWeatherOpen(false)}
+      />,
+      document.body
+    )}
+    {cloudOpen && coords && typeof document !== 'undefined' && createPortal(
+      <CloudForecastModal
+        cityName={cityName}
+        lat={coords.lat}
+        lng={coords.lng}
+        onClose={() => setCloudOpen(false)}
+      />,
+      document.body
+    )}
+  </>
+)
 }
 
 interface TrainScheduleDisplayProps {
@@ -387,6 +438,21 @@ interface TrainScheduleDisplayProps {
   trainSchedules: Record<string, { fromStation: string; depTime: string; toStation: string; arrTime: string } | null>
   schedulesLoading: boolean
   onEdit: (triggerButton: HTMLButtonElement) => void
+}
+
+function TrainScheduleSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading"
+      className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-1 pl-1"
+    >
+      <div className="h-3 rounded bg-gray-200 animate-pulse w-28" />
+      <div className="h-3 rounded bg-gray-200 animate-pulse w-8" />
+      <div className="h-3 rounded bg-gray-200 animate-pulse w-20" />
+      <div className="h-3 rounded bg-gray-200 animate-pulse w-8" />
+    </div>
+  )
 }
 
 function TrainScheduleDisplay({ dayIndex, train, trainSchedules, schedulesLoading, onEdit }: TrainScheduleDisplayProps) {
@@ -420,11 +486,7 @@ function TrainScheduleDisplay({ dayIndex, train, trainSchedules, schedulesLoadin
                 )}
 
                 {isLoading ? (
-                  <span
-                    role="status"
-                    aria-label="Loading"
-                    className="inline-block w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin align-middle"
-                  />
+                  <TrainScheduleSkeleton />
                 ) : schedule ? (
                   <div
                     data-testid="schedule-grid"

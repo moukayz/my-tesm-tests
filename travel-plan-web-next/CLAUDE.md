@@ -4,7 +4,7 @@ This project strictly follows test-driven development (TDD). Always write tests 
 
 ## Core Rules
 
-1. **Write tests first** — Before writing any feature code, write a failing test that describes the desired behavior
+1. **Write tests first** — Before writing any feature code, write a failing test that describes the desired behavior, including unit tests and e2e tests.
 2. **Make it fail** — Verify the test fails before implementing
 3. **Implement** — Write the minimal code to make the test pass
 4. **Refactor** — Improve code quality while keeping tests green
