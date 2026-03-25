@@ -78,6 +78,25 @@ describe('PATCH /api/itineraries/[id]/days/[dayIndex]/attractions', () => {
     expect(body.attractions).toEqual(attractions)
   })
 
+  it('preserves images array on attractions', async () => {
+    const itineraryId = await createItineraryWithDays()
+    const attractions = [
+      { id: 'geonames:2988507', label: 'Eiffel Tower', coordinates: { lat: 48.858, lng: 2.294 }, images: ['https://blob.vercel.com/photo.jpg'] },
+    ]
+
+    const attractionsRoute = await import(
+      '../../app/api/itineraries/[itineraryId]/days/[dayIndex]/attractions/route'
+    )
+    const res = await attractionsRoute.PATCH(
+      patchReq(`http://localhost/api/itineraries/${itineraryId}/days/0/attractions`, { attractions }),
+      { params: Promise.resolve({ itineraryId, dayIndex: '0' }) }
+    )
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.attractions).toEqual(attractions)
+  })
+
   it('accepts empty attractions array to clear all', async () => {
     const itineraryId = await createItineraryWithDays()
 

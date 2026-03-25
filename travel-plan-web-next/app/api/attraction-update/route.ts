@@ -22,6 +22,11 @@ function parseAttractions(raw: unknown): DayAttraction[] | null {
       if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null
       attraction.coordinates = { lat: latNum, lng: lngNum }
     }
+    const { images } = item as Record<string, unknown>
+    if (images !== undefined) {
+      if (!Array.isArray(images) || images.some((u) => typeof u !== 'string')) return null
+      attraction.images = images as string[]
+    }
     result.push(attraction)
   }
   return result

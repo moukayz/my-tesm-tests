@@ -4,6 +4,11 @@ import userEvent from '@testing-library/user-event'
 import ItineraryTab from '../../components/ItineraryTab'
 import type { RouteDay } from '../../app/lib/itinerary'
 
+jest.mock('@vercel/blob/client', () => ({
+  upload: jest.fn(),
+  handleUpload: jest.fn(),
+}))
+
 // Mock fileSave and itineraryExport for export integration tests
 jest.mock('../../app/lib/fileSave', () => ({
   saveFile: jest.fn().mockResolvedValue(undefined),

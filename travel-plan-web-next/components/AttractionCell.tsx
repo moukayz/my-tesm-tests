@@ -2,12 +2,15 @@
 
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, X, Map as MapIcon } from 'lucide-react'
+import { Plus, X, Map as MapIcon, Image as ImageIcon } from 'lucide-react'
 import { searchLocationSuggestions } from '../app/lib/locations/search'
 import type { StayLocationResolved } from '../app/lib/itinerary-store/types'
 import type { RouteDay, DayAttraction } from '../app/lib/itinerary'
 import AttractionMiniMap from './AttractionMiniMap'
-import { DAY_COLORS } from '../app/lib/dayColors'
+import AttractionImageModal from './AttractionImageModal'
+import AttractionImageViewer from './AttractionImageViewer'
+import AttractionImageLightbox from './AttractionImageLightbox'
+import { getAttractionColor } from '../app/lib/dayColors'
 
 interface AttractionCellProps {
   dayIndex: number
@@ -26,9 +29,21 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
   const [activeIndex, setActiveIndex] = useState(0)
   const [miniMapOpen, setMiniMapOpen] = useState(false)
   const [miniMapRect, setMiniMapRect] = useState<DOMRect | null>(null)
+  const [imageModalAttractionId, setImageModalAttractionId] = useState<string | null>(null)
+  const [viewerState, setViewerState] = useState<{ id: string; rect: DOMRect } | null>(null)
+  const [lightboxState, setLightboxState] = useState<{ attractionId: string; index: number } | null>(null)
   const searchRef = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const miniMapButtonRef = useRef<HTMLButtonElement | null>(null)
+  const hideViewerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isDraggingRef = useRef(false)
+
+  function scheduleHideViewer() {
+    hideViewerTimer.current = setTimeout(() => setViewerState(null), 80)
+  }
+  function cancelHideViewer() {
+    if (hideViewerTimer.current) { clearTimeout(hideViewerTimer.current); hideViewerTimer.current = null }
+  }
 
   // Drag-and-drop state
   const [draggedId, setDraggedId] = useState<string | null>(null)
@@ -92,6 +107,27 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
     saveAttractions(next).catch(() => {})
   }
 
+  function handleImageDeleted(attractionId: string, imageIndex: number) {
+    const next = attractions.map((a) =>
+      a.id === attractionId
+        ? { ...a, images: (a.images ?? []).filter((_, i) => i !== imageIndex) }
+        : a
+    )
+    setOverrides(next)
+    saveAttractions(next).catch(() => {})
+  }
+
+  function handleImagesUploaded(attractionId: string, newUrls: string[]) {
+    const next = attractions.map((a) =>
+      a.id === attractionId
+        ? { ...a, images: [...(a.images ?? []), ...newUrls] }
+        : a
+    )
+    setOverrides(next)
+    setImageModalAttractionId(null)
+    saveAttractions(next).catch(() => {})
+  }
+
   function openMiniMap() {
     const rect = miniMapButtonRef.current?.getBoundingClientRect() ?? null
     setMiniMapRect(rect)
@@ -114,14 +150,20 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
   }
 
   const handleDragStart = useCallback((e: React.DragEvent, attractionId: string) => {
+    isDraggingRef.current = true
+    cancelHideViewer()
+    setViewerState(null)
     capturePositions()
     setDraggedId(attractionId)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', attractionId)
-    // Use a transparent drag image so we rely on opacity styling
+    // Use the element as the drag ghost but hide buttons so they don't appear in it
     const el = tagRefs.current.get(attractionId)
     if (el) {
-      e.dataTransfer.setDragImage(el, 0, 0)
+      const buttons = el.querySelectorAll<HTMLElement>('button')
+      buttons.forEach((b) => { b.style.opacity = '0' })
+      e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2)
+      buttons.forEach((b) => { b.style.opacity = '' })
     }
   }, [])
 
@@ -149,6 +191,7 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
     }
     setDraggedId(null)
     prevRectsRef.current.clear()
+    setTimeout(() => { isDraggingRef.current = false }, 100)
   }, [draggedId, attractions])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -251,25 +294,41 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
     <td className="px-4 py-6 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[200px] max-w-[300px] group/attraction-cell relative">
       <div className="flex flex-col gap-1">
         <div className="relative flex flex-col gap-1 items-start">
-          {attractions.map((attraction, aIdx) => {
-            const color = DAY_COLORS[aIdx % DAY_COLORS.length]
+          {attractions.map((attraction) => {
+            const color = getAttractionColor(attraction.id)
             const isDragged = draggedId === attraction.id
             return (
               <div
                 key={attraction.id}
                 ref={setTagRef(attraction.id)}
-                className={`group/tag relative inline-flex items-center ${isDragged ? 'opacity-40' : ''}`}
+                className={`relative inline-flex items-center ${isDragged ? 'opacity-40' : ''} ${draggedId ? '' : 'group/tag'}`}
                 draggable
                 onDragStart={(e) => handleDragStart(e, attraction.id)}
                 onDragOver={(e) => handleDragOver(e, attraction.id)}
                 onDrop={handleDrop}
                 onDragEnd={handleDragEnd}
+                onMouseEnter={(e) => {
+                  if (isDraggingRef.current) return
+                  if ((attraction.images?.length ?? 0) > 0) {
+                    cancelHideViewer()
+                    setViewerState({ id: attraction.id, rect: e.currentTarget.getBoundingClientRect() })
+                  }
+                }}
+                onMouseLeave={() => scheduleHideViewer()}
               >
                 <span
                   aria-label="Drag to reorder"
                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border cursor-grab active:cursor-grabbing ${color.bg} ${color.text} ${color.border}`}>
                   {attraction.label}
                 </span>
+                <button
+                  type="button"
+                  aria-label={`Add images for ${attraction.label}`}
+                  className="ml-0.5 opacity-0 group-hover/tag:opacity-100 transition-opacity rounded-full hover:bg-black/10 p-0.5"
+                  onClick={() => setImageModalAttractionId(attraction.id)}
+                >
+                  <ImageIcon size={10} aria-hidden="true" />
+                </button>
                 <button
                   type="button"
                   aria-label={`Remove ${attraction.label}`}
@@ -373,6 +432,46 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
           </div>
         )}
       </div>
+
+      {/* Image viewer — portal so it escapes table stacking context */}
+      {viewerState !== null && (() => {
+        const a = attractions.find((x) => x.id === viewerState.id)
+        if (!a || (a.images?.length ?? 0) === 0) return null
+        return (
+          <AttractionImageViewer
+            images={a.images!}
+            anchorRect={viewerState.rect}
+            onDeleteImage={(idx) => handleImageDeleted(viewerState.id, idx)}
+            onThumbnailClick={(idx) => setLightboxState({ attractionId: viewerState.id, index: idx })}
+            onMouseEnter={cancelHideViewer}
+            onMouseLeave={scheduleHideViewer}
+          />
+        )
+      })()}
+
+      {/* Image upload modal */}
+      {imageModalAttractionId !== null && (() => {
+        const attraction = attractions.find((a) => a.id === imageModalAttractionId)
+        return attraction ? (
+          <AttractionImageModal
+            attractionLabel={attraction.label}
+            onUploadComplete={(urls) => handleImagesUploaded(imageModalAttractionId, urls)}
+            onClose={() => setImageModalAttractionId(null)}
+          />
+        ) : null
+      })()}
+
+      {/* Image lightbox — rendered independently so it outlives the viewer */}
+      {lightboxState !== null && (() => {
+        const a = attractions.find((x) => x.id === lightboxState.attractionId)
+        return a?.images?.length ? (
+          <AttractionImageLightbox
+            images={a.images}
+            initialIndex={lightboxState.index}
+            onClose={() => setLightboxState(null)}
+          />
+        ) : null
+      })()}
 
       {/* Attraction minimap popover — portal to document.body */}
       {typeof document !== 'undefined' && miniMapOpen && createPortal(

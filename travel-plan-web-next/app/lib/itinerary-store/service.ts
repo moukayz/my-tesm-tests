@@ -390,6 +390,13 @@ export async function patchDayAttractions(
       }
       attraction.coordinates = { lat: latNum, lng: lngNum }
     }
+    const { images } = item as Record<string, unknown>
+    if (images !== undefined) {
+      if (!Array.isArray(images) || images.some((u) => typeof u !== 'string')) {
+        throw new ItineraryApiError(400, 'INVALID_ATTRACTIONS')
+      }
+      attraction.images = images as string[]
+    }
     attractions.push(attraction)
   }
 

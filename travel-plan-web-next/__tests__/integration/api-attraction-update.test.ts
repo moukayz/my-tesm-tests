@@ -90,6 +90,16 @@ describe('POST /api/attraction-update', () => {
     expect(mockRouteStore.updateAttractions).toHaveBeenCalledWith(0, validAttractions)
   })
 
+  it('preserves images array on attractions', async () => {
+    const attractionsWithImages = [
+      { id: 'geonames:2988507', label: 'Eiffel Tower', coordinates: { lat: 48.858, lng: 2.294 }, images: ['https://blob.vercel.com/photo.jpg'] },
+    ]
+    const handler = await getHandler()
+    const res = await handler(makeRequest({ dayIndex: 0, attractions: attractionsWithImages }))
+    expect(res.status).toBe(200)
+    expect(mockRouteStore.updateAttractions).toHaveBeenCalledWith(0, attractionsWithImages)
+  })
+
   it('accepts an empty attractions array (clearing all)', async () => {
     const handler = await getHandler()
     const res = await handler(makeRequest({ dayIndex: 0, attractions: [] }))

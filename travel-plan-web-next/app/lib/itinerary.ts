@@ -16,6 +16,7 @@ export interface DayAttraction {
   id: string
   label: string
   coordinates?: { lat: number; lng: number }
+  images?: string[]
 }
 
 export interface RouteDay {
