@@ -252,8 +252,7 @@ describe('ItineraryWorkspace', () => {
     // Formatted date range and total days
     expect(screen.getByText(/Apr 10.*Apr 11/)).toBeInTheDocument()
     expect(screen.getByText(/2 days/i)).toBeInTheDocument()
-    // City breakdown with compact nights notation
-    expect(screen.getByText(/paris.*2n/i)).toBeInTheDocument()
+    // City breakdown is hidden by default (folded)
     expect(screen.getAllByRole('button', { name: /add next stay/i })).toHaveLength(1)
     expect(screen.queryByRole('button', { name: /edit stay for paris/i })).not.toBeInTheDocument()
   })
@@ -288,6 +287,19 @@ describe('ItineraryWorkspace', () => {
 
     expect(screen.getByRole('button', { name: /back to all itineraries/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add next stay/i })).not.toBeInTheDocument()
+  })
+
+  it('shows fold button collapsed by default and toggles aria-expanded', async () => {
+    render(<ItineraryWorkspace selectedItineraryId="iti-1" initialWorkspace={filledWorkspace} />)
+
+    const btn = screen.getByRole('button', { name: /show summary/i })
+    expect(btn).toHaveAttribute('aria-expanded', 'false')
+
+    await userEvent.click(btn)
+    expect(screen.getByRole('button', { name: /hide summary/i })).toHaveAttribute('aria-expanded', 'true')
+
+    await userEvent.click(screen.getByRole('button', { name: /hide summary/i }))
+    expect(screen.getByRole('button', { name: /show summary/i })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('shows country breakdown in banner when stays have resolved locations', () => {

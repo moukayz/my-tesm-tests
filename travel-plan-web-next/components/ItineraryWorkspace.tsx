@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ChevronDown } from 'lucide-react'
 import type { ItineraryWorkspace as ItineraryWorkspaceType } from '../app/lib/itinerary-store/types'
 import { applyMoveStay, deriveStays, regenerateDerivedDates } from '../app/lib/itinerary-store/domain'
 import { formatTripDate, getCountryFromLocation } from '../app/lib/itineraryUtils'
@@ -47,6 +47,7 @@ export default function ItineraryWorkspace({
   const [sheetStayIndex, setSheetStayIndex] = useState<number | null>(null)
   const [sheetError, setSheetError] = useState<string | null>(null)
   const [isSheetSubmitting, setIsSheetSubmitting] = useState(false)
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false)
 
   useEffect(() => {
     setWorkspace(initialWorkspace ?? null)
@@ -231,32 +232,58 @@ export default function ItineraryWorkspace({
 
       {hasDays && tripSummary && (
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="text-lg font-bold text-gray-900 leading-tight">{workspace.itinerary.name}</h2>
-            <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 mt-0.5">
-              {tripSummary.totalDays} {tripSummary.totalDays === 1 ? 'day' : 'days'}
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-bold text-gray-900 leading-tight">{workspace.itinerary.name}</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {formatTripDate(tripSummary.startDate)} – {formatTripDate(tripSummary.endDate)}
+              </p>
+            </div>
+            <div className="shrink-0 flex items-center">
+              {tripSummary.countryGroups.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setIsSummaryExpanded((prev) => !prev)}
+                  aria-label={isSummaryExpanded ? 'Hide summary' : 'Show summary'}
+                  aria-expanded={isSummaryExpanded}
+                  className="flex items-center gap-2 rounded-full bg-gray-100 pl-3.5 pr-2.5 py-1 text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors"
+                >
+                  {tripSummary.totalDays} {tripSummary.totalDays === 1 ? 'day' : 'days'}
+                  <ChevronDown
+                    size={16}
+                    className={`transition-transform duration-300 ${isSummaryExpanded ? 'rotate-180' : 'rotate-0'}`}
+                  />
+                </button>
+              ) : (
+                <span className="rounded-full bg-gray-100 px-3.5 py-1 text-sm font-medium text-gray-600">
+                  {tripSummary.totalDays} {tripSummary.totalDays === 1 ? 'day' : 'days'}
+                </span>
+              )}
+            </div>
           </div>
-          <p className="mt-1 text-sm text-gray-500">
-            {formatTripDate(tripSummary.startDate)} – {formatTripDate(tripSummary.endDate)}
-          </p>
           {tripSummary.countryGroups.length > 0 && (
-            <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-              {tripSummary.countryGroups.map((group) => (
-                <div key={group.name ?? '__none__'}>
-                  {group.name && (
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-blue-400 shrink-0" aria-hidden="true" />
-                      <p className="text-sm font-semibold text-gray-800">{group.name} ({group.nights}n)</p>
+            <div
+              className={`grid transition-all duration-300 ease-in-out ${isSummaryExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+            >
+              <div className="overflow-hidden">
+                <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                  {tripSummary.countryGroups.map((group) => (
+                    <div key={group.name ?? '__none__'}>
+                      {group.name && (
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-blue-400 shrink-0" aria-hidden="true" />
+                          <p className="text-sm font-semibold text-gray-800">{group.name} ({group.nights}n)</p>
+                        </div>
+                      )}
+                      <div className={group.name ? 'pl-4 mt-0.5 space-y-0.5' : 'space-y-0.5'}>
+                        {group.cities.map((c, i) => (
+                          <p key={i} className="text-sm text-gray-500">{c.city} ({c.nights}n)</p>
+                        ))}
+                      </div>
                     </div>
-                  )}
-                  <div className={group.name ? 'pl-4 mt-0.5 space-y-0.5' : 'space-y-0.5'}>
-                    {group.cities.map((c, i) => (
-                      <p key={i} className="text-sm text-gray-500">{c.city} ({c.nights}n)</p>
-                    ))}
-                  </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           )}
         </div>

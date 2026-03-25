@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState, useEffect, useCallback } from 'react'
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Pencil, Plus, Sun, Cloud } from 'lucide-react'
 import {
@@ -75,6 +75,26 @@ export default function ItineraryTab({
   const stays = useMemo(() => getStaysWithMeta(days), [days])
   const isItineraryScopedStayEdit = Boolean(itineraryId && onRequestEditStay)
 
+  // ── Stay action panel (outside table, left side) ────────────────────────
+  const [actionPanel, setActionPanel] = useState<{
+    stay: ReturnType<typeof getStaysWithMeta>[number]
+    day: ProcessedDay
+    top: number
+    height: number
+    color: string
+  } | null>(null)
+  const tableWrapperRef = useRef<HTMLDivElement>(null)
+  const rowRefs = useRef<Record<number, HTMLTableRowElement | null>>({})
+  const stayIndexByDayIndex = useMemo(() => {
+    const map: Record<number, number> = {}
+    stays.forEach((s) => {
+      for (let i = s.firstDayIndex; i < s.firstDayIndex + s.nights; i++) {
+        map[i] = s.stayIndex
+      }
+    })
+    return map
+  }, [stays])
+
   // ── Dirty state notification ────────────────────────────────────────────────
   useEffect(() => {
     onDirtyStateChange?.(noteEditor.editingNoteIndex !== null || stayEdit.stayEditingIndex !== null)
@@ -106,7 +126,31 @@ export default function ItineraryTab({
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg overflow-x-auto border border-gray-200">
+        <div
+          ref={tableWrapperRef}
+          className="relative pl-10 -ml-10"
+          onMouseLeave={() => setActionPanel(null)}
+        >
+          {/* Stay action panels — one per stay, always in DOM, visible only on hover */}
+          {isItineraryScopedStayEdit && stays.map((s) => {
+            const isActive = actionPanel?.stay.stayIndex === s.stayIndex
+            const stayDay = processedData[s.firstDayIndex]
+            return (
+              <StayActionPanel
+                key={s.stayIndex}
+                isActive={isActive}
+                top={isActive && actionPanel ? actionPanel.top : 0}
+                height={isActive && actionPanel ? actionPanel.height : 0}
+                color={isActive && actionPanel ? actionPanel.color : 'transparent'}
+                stay={s}
+                day={stayDay}
+                onRequestEditStay={onRequestEditStay}
+                onMoveStay={onMoveStay}
+              />
+            )
+          })}
+
+          <div className="bg-white rounded-xl shadow-lg overflow-x-auto border border-gray-200">
           <table className="w-full border-collapse text-left">
             <thead className="bg-gray-50 border-b-2 border-gray-200 sticky top-0 z-10 shadow-sm">
               <tr>
@@ -129,7 +173,30 @@ export default function ItineraryTab({
                 const dayColor = DAY_COLORS[(dayNum - 1) % DAY_COLORS.length]
 
                 return (
-                  <tr key={index} className="group hover:bg-gray-50">
+                  <tr
+                    key={index}
+                    ref={(el) => { rowRefs.current[index] = el }}
+                    className="group hover:bg-gray-50"
+                    onMouseEnter={() => {
+                      if (!isItineraryScopedStayEdit || !tableWrapperRef.current) return
+                      const si = stayIndexByDayIndex[index]
+                      if (si === undefined) return
+                      const hoveredStay = stays[si]
+                      if (!hoveredStay) return
+                      const firstRow = rowRefs.current[hoveredStay.firstDayIndex]
+                      const lastRow = rowRefs.current[hoveredStay.firstDayIndex + hoveredStay.nights - 1]
+                      if (!firstRow || !lastRow) return
+                      const containerRect = tableWrapperRef.current.getBoundingClientRect()
+                      const top = firstRow.getBoundingClientRect().top - containerRect.top
+                      const height = lastRow.getBoundingClientRect().bottom - firstRow.getBoundingClientRect().top
+                      const stayDay = processedData[hoveredStay.firstDayIndex]
+                      const color = getCityColor(
+                        stayDay.location?.kind === 'resolved' ? stayDay.location.place.name : stayDay.overnight,
+                        stayDay.location?.kind === 'resolved' ? (stayDay.location.place.country ?? '') : ''
+                      )
+                      setActionPanel({ stay: hoveredStay, day: stayDay, top, height, color })
+                    }}
+                  >
                     {/* ── Overnight cell ─────────────────────────────── */}
                     {day.overnightRowSpan > 0 && (
                       <OvernightCell
@@ -138,8 +205,6 @@ export default function ItineraryTab({
                         isItineraryScopedStayEdit={isItineraryScopedStayEdit}
                         stayEditSaving={stayEdit.stayEditSaving}
                         stays={stays}
-                        onRequestEditStay={onRequestEditStay}
-                        onMoveStay={onMoveStay}
                         onStayConfirm={stayEdit.handleStayConfirm}
                         onStayCancel={stayEdit.handleStayCancel}
                       />
@@ -216,7 +281,8 @@ export default function ItineraryTab({
               })}
             </tbody>
           </table>
-        </div>
+          </div>{/* end bg-white table box */}
+        </div>{/* end relative ml-10 tableWrapperRef */}
       </div>
 
       {/* Train editor modal */}
@@ -283,8 +349,6 @@ interface OvernightCellProps {
   isItineraryScopedStayEdit: boolean
   stayEditSaving: boolean
   stays: ReturnType<typeof getStaysWithMeta>
-  onRequestEditStay?: (stayIndex: number) => void
-  onMoveStay?: (stayIndex: number, direction: 'up' | 'down') => void
   onStayConfirm: (stayIndex: number, newNights: number) => void
   onStayCancel: () => void
 }
@@ -295,22 +359,12 @@ function OvernightCell({
   isItineraryScopedStayEdit,
   stayEditSaving,
   stays,
-  onRequestEditStay,
-  onMoveStay,
   onStayConfirm,
   onStayCancel,
 }: OvernightCellProps) {
-  const [weatherOpen, setWeatherOpen] = useState(false)
-  const [cloudOpen, setCloudOpen] = useState(false)
-
   const cityName = day.location?.kind === 'resolved' ? day.location.place.name : day.overnight
   const countryName = day.location?.kind === 'resolved'
     ? (day.location.place.country ?? day.location.place.countryCode ?? null)
-    : null
-
-  // Extract coordinates for weather API (not available for 'custom' kind)
-  const coords = day.location && day.location.kind !== 'custom'
-    ? (day.location as { coordinates: { lat: number; lng: number } }).coordinates
     : null
 
   const countryTag = countryName ? (
@@ -323,74 +377,16 @@ function OvernightCell({
   ) : null
 
   return (
-    <>
     <td
       rowSpan={day.overnightRowSpan}
-      className="relative group px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
+      className="relative px-6 py-4 border-b border-gray-200 border-x border-x-gray-200 align-middle text-center font-semibold text-gray-900"
       style={{ backgroundColor: getCityColor(
         day.location?.kind === 'resolved' ? day.location.place.name : day.overnight,
         day.location?.kind === 'resolved' ? (day.location.place.country ?? '') : ''
       ) }}
     >
-      {stay && isItineraryScopedStayEdit ? (
-        <div className="relative inline-block">
-          <div><span>{cityName}</span>{countryTag && <div>{countryTag}</div>}</div>
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 flex flex-row gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto">
-            <button
-              type="button"
-              className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-              onClick={() => onRequestEditStay?.(stay.stayIndex)}
-              aria-label={`Edit stay for ${stay.overnight}`}
-              title={`Edit stay for ${stay.overnight}`}
-            >
-              <Pencil size={12} aria-hidden="true" />
-            </button>
-            {onMoveStay && stay.stayIndex > 0 && (
-              <button
-                type="button"
-                className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                onClick={() => onMoveStay(stay.stayIndex, 'up')}
-                aria-label={`Move ${stay.overnight} up`}
-                title={`Move ${stay.overnight} up`}
-              >
-                ▲
-              </button>
-            )}
-            {onMoveStay && !stay.isLast && (
-              <button
-                type="button"
-                className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                onClick={() => onMoveStay(stay.stayIndex, 'down')}
-                aria-label={`Move ${stay.overnight} down`}
-                title={`Move ${stay.overnight} down`}
-              >
-                ▼
-              </button>
-            )}
-            <button
-              type="button"
-              className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
-              onClick={coords ? () => setWeatherOpen(true) : undefined}
-              disabled={!coords}
-              aria-label={`Weather forecast for ${cityName}`}
-              title={coords ? `Weather forecast for ${cityName}` : 'No coordinates available'}
-            >
-              <Sun size={12} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white/90 text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
-              onClick={coords ? () => setCloudOpen(true) : undefined}
-              disabled={!coords}
-              aria-label={`Cloud forecast for ${cityName}`}
-              title={coords ? `Cloud forecast for ${cityName}` : 'No coordinates available'}
-            >
-              <Cloud size={12} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      ) : stay && !stay.isLast ? (
-        <div className="space-y-2">
+      {!isItineraryScopedStayEdit && stay && !stay.isLast ? (
+        <div className="space-y-1">
           <StayEditControl
             stayIndex={stay.stayIndex}
             city={cityName}
@@ -404,32 +400,131 @@ function OvernightCell({
           {countryTag}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="flex flex-col items-center gap-0.5">
           <span>{cityName}</span>
           {countryTag}
         </div>
       )}
     </td>
-    {weatherOpen && coords && typeof document !== 'undefined' && createPortal(
-      <WeatherForecastModal
-        cityName={cityName}
-        lat={coords.lat}
-        lng={coords.lng}
-        onClose={() => setWeatherOpen(false)}
-      />,
-      document.body
-    )}
-    {cloudOpen && coords && typeof document !== 'undefined' && createPortal(
-      <CloudForecastModal
-        cityName={cityName}
-        lat={coords.lat}
-        lng={coords.lng}
-        onClose={() => setCloudOpen(false)}
-      />,
-      document.body
-    )}
-  </>
-)
+  )
+}
+
+interface StayActionPanelProps {
+  isActive: boolean
+  top: number
+  height: number
+  color: string
+  stay: ReturnType<typeof getStaysWithMeta>[number]
+  day: ProcessedDay
+  onRequestEditStay?: (stayIndex: number) => void
+  onMoveStay?: (stayIndex: number, direction: 'up' | 'down') => void
+}
+
+function StayActionPanel({ isActive, top, height, color, stay, day, onRequestEditStay, onMoveStay }: StayActionPanelProps) {
+  const [weatherOpen, setWeatherOpen] = useState(false)
+  const [cloudOpen, setCloudOpen] = useState(false)
+
+  // Remember last active position so it stays in place during fade-out animation
+  const lastPosRef = useRef({ top, height, color })
+  if (isActive) {
+    lastPosRef.current = { top, height, color }
+  }
+  const displayTop = isActive ? top : lastPosRef.current.top
+  const displayHeight = isActive ? height : lastPosRef.current.height
+  const displayColor = isActive ? color : lastPosRef.current.color
+
+  const cityName = day.location?.kind === 'resolved' ? day.location.place.name : day.overnight
+  const coords = day.location && day.location.kind !== 'custom'
+    ? (day.location as { coordinates: { lat: number; lng: number } }).coordinates
+    : null
+
+  const btnClass = 'inline-flex h-6 w-6 items-center justify-center rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500'
+
+  return (
+    <>
+      <div
+        style={{ top: displayTop, height: displayHeight, left: 2, width: 36 }}
+        className={`absolute z-20 flex flex-col items-center transition-opacity duration-200 ease-in-out ${isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      >
+        {/* Line above buttons */}
+        <div className="w-1 flex-1 min-h-2 rounded-full" style={{ backgroundColor: displayColor }} />
+        {/* Buttons */}
+        <div className="flex flex-col gap-0.5 py-3">
+          <button
+            type="button"
+            className={btnClass}
+            onClick={() => onRequestEditStay?.(stay.stayIndex)}
+            aria-label={`Edit stay for ${stay.overnight}`}
+            title={`Edit stay for ${stay.overnight}`}
+          >
+            <Pencil size={12} aria-hidden="true" />
+          </button>
+          {onMoveStay && stay.stayIndex > 0 && (
+            <button
+              type="button"
+              className={btnClass}
+              onClick={() => onMoveStay(stay.stayIndex, 'up')}
+              aria-label={`Move ${stay.overnight} up`}
+              title={`Move ${stay.overnight} up`}
+            >
+              ▲
+            </button>
+          )}
+          {onMoveStay && !stay.isLast && (
+            <button
+              type="button"
+              className={btnClass}
+              onClick={() => onMoveStay(stay.stayIndex, 'down')}
+              aria-label={`Move ${stay.overnight} down`}
+              title={`Move ${stay.overnight} down`}
+            >
+              ▼
+            </button>
+          )}
+          <button
+            type="button"
+            className={`${btnClass} disabled:opacity-40 disabled:cursor-not-allowed`}
+            onClick={coords ? () => setWeatherOpen(true) : undefined}
+            disabled={!coords}
+            aria-label={`Weather forecast for ${cityName}`}
+            title={coords ? `Weather forecast for ${cityName}` : 'No coordinates available'}
+          >
+            <Sun size={12} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={`${btnClass} disabled:opacity-40 disabled:cursor-not-allowed`}
+            onClick={coords ? () => setCloudOpen(true) : undefined}
+            disabled={!coords}
+            aria-label={`Cloud forecast for ${cityName}`}
+            title={coords ? `Cloud forecast for ${cityName}` : 'No coordinates available'}
+          >
+            <Cloud size={12} aria-hidden="true" />
+          </button>
+        </div>
+        {/* Line below buttons */}
+        <div className="w-1 flex-1 min-h-2 rounded-full" style={{ backgroundColor: displayColor }} />
+      </div>
+      {weatherOpen && coords && typeof document !== 'undefined' && createPortal(
+        <WeatherForecastModal
+          cityName={cityName}
+          lat={coords.lat}
+          lng={coords.lng}
+          onClose={() => setWeatherOpen(false)}
+        />,
+        document.body
+      )}
+      {cloudOpen && coords && typeof document !== 'undefined' && createPortal(
+        <CloudForecastModal
+          cityName={cityName}
+          lat={coords.lat}
+          lng={coords.lng}
+          onClose={() => setCloudOpen(false)}
+        />,
+        document.body
+      )}
+    </>
+  )
 }
 
 interface TrainScheduleDisplayProps {
