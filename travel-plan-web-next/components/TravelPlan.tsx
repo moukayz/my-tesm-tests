@@ -11,8 +11,9 @@ import type {
 } from '../app/lib/itinerary-store/types'
 import CreateItineraryModal from './CreateItineraryModal'
 import ItineraryPanel from './ItineraryPanel'
+import ForecastTab from './ForecastTab'
 
-type Tab = 'itinerary' | 'delays' | 'timetable'
+type Tab = 'itinerary' | 'delays' | 'timetable' | 'forecast'
 
 interface TravelPlanProps {
   isLoggedIn?: boolean
@@ -36,6 +37,7 @@ export default function TravelPlan({
     { id: 'itinerary', label: 'Itinerary' },
     { id: 'delays', label: 'Train Delays' },
     { id: 'timetable', label: 'Timetable' },
+    { id: 'forecast', label: 'Forecast' },
   ]
 
   const tabs = isLoggedIn
@@ -189,6 +191,9 @@ export default function TravelPlan({
       </div>
       <div className={displayTab === 'timetable' ? 'w-full' : 'hidden'}>
         <TrainTimetableTab />
+      </div>
+      <div className={displayTab === 'forecast' ? 'w-full' : 'hidden'}>
+        <ForecastTab />
       </div>
 
       <CreateItineraryModal

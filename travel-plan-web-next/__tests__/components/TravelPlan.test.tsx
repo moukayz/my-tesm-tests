@@ -63,6 +63,11 @@ jest.mock('../../components/TrainTimetableTab', () => ({
   default: () => <div data-testid="train-timetable-tab" />,
 }))
 
+jest.mock('../../components/ForecastTab', () => ({
+  __esModule: true,
+  default: () => <div data-testid="forecast-tab" />,
+}))
+
 jest.mock('../../components/CreateItineraryModal', () => ({
   __esModule: true,
   default: ({ isOpen, onSuccess }: { isOpen: boolean; onSuccess: (resp: { itinerary: { id: string }; workspaceUrl: string }) => void }) =>

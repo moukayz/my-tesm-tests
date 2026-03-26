@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "@openmeteo/weather-map-layer": "^0.0.16",
     "@upstash/redis": "^1.35.6",
     "@vercel/blob": "^2.3.1",
     "duckdb": "^1.4.4",
