@@ -409,6 +409,7 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
             images={a.images}
             initialIndex={lightboxState.index}
             onClose={() => setLightboxState(null)}
+            onDeleteImage={(idx) => handleImageDeleted(lightboxState.attractionId, idx)}
           />
         ) : null
       })()}

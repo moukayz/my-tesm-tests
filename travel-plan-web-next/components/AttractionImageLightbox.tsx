@@ -1,13 +1,14 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Trash2 } from 'lucide-react'
 
 interface AttractionImageLightboxProps {
   images: string[]
   initialIndex: number
   onClose: () => void
+  onDeleteImage?: (index: number) => void
 }
 
 const ZOOM_STEPS = [1, 1.5, 2, 3]
@@ -16,6 +17,7 @@ export default function AttractionImageLightbox({
   images,
   initialIndex,
   onClose,
+  onDeleteImage,
 }: AttractionImageLightboxProps) {
   const [index, setIndex] = useState(initialIndex)
   const [zoomStep, setZoomStep] = useState(0)
@@ -29,6 +31,50 @@ export default function AttractionImageLightbox({
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose, index, images.length])
+
+  // Lock body scroll while lightbox is open (including iOS touch scroll)
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow
+    const prevPosition = document.body.style.position
+    const prevTop = document.body.style.top
+    const prevWidth = document.body.style.width
+    const scrollY = window.scrollY
+
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.body.style.position = prevPosition
+      document.body.style.top = prevTop
+      document.body.style.width = prevWidth
+      window.scrollTo(0, scrollY)
+    }
+  }, [])
+
+  // Touch swipe navigation
+  const touchStartX = useRef<number | null>(null)
+  const SWIPE_THRESHOLD = 50
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    touchStartX.current = null
+    if (Math.abs(dx) < SWIPE_THRESHOLD) return
+    if (dx < 0 && index < images.length - 1) {
+      setIndex((i) => i + 1)
+      setZoomStep(0)
+    } else if (dx > 0 && index > 0) {
+      setIndex((i) => i - 1)
+      setZoomStep(0)
+    }
+  }
 
   const zoom = ZOOM_STEPS[zoomStep]
   const canZoomIn = zoomStep < ZOOM_STEPS.length - 1
@@ -52,7 +98,11 @@ export default function AttractionImageLightbox({
       </button>
 
       {/* Image */}
-      <div className="overflow-auto max-h-screen max-w-screen flex items-center justify-center p-16">
+      <div
+        className="overflow-auto max-h-screen max-w-screen flex items-center justify-center p-16"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <img
           key={index}
           src={images[index]}
@@ -120,6 +170,27 @@ export default function AttractionImageLightbox({
         >
           <ChevronRight size={20} aria-hidden="true" />
         </button>
+
+        {onDeleteImage && (
+          <>
+            <div className="w-px h-4 bg-white/20 mx-1" />
+            <button
+              type="button"
+              aria-label="Delete image"
+              className="p-2 rounded-full text-red-400 hover:text-red-300 hover:bg-white/10 transition-colors"
+              onClick={() => {
+                onDeleteImage(index)
+                if (images.length <= 1) {
+                  onClose()
+                } else if (index >= images.length - 1) {
+                  setIndex((i) => i - 1)
+                }
+              }}
+            >
+              <Trash2 size={16} aria-hidden="true" />
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
