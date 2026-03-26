@@ -33,6 +33,7 @@ const ROUTE_MAP_OPTIONS = {
   initialZoom: 4,
   fitPadding: 60,
   maxZoom: 10,
+  globeProjection: true,
 }
 
 export default function ItineraryRouteMap({ stays }: ItineraryRouteMapProps) {

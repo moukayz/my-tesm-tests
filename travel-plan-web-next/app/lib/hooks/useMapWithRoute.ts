@@ -17,6 +17,7 @@ export interface MapWithRouteOptions {
   initialZoom: number
   fitPadding: number
   maxZoom: number
+  globeProjection?: boolean
 }
 
 export function useMapWithRoute(
@@ -33,7 +34,7 @@ export function useMapWithRoute(
   useEffect(() => {
     if (!containerRef.current || points.length === 0) return
 
-    const { color, markerSize, fontSize, popupOffset, sourceId, initialZoom, fitPadding, maxZoom } = options
+    const { color, markerSize, fontSize, popupOffset, sourceId, initialZoom, fitPadding, maxZoom, globeProjection } = options
 
     let map: maplibregl.Map
     try {
@@ -48,6 +49,12 @@ export function useMapWithRoute(
       return
     }
     mapRef.current = map
+
+    if (globeProjection) {
+      map.on('style.load', () => {
+        map.setProjection({ type: 'globe' })
+      })
+    }
 
     map.on('load', () => {
       points.forEach((point, index) => {

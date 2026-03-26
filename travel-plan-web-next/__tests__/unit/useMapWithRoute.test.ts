@@ -24,12 +24,13 @@ const MockLngLatBounds = maplibregl.LngLatBounds as jest.Mock
 function makeMapInstance(triggerLoadImmediately = true) {
   const instance = {
     on: jest.fn((event: string, cb: () => void) => {
-      if (triggerLoadImmediately && event === 'load') cb()
+      if (triggerLoadImmediately && (event === 'load' || event === 'style.load')) cb()
     }),
     remove: jest.fn(),
     addSource: jest.fn(),
     addLayer: jest.fn(),
     fitBounds: jest.fn(),
+    setProjection: jest.fn(),
   }
   return instance
 }
@@ -73,6 +74,36 @@ describe('useMapWithRoute', () => {
       container,
       zoom: 4,
     }))
+  })
+
+  it('sets globe projection on style.load when globeProjection is true', () => {
+    const container = document.createElement('div')
+    const mapInstance = makeMapInstance()
+    MockMap.mockImplementation(() => mapInstance)
+
+    const points = [{ lng: 2.35, lat: 48.85, label: 'Paris' }]
+
+    renderHook(() => {
+      const ref = useRef<HTMLDivElement>(container)
+      useMapWithRoute(ref, points, { ...defaultOptions, globeProjection: true })
+    })
+
+    expect(mapInstance.setProjection).toHaveBeenCalledWith({ type: 'globe' })
+  })
+
+  it('does not set globe projection when globeProjection is not set', () => {
+    const container = document.createElement('div')
+    const mapInstance = makeMapInstance()
+    MockMap.mockImplementation(() => mapInstance)
+
+    const points = [{ lng: 2.35, lat: 48.85, label: 'Paris' }]
+
+    renderHook(() => {
+      const ref = useRef<HTMLDivElement>(container)
+      useMapWithRoute(ref, points, defaultOptions)
+    })
+
+    expect(mapInstance.setProjection).not.toHaveBeenCalled()
   })
 
   it('adds a marker for each point', () => {
