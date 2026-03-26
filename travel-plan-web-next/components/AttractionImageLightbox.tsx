@@ -51,43 +51,6 @@ export default function AttractionImageLightbox({
         <X size={20} aria-hidden="true" />
       </button>
 
-      {/* Zoom controls */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/10 rounded-full px-3 py-1.5">
-        <button
-          type="button"
-          aria-label="Zoom out"
-          disabled={!canZoomOut}
-          className="p-1 text-white disabled:opacity-30 hover:text-white/80 transition-colors"
-          onClick={() => setZoomStep((s) => s - 1)}
-        >
-          <ZoomOut size={16} aria-hidden="true" />
-        </button>
-        <span data-testid="zoom-level" className="text-white text-xs w-8 text-center">
-          {zoom}×
-        </span>
-        <button
-          type="button"
-          aria-label="Zoom in"
-          disabled={!canZoomIn}
-          className="p-1 text-white disabled:opacity-30 hover:text-white/80 transition-colors"
-          onClick={() => setZoomStep((s) => s + 1)}
-        >
-          <ZoomIn size={16} aria-hidden="true" />
-        </button>
-      </div>
-
-      {/* Prev */}
-      {index > 0 && (
-        <button
-          type="button"
-          aria-label="Previous image"
-          className="absolute left-4 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
-          onClick={() => { setIndex((i) => i - 1); setZoomStep(0) }}
-        >
-          <ChevronLeft size={24} aria-hidden="true" />
-        </button>
-      )}
-
       {/* Image */}
       <div className="overflow-auto max-h-screen max-w-screen flex items-center justify-center p-16">
         <img
@@ -100,24 +63,64 @@ export default function AttractionImageLightbox({
         />
       </div>
 
-      {/* Next */}
-      {index < images.length - 1 && (
+      {/* Unified control bar: Prev · ZoomOut · level · ZoomIn · Next */}
+      <div
+        data-testid="lightbox-controls"
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white/10 rounded-full px-2 py-1.5"
+      >
+        <button
+          type="button"
+          aria-label="Previous image"
+          disabled={index === 0}
+          className="p-2 rounded-full text-white disabled:opacity-30 hover:bg-white/10 transition-colors"
+          onClick={() => { setIndex((i) => i - 1); setZoomStep(0) }}
+        >
+          <ChevronLeft size={20} aria-hidden="true" />
+        </button>
+
+        <div className="w-px h-4 bg-white/20 mx-1" />
+
+        <button
+          type="button"
+          aria-label="Zoom out"
+          disabled={!canZoomOut}
+          className="p-1.5 text-white disabled:opacity-30 hover:text-white/80 transition-colors"
+          onClick={() => setZoomStep((s) => s - 1)}
+        >
+          <ZoomOut size={16} aria-hidden="true" />
+        </button>
+        <span data-testid="zoom-level" className="text-white text-xs w-8 text-center">
+          {zoom}×
+        </span>
+        <button
+          type="button"
+          aria-label="Zoom in"
+          disabled={!canZoomIn}
+          className="p-1.5 text-white disabled:opacity-30 hover:text-white/80 transition-colors"
+          onClick={() => setZoomStep((s) => s + 1)}
+        >
+          <ZoomIn size={16} aria-hidden="true" />
+        </button>
+
+        {images.length > 1 && (
+          <>
+            <div className="w-px h-4 bg-white/20 mx-1" />
+            <span className="text-white/60 text-xs px-1">{index + 1} / {images.length}</span>
+          </>
+        )}
+
+        <div className="w-px h-4 bg-white/20 mx-1" />
+
         <button
           type="button"
           aria-label="Next image"
-          className="absolute right-4 p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+          disabled={index === images.length - 1}
+          className="p-2 rounded-full text-white disabled:opacity-30 hover:bg-white/10 transition-colors"
           onClick={() => { setIndex((i) => i + 1); setZoomStep(0) }}
         >
-          <ChevronRight size={24} aria-hidden="true" />
+          <ChevronRight size={20} aria-hidden="true" />
         </button>
-      )}
-
-      {/* Counter */}
-      {images.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-xs">
-          {index + 1} / {images.length}
-        </div>
-      )}
+      </div>
     </div>
   )
 

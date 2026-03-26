@@ -38,14 +38,23 @@ describe('AttractionImageLightbox', () => {
     expect(screen.getByRole('img')).toHaveAttribute('src', images[0])
   })
 
-  it('does not show prev button on first image', () => {
+  it('prev button is always rendered but disabled on first image', () => {
     renderLightbox(0)
-    expect(screen.queryByRole('button', { name: /previous/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled()
   })
 
-  it('does not show next button on last image', () => {
+  it('next button is always rendered but disabled on last image', () => {
     renderLightbox(2)
-    expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /next/i })).toBeDisabled()
+  })
+
+  it('all nav controls are in the same control bar', () => {
+    renderLightbox(1)
+    const bar = screen.getByTestId('lightbox-controls')
+    expect(bar).toContainElement(screen.getByRole('button', { name: /previous/i }))
+    expect(bar).toContainElement(screen.getByRole('button', { name: /next/i }))
+    expect(bar).toContainElement(screen.getByRole('button', { name: /zoom in/i }))
+    expect(bar).toContainElement(screen.getByRole('button', { name: /zoom out/i }))
   })
 
   it('zoom in button increases the zoom level indicator', () => {
