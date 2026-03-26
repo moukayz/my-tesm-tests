@@ -25,15 +25,17 @@ interface AttractionCellProps {
   itineraryId?: string
   cityAnchor?: CityAnchorPoint
   prevCityAnchor?: CityAnchorPoint
+  variant?: 'table-cell' | 'card'
 }
 
-export default function AttractionCell({ dayIndex, day, processedDay, itineraryId, cityAnchor, prevCityAnchor }: AttractionCellProps) {
+export default function AttractionCell({ dayIndex, day, processedDay, itineraryId, cityAnchor, prevCityAnchor, variant = 'table-cell' }: AttractionCellProps) {
   const [overrides, setOverrides] = useState<DayAttraction[] | null>(null)
   const [miniMapOpen, setMiniMapOpen] = useState(false)
   const [miniMapPos, setMiniMapPos] = useState<{ top: number; left: number } | null>(null)
   const [imageModalAttractionId, setImageModalAttractionId] = useState<string | null>(null)
   const [viewerState, setViewerState] = useState<{ id: string; rect: DOMRect } | null>(null)
   const [lightboxState, setLightboxState] = useState<{ attractionId: string; index: number } | null>(null)
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null)
   const miniMapButtonRef = useRef<HTMLButtonElement | null>(null)
   const hideViewerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -160,13 +162,38 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [miniMapOpen])
 
+  // Deselect tag when tapping outside
+  const cellRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (!selectedTagId) return
+    function onPointerDown(e: PointerEvent) {
+      if (cellRef.current && !cellRef.current.contains(e.target as Node)) {
+        setSelectedTagId(null)
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [selectedTagId])
+
+  const isCard = variant === 'card'
+  const Outer = isCard ? 'div' : 'td'
+  const outerClass = isCard
+    ? 'py-2 group/attraction-cell relative'
+    : 'px-4 py-6 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[200px] max-w-[300px] group/attraction-cell relative'
+
   return (
-    <td className="px-4 py-6 border-b border-gray-200 align-middle group-last:border-b-0 min-w-[200px] max-w-[300px] group/attraction-cell relative">
+    <Outer
+      ref={cellRef as React.Ref<HTMLTableCellElement> & React.Ref<HTMLDivElement>}
+      className={outerClass}
+      {...(isCard ? { 'data-testid': 'attraction-card' } : {})}
+    >
       <div className="flex flex-col gap-1">
         <div className="relative flex flex-col gap-1 items-start">
           {attractions.map((attraction) => {
             const color = getAttractionColor(attraction.id)
             const isDragged = draggedId === attraction.id
+            const hasImages = (attraction.images?.length ?? 0) > 0
+            const isSelected = isCard && selectedTagId === attraction.id
             return (
               <div
                 key={attraction.id}
@@ -178,43 +205,86 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
                 onDrop={handleDrop}
                 onDragEnd={handleDragEnd}
                 onMouseEnter={(e) => {
-                  if (isDraggingRef.current) return
-                  if ((attraction.images?.length ?? 0) > 0) {
+                  if (isCard || isDraggingRef.current) return
+                  if (hasImages) {
                     cancelHideViewer()
                     setViewerState({ id: attraction.id, rect: e.currentTarget.getBoundingClientRect() })
                   }
                 }}
-                onMouseLeave={() => scheduleHideViewer()}
+                onMouseLeave={() => { if (!isCard) scheduleHideViewer() }}
               >
                 <span
                   aria-label="Drag to reorder"
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border cursor-grab active:cursor-grabbing ${color.bg} ${color.text} ${color.border}`}>
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border cursor-grab active:cursor-grabbing ${color.bg} ${color.text} ${color.border}${isCard ? ' select-none' : ''}`}
+                  {...(isCard ? { role: 'button', onClick: () => setSelectedTagId(isSelected ? null : attraction.id) } : {})}
+                >
                   {attraction.label}
                 </span>
-                <button
-                  type="button"
-                  aria-label={`Add images for ${attraction.label}`}
-                  className="ml-0.5 opacity-0 group-hover/tag:opacity-100 transition-opacity rounded-full hover:bg-black/10 p-0.5"
-                  onClick={() => setImageModalAttractionId(attraction.id)}
-                >
-                  <ImageIcon size={10} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Remove ${attraction.label}`}
-                  className="ml-0.5 opacity-0 group-hover/tag:opacity-100 transition-opacity rounded-full hover:bg-black/10 p-0.5"
-                  onClick={() => removeAttraction(attraction.id)}
-                >
-                  <X size={10} aria-hidden="true" />
-                </button>
+                {/* Desktop: per-tag hover buttons */}
+                {!isCard && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label={`Add images for ${attraction.label}`}
+                      className="ml-0.5 transition-opacity rounded-full hover:bg-black/10 p-0.5 opacity-0 group-hover/tag:opacity-100"
+                      onClick={() => setImageModalAttractionId(attraction.id)}
+                    >
+                      <ImageIcon size={10} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${attraction.label}`}
+                      className="ml-0.5 transition-opacity rounded-full hover:bg-black/10 p-0.5 opacity-0 group-hover/tag:opacity-100"
+                      onClick={() => removeAttraction(attraction.id)}
+                    >
+                      <X size={10} aria-hidden="true" />
+                    </button>
+                  </>
+                )}
+                {/* Mobile: slide-in action buttons to the right of tag */}
+                {isCard && (
+                  <div
+                    className={`inline-flex items-center overflow-hidden transition-all duration-200 ease-out ${isSelected ? 'max-w-[120px] opacity-100 ml-1' : 'max-w-0 opacity-0'}`}
+                    data-testid={`tag-actions-${attraction.id}`}
+                  >
+                    <div className="flex items-center gap-0.5 whitespace-nowrap">
+                      <button
+                        type="button"
+                        aria-label={`View images for ${attraction.label}`}
+                        disabled={!hasImages}
+                        className={`inline-flex items-center gap-0.5 rounded-full p-1 ${hasImages ? 'text-gray-500 hover:text-blue-600 hover:bg-blue-50' : 'text-gray-300 cursor-not-allowed'}`}
+                        onClick={hasImages ? () => setLightboxState({ attractionId: attraction.id, index: 0 }) : undefined}
+                      >
+                        <ImageIcon size={12} aria-hidden="true" />
+                        {hasImages && <span className="text-xs">{attraction.images!.length}</span>}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Add images for ${attraction.label}`}
+                        className="rounded-full p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                        onClick={() => setImageModalAttractionId(attraction.id)}
+                      >
+                        <Plus size={12} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${attraction.label}`}
+                        className="rounded-full p-1 text-red-400 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => { removeAttraction(attraction.id); setSelectedTagId(null) }}
+                      >
+                        <X size={12} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
 
-          {/* Button row — absolutely positioned right below last tag, no extra space */}
+          {/* Button row — absolute in table-cell (hover reveal), in-flow in card */}
           <div
             data-testid="attraction-buttons"
-            className="absolute top-full left-0 flex justify-start gap-2 pt-1 opacity-0 group-hover/attraction-cell:opacity-100 transition-opacity"
+            className={isCard ? 'flex justify-start gap-2 pt-1' : 'absolute top-full left-0 flex justify-start gap-2 pt-1 transition-opacity opacity-0 group-hover/attraction-cell:opacity-100'}
           >
             {!isAdding && (
               <button
@@ -343,18 +413,15 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
         ) : null
       })()}
 
-      {/* Attraction minimap popover — portal to document.body */}
+      {/* Attraction minimap modal — portal to document.body */}
       {typeof document !== 'undefined' && miniMapOpen && createPortal(
         <div
           data-testid="minimap-popover"
-          className="absolute z-[46]"
-          style={{
-            top: `${miniMapPos?.top ?? 0}px`,
-            left: `${miniMapPos?.left ?? 0}px`,
-          }}
+          className="fixed inset-0 z-[46] flex items-center justify-center bg-black/40 px-4"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) closeMiniMap() }}
         >
           <div
-            className="rounded-xl shadow-xl border border-gray-200 bg-white overflow-hidden"
+            className="rounded-xl shadow-xl border border-gray-200 bg-white overflow-hidden w-full max-w-[632px]"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
@@ -373,6 +440,6 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
         </div>,
         document.body
       )}
-    </td>
+    </Outer>
   )
 }

@@ -16,13 +16,13 @@ export default function TrainScheduleEditorModal({ editor, processedData }: Trai
   return (
     <div
       data-testid="train-schedule-editor-modal"
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Edit train schedule"
-        className="bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[85vh] overflow-auto"
+        className="bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full max-h-[85vh] overflow-auto"
       >
         <h2 className="text-lg font-semibold text-gray-900">Edit train schedule</h2>
         <p className="text-sm text-gray-500 mt-1 mb-4">

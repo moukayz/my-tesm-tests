@@ -65,15 +65,17 @@ describe('AttractionMiniMap', () => {
     expect(screen.getByTestId('attraction-minimap-placeholder')).toBeInTheDocument()
   })
 
-  it('renders map container at 600×450', () => {
+  it('renders map container at height 450 with responsive width', () => {
     render(<AttractionMiniMap attractions={attractionsWithCoords} />)
     const mapContainer = screen.getByTestId('attraction-minimap')
-    expect(mapContainer).toHaveStyle({ width: '600px', height: '450px' })
+    expect(mapContainer).toHaveStyle({ height: '450px' })
+    expect(mapContainer.className).toContain('max-w-[600px]')
   })
 
-  it('renders placeholder at 600×450', () => {
+  it('renders placeholder at height 450 with responsive width', () => {
     render(<AttractionMiniMap attractions={attractionsNoCoords} />)
     const placeholder = screen.getByTestId('attraction-minimap-placeholder')
-    expect(placeholder).toHaveStyle({ width: '600px', height: '450px' })
+    expect(placeholder).toHaveStyle({ height: '450px' })
+    expect(placeholder.className).toContain('max-w-[600px]')
   })
 })

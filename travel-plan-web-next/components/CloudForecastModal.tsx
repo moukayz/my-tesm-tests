@@ -8,7 +8,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts'
 import { X } from 'lucide-react'
@@ -41,12 +40,11 @@ export default function CloudForecastModal({ cityName, lat, lng, onClose }: Clou
   return (
     <div
       data-testid="cloud-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg mx-4"
-        style={{ minWidth: 480 }}
+        className="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg overflow-x-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -93,7 +91,7 @@ export default function CloudForecastModal({ cityName, lat, lng, onClose }: Clou
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-violet-400" />High</span>
           </div>
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+            <AreaChart data={chartData} margin={{ top: 8, right: 16, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="cloudGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#93c5fd" stopOpacity={0.5} />
@@ -118,7 +116,7 @@ export default function CloudForecastModal({ cityName, lat, lng, onClose }: Clou
                 domain={[0, 100]}
                 tickFormatter={(v) => `${v}%`}
                 tick={{ fontSize: 12 }}
-                label={{ value: 'Cloud Cover', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 11 } }}
+                width={40}
               />
               <Tooltip
                 formatter={(value, name) => [`${value ?? 0}%`, name as string]}

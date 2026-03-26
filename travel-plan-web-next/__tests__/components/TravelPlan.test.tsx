@@ -116,7 +116,7 @@ describe('TravelPlan', () => {
     } as Response)
   })
 
-  it('shows New itinerary button in the tab bar for logged-in users', () => {
+  it('passes onRequestCreateItinerary to ItineraryPanel for logged-in users', () => {
     render(
       <TravelPlan
         isLoggedIn={true}
@@ -126,7 +126,7 @@ describe('TravelPlan', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /new itinerary/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /create itinerary via panel/i })).toBeInTheDocument()
   })
 
   it('passes onRequestCreateItinerary to ItineraryPanel so floating button can open create modal', async () => {

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Upload } from 'lucide-react'
 import { upload } from '@vercel/blob/client'
@@ -24,6 +24,7 @@ export default function AttractionImageModal({
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
     const items = e.clipboardData?.items
@@ -46,6 +47,19 @@ export default function AttractionImageModal({
     }))
     setPastedImages((prev) => [...prev, ...newImages])
   }, [])
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const newImages: PastedImage[] = Array.from(files)
+      .filter((f) => f.type.startsWith('image/'))
+      .map((file) => ({ file, previewUrl: URL.createObjectURL(file) }))
+
+    if (newImages.length > 0) setPastedImages((prev) => [...prev, ...newImages])
+    // Reset input so the same file can be re-selected
+    e.target.value = ''
+  }
 
   function removeImage(index: number) {
     setPastedImages((prev) => {
@@ -90,10 +104,10 @@ export default function AttractionImageModal({
 
   const modal = (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <span className="text-sm font-medium text-gray-700">
@@ -111,26 +125,40 @@ export default function AttractionImageModal({
 
         {/* Body */}
         <div className="p-4 space-y-4">
-          {/* Paste area */}
+          {/* Paste / file pick area */}
           <div
             data-testid="paste-area"
             tabIndex={0}
             // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
             role="region"
-            aria-label="Paste images here"
+            aria-label="Paste or select images"
             className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center focus:outline-none focus:border-blue-400 transition-colors cursor-default"
             onPaste={handlePaste}
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             autoFocus
           >
             <Upload size={24} className="mx-auto text-gray-300 mb-2" aria-hidden="true" />
-            <p className="text-sm text-gray-500">
-              Paste images here with{' '}
-              <kbd className="px-1.5 py-0.5 text-xs rounded bg-gray-100 border border-gray-200">Ctrl+V</kbd>
+            <button
+              type="button"
+              className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Choose photos
+            </button>
+            <p className="mt-2 text-xs text-gray-400">
+              or paste with{' '}
+              <kbd className="px-1 py-0.5 text-xs rounded bg-gray-100 border border-gray-200">Ctrl+V</kbd>
               {' / '}
-              <kbd className="px-1.5 py-0.5 text-xs rounded bg-gray-100 border border-gray-200">⌘V</kbd>
-              {' or right-click → Paste'}
+              <kbd className="px-1 py-0.5 text-xs rounded bg-gray-100 border border-gray-200">⌘V</kbd>
             </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleFileSelect}
+            />
           </div>
 
           {/* Image previews */}

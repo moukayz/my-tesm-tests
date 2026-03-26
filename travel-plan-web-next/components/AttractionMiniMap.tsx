@@ -48,8 +48,8 @@ export default function AttractionMiniMap({ attractions, cityAnchor, prevCityAnc
     return (
       <div
         data-testid="attraction-minimap-placeholder"
-        className="flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-xs text-gray-400"
-        style={{ width: 600, height: 450 }}
+        className="flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-xs text-gray-400 w-full max-w-[600px]"
+        style={{ height: 450 }}
       >
         No location data
       </div>
@@ -59,10 +59,10 @@ export default function AttractionMiniMap({ attractions, cityAnchor, prevCityAnc
   return (
     <div
       data-testid="attraction-minimap"
-      className="rounded-lg border border-gray-200 overflow-hidden"
-      style={{ width: 600, height: 450 }}
+      className="rounded-lg border border-gray-200 overflow-hidden w-full max-w-[600px]"
+      style={{ height: 450 }}
     >
-      <div ref={containerRef} style={{ width: 600, height: 450 }} />
+      <div ref={containerRef} className="w-full h-full" />
     </div>
   )
 }

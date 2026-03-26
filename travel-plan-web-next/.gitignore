@@ -36,3 +36,4 @@ next-env.d.ts
 .vercel
 
 map_styles.json
+weather-map-layer/

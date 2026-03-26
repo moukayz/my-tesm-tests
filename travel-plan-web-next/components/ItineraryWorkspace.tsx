@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ChevronDown } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Plus } from 'lucide-react'
 import type { ItineraryWorkspace as ItineraryWorkspaceType } from '../app/lib/itinerary-store/types'
 import { applyMoveStay, deriveStays, regenerateDerivedDates } from '../app/lib/itinerary-store/domain'
 import { formatTripDate, getCountryFromLocation } from '../app/lib/itineraryUtils'
@@ -16,6 +16,7 @@ interface ItineraryWorkspaceProps {
   initialErrorCode?: string | null
   onDirtyStateChange?: (isDirty: boolean) => void
   onBackToCards?: () => void
+  onRequestCreateItinerary?: () => void
 }
 
 function mapStayError(code: string): string {
@@ -38,6 +39,7 @@ export default function ItineraryWorkspace({
   initialErrorCode,
   onDirtyStateChange,
   onBackToCards,
+  onRequestCreateItinerary,
 }: ItineraryWorkspaceProps) {
   const [workspace, setWorkspace] = useState<ItineraryWorkspaceType | null>(initialWorkspace ?? null)
   const [workspaceError, setWorkspaceError] = useState<string | null>(initialErrorCode ?? null)
@@ -228,6 +230,16 @@ export default function ItineraryWorkspace({
         >
           <ArrowLeft size={16} aria-hidden="true" />
         </button>
+        {onRequestCreateItinerary && (
+          <button
+            type="button"
+            onClick={onRequestCreateItinerary}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors"
+          >
+            <Plus size={14} aria-hidden="true" />
+            <span className="hidden sm:inline">New itinerary</span>
+          </button>
+        )}
       </div>
 
       {hasDays && tripSummary && (

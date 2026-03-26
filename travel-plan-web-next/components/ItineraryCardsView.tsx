@@ -19,10 +19,13 @@ function formatDate(value: string): string {
   return parsed.toLocaleDateString()
 }
 
-function CardSection({ title, children }: { title: string; children: ReactNode }) {
+function CardSection({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="space-y-3" aria-live="polite">
-      <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+        {action}
+      </div>
       <div className="space-y-4">{children}</div>
     </section>
   )
@@ -89,7 +92,18 @@ export default function ItineraryCardsView({
   return (
     <div data-testid="itinerary-cards-rail" className="w-full space-y-8">
       {renderItineraryList && visibleItineraries.length > 0 && (
-        <CardSection title="Your itineraries">
+        <CardSection
+          title="Your itineraries"
+          action={
+            <button
+              type="button"
+              onClick={onCreateItinerary}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors"
+            >
+              + New itinerary
+            </button>
+          }
+        >
           {visibleItineraries.map((itinerary) => (
             <button
               key={itinerary.id}

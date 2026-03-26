@@ -9,6 +9,11 @@ jest.mock('@vercel/blob/client', () => ({
   handleUpload: jest.fn(),
 }))
 
+jest.mock('../../components/ItineraryMobileView', () => ({
+  __esModule: true,
+  default: () => <div data-testid="itinerary-mobile-view" />,
+}))
+
 // Mock fileSave and itineraryExport for export integration tests
 jest.mock('../../app/lib/fileSave', () => ({
   saveFile: jest.fn().mockResolvedValue(undefined),

@@ -61,6 +61,7 @@ export default function ItineraryPanel({
             initialErrorCode={initialErrorCode}
             onDirtyStateChange={handleDirtyStateChange}
             onBackToCards={requestBackToCards}
+            onRequestCreateItinerary={onRequestCreateItinerary}
           />
         </div>
       )}

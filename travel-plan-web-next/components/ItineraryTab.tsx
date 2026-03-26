@@ -8,13 +8,12 @@ import {
   getCountryColor,
   getOvernightColor,
   processItinerary,
-  normalizeTrainId,
   type RouteDay,
   type ProcessedDay,
 } from '../app/lib/itinerary'
 import { getStaysWithMeta } from '../app/lib/stayUtils'
 import { renderMarkdown } from '../app/lib/markdown'
-import { useTrainSchedules, buildScheduleKey } from '../app/lib/hooks/useTrainSchedules'
+import { useTrainSchedules } from '../app/lib/hooks/useTrainSchedules'
 import { useTrainEditor } from '../app/lib/hooks/useTrainEditor'
 import { useNoteEditor } from '../app/lib/hooks/useNoteEditor'
 import { useStayEdit } from '../app/lib/hooks/useStayEdit'
@@ -22,6 +21,8 @@ import { useExport } from '../app/lib/hooks/useExport'
 import TrainScheduleEditorModal from './TrainScheduleEditorModal'
 import AttractionCell from './AttractionCell'
 import FloatingExportButton from './FloatingExportButton'
+import TrainScheduleDisplay from './TrainScheduleDisplay'
+import ItineraryMobileView from './ItineraryMobileView'
 import ExportFormatPicker from './ExportFormatPicker'
 import ExportSuccessToast from './ExportSuccessToast'
 import StayEditControl from './StayEditControl'
@@ -112,7 +113,7 @@ export default function ItineraryTab({
       <div className="relative">
         {/* Sticky floating buttons */}
         <div className="sticky top-0 z-20 h-0 pointer-events-none">
-          <div className="absolute top-2 left-full ml-2 flex flex-col gap-1 pointer-events-auto">
+          <div className="fixed right-4 bottom-6 sm:absolute sm:right-auto sm:bottom-auto sm:top-2 sm:left-full sm:ml-2 flex flex-col gap-1 pointer-events-auto">
             {onRequestAddStay && (
               <button
                 type="button"
@@ -133,6 +134,7 @@ export default function ItineraryTab({
           </div>
         </div>
 
+        <div className="hidden sm:block">
         <div
           ref={tableWrapperRef}
           className="relative pl-10 -ml-10"
@@ -310,6 +312,24 @@ export default function ItineraryTab({
           </table>
           </div>{/* end bg-white table box */}
         </div>{/* end relative ml-10 tableWrapperRef */}
+        </div>{/* end hidden sm:block */}
+
+        <div className="sm:hidden">
+          <ItineraryMobileView
+            processedData={processedData}
+            stays={stays}
+            days={days}
+            itineraryId={itineraryId}
+            trainOverrides={trainOverrides}
+            trainSchedules={trainSchedules}
+            schedulesLoading={schedulesLoading}
+            noteEditor={noteEditor}
+            trainEditor={trainEditor}
+            isItineraryScopedStayEdit={isItineraryScopedStayEdit}
+            onRequestEditStay={onRequestEditStay}
+            onMoveStay={onMoveStay}
+          />
+        </div>
       </div>
 
       {/* Train editor modal */}
@@ -556,85 +576,3 @@ function StayActionPanel({ isActive, top, height, color, stay, day, onRequestEdi
   )
 }
 
-interface TrainScheduleDisplayProps {
-  dayIndex: number
-  train: RouteDay['train']
-  trainSchedules: Record<string, { fromStation: string; depTime: string; toStation: string; arrTime: string } | null>
-  schedulesLoading: boolean
-  onEdit: (triggerButton: HTMLButtonElement) => void
-}
-
-function TrainScheduleSkeleton() {
-  return (
-    <div
-      role="status"
-      aria-label="Loading"
-      className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 pl-1"
-    >
-      <div className="h-4 rounded bg-gray-200 animate-pulse w-28" />
-      <div className="h-4 rounded bg-gray-200 animate-pulse w-8" />
-      <div className="h-4 rounded bg-gray-200 animate-pulse w-20" />
-      <div className="h-4 rounded bg-gray-200 animate-pulse w-8" />
-    </div>
-  )
-}
-
-function TrainScheduleDisplay({ dayIndex, train, trainSchedules, schedulesLoading, onEdit }: TrainScheduleDisplayProps) {
-  return (
-    <div className="flex items-center gap-2">
-      {train && train.length > 0 ? (
-        <div className="flex-1 space-y-2">
-          {train.map((item, i) => {
-            const trainId = normalizeTrainId(item.train_id)
-            const isDbTrain = !!(item.start && item.end)
-            const scheduleKey = isDbTrain ? buildScheduleKey(trainId, item.start, item.end) : null
-            const schedule = scheduleKey ? trainSchedules[scheduleKey] : null
-            const isLoading = scheduleKey && schedulesLoading && !(scheduleKey in trainSchedules)
-
-            return (
-              <div key={i} className="flex flex-col gap-0.5">
-                {isDbTrain ? (
-                  <div>
-                    <span
-                      data-testid="train-tag"
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200"
-                    >
-                      {trainId}
-                    </span>
-                  </div>
-                ) : (
-                  <>
-                    <span data-testid="invalid-train-dash" className="text-gray-400 italic">—</span>
-                    <span data-testid="invalid-train-comment" className="text-xs text-gray-400 italic">({trainId})</span>
-                  </>
-                )}
-
-                {isLoading ? (
-                  <TrainScheduleSkeleton />
-                ) : schedule ? (
-                  <div
-                    data-testid="schedule-grid"
-                    className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 text-xs text-gray-500 pl-1 items-baseline"
-                  >
-                    <span className="truncate">{schedule.fromStation}</span>
-                    <span className="tabular-nums text-right">{schedule.depTime}</span>
-                    <span className="truncate">{schedule.toStation}</span>
-                    <span className="tabular-nums text-right">{schedule.arrTime}</span>
-                  </div>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-      ) : null}
-      <button
-        data-testid={`train-json-edit-btn-${dayIndex}`}
-        onClick={(e) => onEdit(e.currentTarget)}
-        className="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors opacity-0 group-hover/train-cell:opacity-100"
-        aria-label="Edit train schedule"
-      >
-        <Pencil size={14} />
-      </button>
-    </div>
-  )
-}

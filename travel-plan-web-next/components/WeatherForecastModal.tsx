@@ -39,12 +39,11 @@ export default function WeatherForecastModal({ cityName, lat, lng, onClose }: We
   return (
     <div
       data-testid="weather-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg mx-4"
-        style={{ minWidth: 480 }}
+        className="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg overflow-x-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -90,13 +89,14 @@ export default function WeatherForecastModal({ cityName, lat, lng, onClose }: We
         {!loading && !error && chartData && (
           <>
             <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+              <LineChart data={chartData} margin={{ top: 8, right: 16, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                 <YAxis
                   tick={{ fontSize: 12 }}
                   tickFormatter={(v) => `${v}°`}
                   domain={['auto', 'auto']}
+                  width={40}
                 />
                 <Tooltip
                   formatter={(value, name) => {

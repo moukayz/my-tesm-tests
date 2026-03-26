@@ -222,6 +222,64 @@ describe('AttractionCell', () => {
     })
   })
 
+  describe('variant prop', () => {
+    it('default variant renders outer <td>', () => {
+      const { container } = renderCell()
+      expect(container.querySelector('td')).not.toBeNull()
+    })
+
+    it('default variant does not render data-testid="attraction-card"', () => {
+      renderCell()
+      expect(screen.queryByTestId('attraction-card')).toBeNull()
+    })
+
+    it('card variant renders outer <div data-testid="attraction-card"> not <td>', () => {
+      const { container } = render(
+        <AttractionCell variant="card" dayIndex={0} day={baseDay} processedDay={baseDay} />
+      )
+      expect(container.querySelector('td')).toBeNull()
+      expect(screen.getByTestId('attraction-card')).toBeInTheDocument()
+    })
+
+    it('card variant attraction-buttons does NOT have opacity-0 class', () => {
+      render(
+        <AttractionCell variant="card" dayIndex={0} day={baseDay} processedDay={baseDay} />
+      )
+      const buttons = screen.getByTestId('attraction-buttons')
+      expect(buttons.className).not.toContain('opacity-0')
+    })
+
+    it('table-cell variant attraction-buttons HAS opacity-0 class', () => {
+      renderCell()
+      const buttons = screen.getByTestId('attraction-buttons')
+      expect(buttons.className).toContain('opacity-0')
+    })
+
+    it('card variant slides in action buttons when tag is tapped', () => {
+      const dayWithAttractions = { ...baseDay, attractions: [{ id: 'a1', label: 'Eiffel Tower' }] }
+      render(
+        <AttractionCell variant="card" dayIndex={0} day={dayWithAttractions} processedDay={dayWithAttractions} />
+      )
+      // Action bar collapsed by default
+      const actionBar = screen.getByTestId('tag-actions-a1')
+      expect(actionBar.className).toContain('max-w-0')
+      expect(actionBar.className).toContain('opacity-0')
+
+      // Tap the tag to expand action bar
+      fireEvent.click(screen.getByText('Eiffel Tower'))
+      expect(actionBar.className).toContain('max-w-[120px]')
+      expect(actionBar.className).toContain('opacity-100')
+    })
+
+    it('table-cell variant per-tag image/remove buttons have opacity-0 class', () => {
+      renderCell({ attractions: [{ id: 'a1', label: 'Eiffel Tower' }] })
+      const imageBtn = screen.getByRole('button', { name: /add images for Eiffel Tower/i })
+      const removeBtn = screen.getByRole('button', { name: /remove Eiffel Tower/i })
+      expect(imageBtn.className).toContain('opacity-0')
+      expect(removeBtn.className).toContain('opacity-0')
+    })
+  })
+
   describe('image lightbox', () => {
     it('lightbox remains open after mouse leaves the image viewer', async () => {
       const withImages: DayAttraction[] = [
