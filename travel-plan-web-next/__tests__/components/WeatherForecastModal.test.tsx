@@ -23,13 +23,23 @@ const mockDailyData = [
   { date: '2026-03-29', maxTemp: 16, minTemp: 10, description: 'Showers 🌦' },
 ]
 
+const mockDailyDataWithUnknown = [
+  { date: '2026-03-25', maxTemp: 15, minTemp: 8, description: 'Unknown ❓' },
+]
+
 describe('WeatherForecastModal', () => {
   afterEach(() => jest.clearAllMocks())
 
-  it('shows loading spinner while data is loading', () => {
+  it('shows skeleton while data is loading', () => {
     ;(useDailyWeather as jest.Mock).mockReturnValue({ data: null, loading: true, error: null })
     render(<WeatherForecastModal cityName="Paris" lat={48.85} lng={2.35} onClose={jest.fn()} />)
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.getByTestId('weather-skeleton')).toBeInTheDocument()
+  })
+
+  it('does not show spinner while data is loading', () => {
+    ;(useDailyWeather as jest.Mock).mockReturnValue({ data: null, loading: true, error: null })
+    render(<WeatherForecastModal cityName="Paris" lat={48.85} lng={2.35} onClose={jest.fn()} />)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('renders city name in the modal header', () => {
@@ -68,6 +78,13 @@ describe('WeatherForecastModal', () => {
     ;(useDailyWeather as jest.Mock).mockReturnValue({ data: null, loading: false, error: 'Failed to fetch' })
     render(<WeatherForecastModal cityName="Paris" lat={48.85} lng={2.35} onClose={jest.fn()} />)
     expect(screen.getByText(/failed to load/i)).toBeInTheDocument()
+  })
+
+  it('shows ❓ icon and not the word "Unknown" for unknown weather code', () => {
+    ;(useDailyWeather as jest.Mock).mockReturnValue({ data: mockDailyDataWithUnknown, loading: false, error: null })
+    render(<WeatherForecastModal cityName="Paris" lat={48.85} lng={2.35} onClose={jest.fn()} />)
+    expect(screen.getByText('❓')).toBeInTheDocument()
+    expect(screen.queryByText('Unknown')).not.toBeInTheDocument()
   })
 
   it('passes lat and lng to useDailyWeather', () => {

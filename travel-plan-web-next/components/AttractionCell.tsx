@@ -12,17 +12,25 @@ import { getAttractionColor } from '../app/lib/dayColors'
 import { useAttractionSearch } from './hooks/useAttractionSearch'
 import { useAttractionDrag } from './hooks/useAttractionDrag'
 
+interface CityAnchorPoint {
+  label: string
+  lat: number
+  lng: number
+}
+
 interface AttractionCellProps {
   dayIndex: number
   day: RouteDay
   processedDay: RouteDay
   itineraryId?: string
+  cityAnchor?: CityAnchorPoint
+  prevCityAnchor?: CityAnchorPoint
 }
 
-export default function AttractionCell({ dayIndex, day, processedDay, itineraryId }: AttractionCellProps) {
+export default function AttractionCell({ dayIndex, day, processedDay, itineraryId, cityAnchor, prevCityAnchor }: AttractionCellProps) {
   const [overrides, setOverrides] = useState<DayAttraction[] | null>(null)
   const [miniMapOpen, setMiniMapOpen] = useState(false)
-  const [miniMapRect, setMiniMapRect] = useState<DOMRect | null>(null)
+  const [miniMapPos, setMiniMapPos] = useState<{ top: number; left: number } | null>(null)
   const [imageModalAttractionId, setImageModalAttractionId] = useState<string | null>(null)
   const [viewerState, setViewerState] = useState<{ id: string; rect: DOMRect } | null>(null)
   const [lightboxState, setLightboxState] = useState<{ attractionId: string; index: number } | null>(null)
@@ -127,14 +135,19 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
   }
 
   function openMiniMap() {
-    const rect = miniMapButtonRef.current?.getBoundingClientRect() ?? null
-    setMiniMapRect(rect)
+    const rect = miniMapButtonRef.current?.getBoundingClientRect()
+    if (rect) {
+      setMiniMapPos({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+      })
+    }
     setMiniMapOpen(true)
   }
 
   function closeMiniMap() {
     setMiniMapOpen(false)
-    setMiniMapRect(null)
+    setMiniMapPos(null)
   }
 
   // Close minimap on Escape
@@ -333,10 +346,11 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
       {/* Attraction minimap popover — portal to document.body */}
       {typeof document !== 'undefined' && miniMapOpen && createPortal(
         <div
+          data-testid="minimap-popover"
           className="absolute z-[46]"
           style={{
-            top: `${(miniMapRect?.bottom ?? 0) + (typeof window !== 'undefined' ? window.scrollY : 0) + 8}px`,
-            left: `${(miniMapRect?.left ?? 0) + (typeof window !== 'undefined' ? window.scrollX : 0)}px`,
+            top: `${miniMapPos?.top ?? 0}px`,
+            left: `${miniMapPos?.left ?? 0}px`,
           }}
         >
           <div
@@ -354,7 +368,7 @@ export default function AttractionCell({ dayIndex, day, processedDay, itineraryI
                 <X size={12} aria-hidden="true" />
               </button>
             </div>
-            <AttractionMiniMap attractions={attractions} />
+            <AttractionMiniMap attractions={attractions} cityAnchor={cityAnchor} prevCityAnchor={prevCityAnchor} />
           </div>
         </div>,
         document.body

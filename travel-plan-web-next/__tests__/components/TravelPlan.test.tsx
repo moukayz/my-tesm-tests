@@ -19,16 +19,19 @@ jest.mock('../../components/ItineraryPanel', () => ({
     onBackToCards,
     onSelectItinerary,
     onRequestCreateItinerary,
+    isLoading,
   }: {
     onDirtyStateChange?: (isDirty: boolean) => void
     selectedItineraryId?: string
     onBackToCards: () => void
     onSelectItinerary: (id: string) => void
     onRequestCreateItinerary?: () => void
+    isLoading?: boolean
   }) => (
     <div>
       <div data-testid="itinerary-panel">ItineraryPanel</div>
       <div data-testid="selected-itinerary-id">{selectedItineraryId ?? 'none'}</div>
+      <div data-testid="itinerary-panel-loading">{String(isLoading ?? false)}</div>
       <button type="button" onClick={() => onDirtyStateChange?.(true)}>
         Mark dirty
       </button>
@@ -219,6 +222,19 @@ describe('TravelPlan', () => {
     await userEvent.click(screen.getByRole('button', { name: /submit create/i }))
 
     expect(screen.getByTestId('selected-itinerary-id')).toHaveTextContent('iti-new')
+  })
+
+  it('passes isLoading=true to ItineraryPanel while fetch is pending', () => {
+    global.fetch = jest.fn().mockReturnValue(new Promise(() => {})) // never resolves
+
+    render(
+      <TravelPlan
+        isLoggedIn={true}
+        initialItinerarySummaries={[]}
+      />
+    )
+
+    expect(screen.getByTestId('itinerary-panel-loading')).toHaveTextContent('true')
   })
 
   it('hides itinerary tabs for logged-out users', () => {

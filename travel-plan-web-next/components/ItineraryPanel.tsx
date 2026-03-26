@@ -8,6 +8,7 @@ import ItineraryWorkspace from './ItineraryWorkspace'
 interface ItineraryPanelProps {
   selectedItineraryId?: string
   itinerarySummaries: ItinerarySummary[]
+  isLoading?: boolean
   initialWorkspace?: ItineraryWorkspaceType | null
   initialErrorCode?: string | null
   onSelectItinerary: (itineraryId: string) => void
@@ -19,6 +20,7 @@ interface ItineraryPanelProps {
 export default function ItineraryPanel({
   selectedItineraryId,
   itinerarySummaries,
+  isLoading,
   initialWorkspace,
   initialErrorCode,
   onSelectItinerary,
@@ -47,6 +49,7 @@ export default function ItineraryPanel({
       {!selectedItineraryId ? (
         <ItineraryCardsView
           itineraries={itinerarySummaries}
+          isLoading={isLoading}
           onOpenItinerary={onSelectItinerary}
           onCreateItinerary={onRequestCreateItinerary}
         />

@@ -19,6 +19,9 @@ const mockHourlyResponse = {
       ...Array.from({ length: 24 }, (_, i) => `2026-03-26T${String(i).padStart(2, '0')}:00`),
     ],
     cloud_cover: Array.from({ length: 48 }, (_, i) => i),
+    cloud_cover_low: Array.from({ length: 48 }, (_, i) => i + 100),
+    cloud_cover_mid: Array.from({ length: 48 }, (_, i) => i + 200),
+    cloud_cover_high: Array.from({ length: 48 }, (_, i) => i + 300),
   },
 }
 
@@ -65,8 +68,8 @@ describe('weatherCodeToDescription', () => {
     expect(weatherCodeToDescription(99)).toBe('Thunderstorm ⛈')
   })
 
-  it('returns "Unknown" for unrecognized codes', () => {
-    expect(weatherCodeToDescription(999)).toBe('Unknown')
+  it('returns a string ending with ❓ for unrecognized codes', () => {
+    expect(weatherCodeToDescription(999)).toMatch(/❓$/)
   })
 })
 
@@ -167,8 +170,8 @@ describe('useHourlyCloud', () => {
     expect(result.current.loading).toBe(false)
     expect(result.current.data).toHaveLength(12)
     // Local hour = 10 (UTC+0), so slice starts at index 10
-    expect(result.current.data![0]).toMatchObject({ time: '2026-03-25T10:00', cloudCover: 10 })
-    expect(result.current.data![11]).toMatchObject({ time: '2026-03-25T21:00', cloudCover: 21 })
+    expect(result.current.data![0]).toMatchObject({ time: '2026-03-25T10:00', cloudCover: 10, cloudCoverLow: 110, cloudCoverMid: 210, cloudCoverHigh: 310 })
+    expect(result.current.data![11]).toMatchObject({ time: '2026-03-25T21:00', cloudCover: 21, cloudCoverLow: 121, cloudCoverMid: 221, cloudCoverHigh: 321 })
   })
 
   it('applies utc_offset_seconds to find local hour (UTC+2 → local 12:00)', async () => {
@@ -200,7 +203,7 @@ describe('useHourlyCloud', () => {
     expect(result.current.data![11]).toMatchObject({ time: '2026-03-26T11:00', cloudCover: 35 })
   })
 
-  it('fetches forecast_days=2 with timezone=auto', async () => {
+  it('fetches forecast_days=2 with timezone=auto and all cloud cover fields', async () => {
     jest.spyOn(Date, 'now').mockReturnValue(T_UTC_10)
     ;(global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
@@ -210,7 +213,10 @@ describe('useHourlyCloud', () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
     const url = (global.fetch as jest.Mock).mock.calls[0][0] as string
     expect(url).toContain('latitude=51.5')
-    expect(url).toContain('hourly=cloud_cover')
+    expect(url).toContain('cloud_cover')
+    expect(url).toContain('cloud_cover_low')
+    expect(url).toContain('cloud_cover_mid')
+    expect(url).toContain('cloud_cover_high')
     expect(url).toContain('forecast_days=2')
     expect(url).toContain('timezone=auto')
   })

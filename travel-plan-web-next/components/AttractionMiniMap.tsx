@@ -5,8 +5,16 @@ import { useMemo, useRef } from 'react'
 import type { DayAttraction } from '../app/lib/itinerary'
 import { useMapWithRoute } from '../app/lib/hooks/useMapWithRoute'
 
+interface CityAnchorPoint {
+  label: string
+  lat: number
+  lng: number
+}
+
 interface AttractionMiniMapProps {
   attractions: DayAttraction[]
+  cityAnchor?: CityAnchorPoint
+  prevCityAnchor?: CityAnchorPoint
 }
 
 const MINIMAP_OPTIONS = {
@@ -20,20 +28,18 @@ const MINIMAP_OPTIONS = {
   maxZoom: 12,
 }
 
-export default function AttractionMiniMap({ attractions }: AttractionMiniMapProps) {
+export default function AttractionMiniMap({ attractions, cityAnchor, prevCityAnchor }: AttractionMiniMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const coordAttractions = useMemo(
-    () =>
-      attractions
-        .filter((a) => a.coordinates != null)
-        .map((a) => ({
-          lng: a.coordinates!.lng,
-          lat: a.coordinates!.lat,
-          label: a.label,
-        })),
-    [attractions]
-  )
+  const coordAttractions = useMemo(() => {
+    const points: Array<{ lng: number; lat: number; label: string }> = []
+    if (prevCityAnchor) points.push({ lng: prevCityAnchor.lng, lat: prevCityAnchor.lat, label: prevCityAnchor.label })
+    for (const a of attractions) {
+      if (a.coordinates != null) points.push({ lng: a.coordinates.lng, lat: a.coordinates.lat, label: a.label })
+    }
+    if (cityAnchor) points.push({ lng: cityAnchor.lng, lat: cityAnchor.lat, label: cityAnchor.label })
+    return points
+  }, [attractions, cityAnchor, prevCityAnchor])
   const coordKey = coordAttractions.map((a) => `${a.lng},${a.lat}`).join('|')
 
   useMapWithRoute(containerRef, coordAttractions, MINIMAP_OPTIONS, coordKey)

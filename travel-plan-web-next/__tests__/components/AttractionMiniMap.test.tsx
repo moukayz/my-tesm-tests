@@ -34,6 +34,20 @@ const attractionsNoCoords: DayAttraction[] = [
 ]
 
 describe('AttractionMiniMap', () => {
+  it('renders map container when cityAnchor provides coordinates but no attraction has coords', () => {
+    const cityAnchor = { label: 'Paris', lat: 48.8566, lng: 2.3522 }
+    render(<AttractionMiniMap attractions={attractionsNoCoords} cityAnchor={cityAnchor} />)
+    expect(screen.getByTestId('attraction-minimap')).toBeInTheDocument()
+    expect(screen.queryByTestId('attraction-minimap-placeholder')).not.toBeInTheDocument()
+  })
+
+  it('renders map container when prevCityAnchor provides coordinates but no attraction has coords', () => {
+    const prevCityAnchor = { label: 'Lyon', lat: 45.75, lng: 4.85 }
+    render(<AttractionMiniMap attractions={attractionsNoCoords} prevCityAnchor={prevCityAnchor} />)
+    expect(screen.getByTestId('attraction-minimap')).toBeInTheDocument()
+    expect(screen.queryByTestId('attraction-minimap-placeholder')).not.toBeInTheDocument()
+  })
+
   it('renders a map container when at least one attraction has coordinates', () => {
     const { container } = render(<AttractionMiniMap attractions={attractionsWithCoords} />)
     expect(container.querySelector('[data-testid="attraction-minimap"]')).toBeInTheDocument()

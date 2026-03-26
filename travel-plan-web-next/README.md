@@ -256,9 +256,11 @@ GOOGLE_CLIENT_ID=your_client_id_here
 GOOGLE_CLIENT_SECRET=your_client_secret_here
 AUTH_SECRET=random_32plus_char_string
 ALLOWED_EMAIL=your.email@gmail.com   # optional: restrict to one account
-LOCATION_SEARCH_PROVIDER=geonames
-GEONAMES_USERNAME=your_geonames_username
+LOCATION_SEARCH_PROVIDER=geonames        # or: google
+GEONAMES_USERNAME=your_geonames_username  # required when provider=geonames
 # GEONAMES_BASE_URL=https://api.geonames.org   # optional override
+GOOGLE_MAP_API_KEY=your_google_api_key   # required when provider=google
+# GOOGLE_PLACES_BASE_URL=https://places.googleapis.com  # optional override
 # LOCATION_SEARCH_TIMEOUT_MS=1200
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railway
 # KV_REST_API_URL / KV_REST_API_TOKEN — omit to use local file storage (FileRouteStore)
@@ -495,6 +497,8 @@ The overnight column cells are automatically merged (rowspan) for consecutive da
 ### `GET /api/locations/search?query=<text>&limit=5`
 
 Returns up to 5 backend-normalized resolved place candidates for itinerary stay entry. The frontend still composes the custom raw-text option locally.
+
+Provider is selected by `LOCATION_SEARCH_PROVIDER` env var (`geonames` or `google`). Both expose the same response shape; the client is provider-agnostic. The Google provider calls Places Text Search then Place Details (parallel, restricted field mask) using `GOOGLE_MAP_API_KEY`.
 
 **Response:** `200 { query, results, degraded? }`
 

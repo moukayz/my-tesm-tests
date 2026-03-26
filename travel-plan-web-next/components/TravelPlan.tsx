@@ -50,6 +50,7 @@ export default function TravelPlan({
   const [selectedItineraryId, setSelectedItineraryId] = useState<string | undefined>(urlItineraryId ?? initialItineraryId)
   const [displayTab, setDisplayTab] = useState<Tab>(tab)
   const [itinerarySummaries, setItinerarySummaries] = useState<ItinerarySummary[]>(initialItinerarySummaries)
+  const [isItinerariesLoading, setIsItinerariesLoading] = useState(isLoggedIn && initialItinerarySummaries.length === 0)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [hasUnsavedInlineEdits, setHasUnsavedInlineEdits] = useState(false)
 
@@ -93,6 +94,9 @@ export default function TravelPlan({
         setItinerarySummaries(body.items)
       })
       .catch(() => {})
+      .finally(() => {
+        if (isActive) setIsItinerariesLoading(false)
+      })
 
     return () => {
       isActive = false
@@ -161,6 +165,7 @@ export default function TravelPlan({
           <ItineraryPanel
             selectedItineraryId={selectedItineraryId}
             itinerarySummaries={itinerarySummaries}
+            isLoading={isItinerariesLoading}
             initialWorkspace={initialItineraryWorkspace}
             initialErrorCode={initialItineraryErrorCode}
             onDirtyStateChange={setHasUnsavedInlineEdits}

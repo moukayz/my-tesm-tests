@@ -28,6 +28,13 @@ import StayEditControl from './StayEditControl'
 import WeatherForecastModal from './WeatherForecastModal'
 import CloudForecastModal from './CloudForecastModal'
 import { DAY_COLORS } from '../app/lib/dayColors'
+import type { StayLocation } from '../app/lib/itinerary-store/types'
+
+function getCityAnchor(location: StayLocation | undefined, fallback: string): { label: string; lat: number; lng: number } | undefined {
+  if (!location || location.kind === 'custom') return undefined
+  const label = location.kind === 'resolved' ? location.place.name : fallback
+  return { label, lat: location.coordinates.lat, lng: location.coordinates.lng }
+}
 
 interface ItineraryTabProps {
   initialData: RouteDay[]
@@ -243,6 +250,12 @@ export default function ItineraryTab({
                       day={day}
                       processedDay={processedData[index]}
                       itineraryId={itineraryId}
+                      cityAnchor={getCityAnchor(day.location, day.overnight)}
+                      prevCityAnchor={
+                        index > 0 && day.overnightRowSpan > 0
+                          ? getCityAnchor(processedData[index - 1].location, processedData[index - 1].overnight)
+                          : undefined
+                      }
                     />
 
                     {/* ── Train Schedule cell ────────────────────────── */}
@@ -556,12 +569,12 @@ function TrainScheduleSkeleton() {
     <div
       role="status"
       aria-label="Loading"
-      className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-1 pl-1"
+      className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5 pl-1"
     >
-      <div className="h-3 rounded bg-gray-200 animate-pulse w-28" />
-      <div className="h-3 rounded bg-gray-200 animate-pulse w-8" />
-      <div className="h-3 rounded bg-gray-200 animate-pulse w-20" />
-      <div className="h-3 rounded bg-gray-200 animate-pulse w-8" />
+      <div className="h-4 rounded bg-gray-200 animate-pulse w-28" />
+      <div className="h-4 rounded bg-gray-200 animate-pulse w-8" />
+      <div className="h-4 rounded bg-gray-200 animate-pulse w-20" />
+      <div className="h-4 rounded bg-gray-200 animate-pulse w-8" />
     </div>
   )
 }

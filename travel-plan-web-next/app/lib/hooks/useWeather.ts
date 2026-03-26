@@ -13,7 +13,7 @@ export function weatherCodeToDescription(code: number): string {
   if (code >= 71 && code <= 77) return 'Snow 🌨'
   if (code >= 80 && code <= 82) return 'Showers 🌦'
   if (code >= 95 && code <= 99) return 'Thunderstorm ⛈'
-  return 'Unknown'
+  return 'Unknown ❓'
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -28,6 +28,9 @@ export interface DailyWeatherEntry {
 export interface HourlyCloudEntry {
   time: string
   cloudCover: number
+  cloudCoverLow: number
+  cloudCoverMid: number
+  cloudCoverHigh: number
 }
 
 // ── useDailyWeather ───────────────────────────────────────────────────────────
@@ -96,7 +99,7 @@ export function useHourlyCloud(
     const url =
       `https://api.open-meteo.com/v1/forecast` +
       `?latitude=${lat}&longitude=${lng}` +
-      `&hourly=cloud_cover&forecast_days=2&timezone=auto`
+      `&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high&forecast_days=2&timezone=auto`
 
     fetch(url)
       .then((res) => {
@@ -104,7 +107,7 @@ export function useHourlyCloud(
         return res.json()
       })
       .then((json) => {
-        const { time, cloud_cover } = json.hourly
+        const { time, cloud_cover, cloud_cover_low, cloud_cover_mid, cloud_cover_high } = json.hourly
         const utcOffsetSeconds: number = json.utc_offset_seconds ?? 0
 
         // Find current hour in the location's local timezone
@@ -118,6 +121,9 @@ export function useHourlyCloud(
           .map((t, i) => ({
             time: t,
             cloudCover: cloud_cover[safeStart + i],
+            cloudCoverLow: cloud_cover_low[safeStart + i],
+            cloudCoverMid: cloud_cover_mid[safeStart + i],
+            cloudCoverHigh: cloud_cover_high[safeStart + i],
           }))
         setData(entries)
         setLoading(false)

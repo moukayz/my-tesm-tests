@@ -8,6 +8,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from 'recharts'
 import { X } from 'lucide-react'
@@ -32,6 +33,9 @@ export default function CloudForecastModal({ cityName, lat, lng, onClose }: Clou
   const chartData = data?.map((entry) => ({
     time: formatTime(entry.time),
     cloudCover: entry.cloudCover,
+    cloudCoverLow: entry.cloudCoverLow,
+    cloudCoverMid: entry.cloudCoverMid,
+    cloudCoverHigh: entry.cloudCoverHigh,
   }))
 
   return (
@@ -62,12 +66,15 @@ export default function CloudForecastModal({ cityName, lat, lng, onClose }: Clou
 
         {/* Body */}
         {loading && (
-          <div className="flex justify-center items-center h-40">
-            <span
-              role="status"
-              aria-label="Loading cloud data"
-              className="inline-block w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"
-            />
+          <div data-testid="cloud-skeleton" aria-label="Loading cloud data">
+            {/* Legend skeleton */}
+            <div className="flex gap-4 mb-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-4 w-12 rounded bg-gray-200 animate-pulse" />
+              ))}
+            </div>
+            {/* Chart skeleton */}
+            <div className="h-[240px] rounded-lg bg-gray-100 animate-pulse" />
           </div>
         )}
 
@@ -78,12 +85,31 @@ export default function CloudForecastModal({ cityName, lat, lng, onClose }: Clou
         )}
 
         {!loading && !error && chartData && (
-          <ResponsiveContainer width="100%" height={220}>
+          <>
+          <div className="flex gap-4 mb-2 text-xs text-gray-600 flex-wrap">
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-400" />Total</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-400" />Low</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-amber-400" />Mid</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-violet-400" />High</span>
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="cloudGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#93c5fd" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#93c5fd" stopOpacity={0.1} />
+                  <stop offset="5%" stopColor="#93c5fd" stopOpacity={0.5} />
+                  <stop offset="95%" stopColor="#93c5fd" stopOpacity={0.05} />
+                </linearGradient>
+                <linearGradient id="cloudLowGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#86efac" stopOpacity={0.5} />
+                  <stop offset="95%" stopColor="#86efac" stopOpacity={0.05} />
+                </linearGradient>
+                <linearGradient id="cloudMidGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#fde68a" stopOpacity={0.5} />
+                  <stop offset="95%" stopColor="#fde68a" stopOpacity={0.05} />
+                </linearGradient>
+                <linearGradient id="cloudHighGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#c4b5fd" stopOpacity={0.5} />
+                  <stop offset="95%" stopColor="#c4b5fd" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -95,19 +121,16 @@ export default function CloudForecastModal({ cityName, lat, lng, onClose }: Clou
                 label={{ value: 'Cloud Cover', angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 11 } }}
               />
               <Tooltip
-                formatter={(value) => [`${value ?? 0}%`, 'Cloud Cover']}
+                formatter={(value, name) => [`${value ?? 0}%`, name as string]}
                 labelFormatter={(label) => `Time: ${label}`}
               />
-              <Area
-                type="monotone"
-                dataKey="cloudCover"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                fill="url(#cloudGradient)"
-                name="Cloud Cover"
-              />
+              <Area type="monotone" dataKey="cloudCover" stroke="#3b82f6" strokeWidth={2} fill="url(#cloudGradient)" name="Total" />
+              <Area type="monotone" dataKey="cloudCoverLow" stroke="#22c55e" strokeWidth={1.5} fill="url(#cloudLowGradient)" name="Low" />
+              <Area type="monotone" dataKey="cloudCoverMid" stroke="#f59e0b" strokeWidth={1.5} fill="url(#cloudMidGradient)" name="Mid" />
+              <Area type="monotone" dataKey="cloudCoverHigh" stroke="#8b5cf6" strokeWidth={1.5} fill="url(#cloudHighGradient)" name="High" />
             </AreaChart>
           </ResponsiveContainer>
+          </>
         )}
       </div>
     </div>

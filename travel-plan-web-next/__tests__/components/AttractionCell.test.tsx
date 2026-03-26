@@ -63,6 +63,59 @@ describe('AttractionCell', () => {
   })
   afterEach(() => jest.restoreAllMocks())
 
+  describe('city anchors', () => {
+    it('does not render cityAnchor as an attraction tag', () => {
+      const cityAnchor = { label: 'Paris', lat: 48.8566, lng: 2.3522 }
+      render(
+        <table><tbody><tr>
+          <AttractionCell dayIndex={0} day={{ ...baseDay, attractions: [] }} processedDay={baseDay} cityAnchor={cityAnchor} />
+        </tr></tbody></table>
+      )
+      expect(screen.queryByLabelText(/drag to reorder/i)).not.toBeInTheDocument()
+    })
+
+    it('does not render prevCityAnchor as an attraction tag', () => {
+      const prevCityAnchor = { label: 'Lyon', lat: 45.75, lng: 4.85 }
+      render(
+        <table><tbody><tr>
+          <AttractionCell dayIndex={0} day={{ ...baseDay, attractions: [] }} processedDay={baseDay} prevCityAnchor={prevCityAnchor} />
+        </tr></tbody></table>
+      )
+      expect(screen.queryByLabelText(/drag to reorder/i)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('minimap popover position', () => {
+    it('does not jump when window.scrollY changes and a re-render occurs', async () => {
+      // Simulate page scrolled to Y=300 when minimap opens
+      Object.defineProperty(window, 'scrollY', { value: 300, configurable: true, writable: true })
+      Object.defineProperty(window, 'scrollX', { value: 0, configurable: true, writable: true })
+
+      const day = { ...baseDay, attractions }
+      render(
+        <table><tbody><tr>
+          <AttractionCell dayIndex={0} day={day} processedDay={day} />
+        </tr></tbody></table>
+      )
+
+      // Open minimap
+      const mapBtn = screen.getByRole('button', { name: /preview attractions map/i })
+      await act(async () => { fireEvent.click(mapBtn) })
+
+      const popover = document.body.querySelector('[data-testid="minimap-popover"]') as HTMLElement
+      const topAtOpen = popover?.style.top
+
+      // User scrolls further down — then a state update (e.g. keydown) causes a re-render
+      ;(window as { scrollY: number }).scrollY = 800
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'ArrowDown' })
+      })
+
+      // Position must not have changed — window.scrollY must not be re-read from JSX
+      expect(popover?.style.top).toBe(topAtOpen)
+    })
+  })
+
   describe('button row padding', () => {
     it('renders button row even when there are no attractions', () => {
       renderCell({ attractions: [] })

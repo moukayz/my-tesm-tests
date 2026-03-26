@@ -85,6 +85,22 @@ describe('ItineraryPanel', () => {
     expect(onRequestCreateItinerary).toHaveBeenCalled()
   })
 
+  it('shows skeleton cards when isLoading is true', () => {
+    render(
+      <ItineraryPanel
+        selectedItineraryId={undefined}
+        itinerarySummaries={[]}
+        isLoading={true}
+        onSelectItinerary={jest.fn()}
+        onBackToCards={jest.fn()}
+        onRequestCreateItinerary={jest.fn()}
+      />
+    )
+
+    expect(screen.getAllByTestId('itinerary-card-skeleton')).toHaveLength(2)
+    expect(screen.queryByText(/no itineraries yet/i)).not.toBeInTheDocument()
+  })
+
   it('renders detail shell with back action', async () => {
     const onBackToCards = jest.fn()
 

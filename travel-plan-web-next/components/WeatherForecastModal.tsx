@@ -64,12 +64,20 @@ export default function WeatherForecastModal({ cityName, lat, lng, onClose }: We
 
         {/* Body */}
         {loading && (
-          <div className="flex justify-center items-center h-48">
-            <span
-              role="status"
-              aria-label="Loading weather data"
-              className="inline-block w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"
-            />
+          <div data-testid="weather-skeleton" aria-label="Loading weather data">
+            {/* Chart skeleton */}
+            <div className="h-[220px] rounded-lg bg-gray-100 animate-pulse" />
+            {/* Day cards skeleton */}
+            <div className="mt-4 grid grid-cols-5 gap-1">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex flex-col items-center gap-1">
+                  <div className="h-3 w-8 rounded bg-gray-200 animate-pulse" />
+                  <div className="h-4 w-4 rounded-full bg-gray-200 animate-pulse" />
+                  <div className="h-3 w-6 rounded bg-red-100 animate-pulse" />
+                  <div className="h-3 w-6 rounded bg-blue-100 animate-pulse" />
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

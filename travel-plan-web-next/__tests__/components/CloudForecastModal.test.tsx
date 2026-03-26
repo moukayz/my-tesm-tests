@@ -17,15 +17,24 @@ import { useHourlyCloud } from '../../app/lib/hooks/useWeather'
 const mockCloudData = Array.from({ length: 12 }, (_, i) => ({
   time: `2026-03-25T${String(i).padStart(2, '0')}:00`,
   cloudCover: i * 8,
+  cloudCoverLow: i * 3,
+  cloudCoverMid: i * 5,
+  cloudCoverHigh: i * 7,
 }))
 
 describe('CloudForecastModal', () => {
   afterEach(() => jest.clearAllMocks())
 
-  it('shows loading spinner while data is loading', () => {
+  it('shows skeleton while data is loading', () => {
     ;(useHourlyCloud as jest.Mock).mockReturnValue({ data: null, loading: true, error: null })
     render(<CloudForecastModal cityName="Paris" lat={48.85} lng={2.35} onClose={jest.fn()} />)
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.getByTestId('cloud-skeleton')).toBeInTheDocument()
+  })
+
+  it('does not show spinner while data is loading', () => {
+    ;(useHourlyCloud as jest.Mock).mockReturnValue({ data: null, loading: true, error: null })
+    render(<CloudForecastModal cityName="Paris" lat={48.85} lng={2.35} onClose={jest.fn()} />)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('renders city name in the modal header', () => {
@@ -66,5 +75,13 @@ describe('CloudForecastModal', () => {
     ;(useHourlyCloud as jest.Mock).mockReturnValue({ data: null, loading: true, error: null })
     render(<CloudForecastModal cityName="Paris" lat={48.85} lng={2.35} onClose={jest.fn()} />)
     expect(useHourlyCloud).toHaveBeenCalledWith(48.85, 2.35)
+  })
+
+  it('renders cloud cover low/mid/high legend labels', () => {
+    ;(useHourlyCloud as jest.Mock).mockReturnValue({ data: mockCloudData, loading: false, error: null })
+    render(<CloudForecastModal cityName="Paris" lat={48.85} lng={2.35} onClose={jest.fn()} />)
+    expect(screen.getByText(/low/i)).toBeInTheDocument()
+    expect(screen.getByText(/mid/i)).toBeInTheDocument()
+    expect(screen.getByText(/high/i)).toBeInTheDocument()
   })
 })

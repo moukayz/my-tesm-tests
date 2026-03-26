@@ -16,6 +16,7 @@ export function useAttractionDrag({ attractions, onReorder, onSave, onDragStart 
   const prevRectsRef = useRef<Map<string, DOMRect>>(new Map())
   const animatingRef = useRef(false)
   const isDraggingRef = useRef(false)
+  const originalOrderRef = useRef<string[]>([])
 
   function capturePositions() {
     const rects = new Map<string, DOMRect>()
@@ -29,6 +30,7 @@ export function useAttractionDrag({ attractions, onReorder, onSave, onDragStart 
     isDraggingRef.current = true
     onDragStart?.()
     capturePositions()
+    originalOrderRef.current = attractions.map((a) => a.id)
     setDraggedId(attractionId)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', attractionId)
@@ -60,7 +62,9 @@ export function useAttractionDrag({ attractions, onReorder, onSave, onDragStart 
 
   const handleDragEnd = useCallback(() => {
     if (draggedId) {
-      onSave(attractions)
+      const currentOrder = attractions.map((a) => a.id)
+      const orderChanged = currentOrder.some((id, i) => id !== originalOrderRef.current[i])
+      if (orderChanged) onSave(attractions)
     }
     setDraggedId(null)
     prevRectsRef.current.clear()

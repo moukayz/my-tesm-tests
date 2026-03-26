@@ -2,6 +2,7 @@ import logger from '../logger'
 import type { StayLocationResolved } from '../itinerary-store/types'
 import { getLocationSearchConfig } from './config'
 import { GeoNamesLocationProvider } from './providers/geonames'
+import { GooglePlacesLocationProvider } from './providers/google-places'
 import type { LocationProvider } from './providers/provider'
 import { LocationProviderError, type LocationFeatureType, type LocationProviderResult, type LocationSearchResponse } from './types'
 
@@ -107,14 +108,27 @@ export function getLocationSearchService(): LocationSearchService {
   if (singletonService) return singletonService
   const config = getLocationSearchConfig()
 
-  const provider = new GeoNamesLocationProvider({
-    username: config.geonamesUsername,
-    baseUrl: config.geonamesBaseUrl,
-    timeoutMs: config.timeoutMs,
-  })
+  let provider: LocationProvider
+  if (config.provider === 'google') {
+    provider = new GooglePlacesLocationProvider({
+      apiKey: config.googleApiKey,
+      baseUrl: config.googleBaseUrl,
+      timeoutMs: config.timeoutMs,
+    })
+  } else {
+    provider = new GeoNamesLocationProvider({
+      username: config.geonamesUsername,
+      baseUrl: config.geonamesBaseUrl,
+      timeoutMs: config.timeoutMs,
+    })
+  }
 
   singletonService = new LocationSearchService(provider)
   return singletonService
+}
+
+export function resetLocationSearchService(): void {
+  singletonService = null
 }
 
 export async function searchLocations(query: string, limit: number | undefined, userEmail?: string, placeTypes?: LocationFeatureType[], countryBias?: string, countryRestrictions?: string[]) {

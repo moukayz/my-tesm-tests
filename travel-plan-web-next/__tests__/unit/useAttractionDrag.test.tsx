@@ -57,14 +57,30 @@ describe('useAttractionDrag', () => {
     expect(onReorder).not.toHaveBeenCalled()
   })
 
-  it('handleDragEnd calls onSave and clears draggedId', () => {
+  it('handleDragEnd calls onSave when order changed', () => {
+    const onReorder = jest.fn()
+    const onSave = jest.fn()
+    const { result, rerender } = renderHook(
+      ({ attrs }: { attrs: DayAttraction[] }) =>
+        useAttractionDrag({ attractions: attrs, onReorder, onSave }),
+      { initialProps: { attrs: attractions } }
+    )
+    act(() => result.current.handleDragStart(makeDragEvent(), 'a'))
+    const reordered = [attractions[1], attractions[0], attractions[2]]
+    rerender({ attrs: reordered })
+    act(() => result.current.handleDragEnd())
+    expect(onSave).toHaveBeenCalledWith(reordered)
+    expect(result.current.draggedId).toBeNull()
+  })
+
+  it('handleDragEnd does not call onSave when order is unchanged', () => {
     const onSave = jest.fn()
     const { result } = renderHook(() =>
       useAttractionDrag({ attractions, onReorder: jest.fn(), onSave })
     )
     act(() => result.current.handleDragStart(makeDragEvent(), 'b'))
     act(() => result.current.handleDragEnd())
-    expect(onSave).toHaveBeenCalledWith(attractions)
+    expect(onSave).not.toHaveBeenCalled()
     expect(result.current.draggedId).toBeNull()
   })
 

@@ -5,6 +5,7 @@ import type { ItinerarySummary } from '../app/lib/itinerary-store/types'
 
 interface ItineraryCardsViewProps {
   itineraries: ItinerarySummary[]
+  isLoading?: boolean
   onOpenItinerary: (itineraryId: string) => void
   onCreateItinerary: () => void
 }
@@ -27,8 +28,23 @@ function CardSection({ title, children }: { title: string; children: ReactNode }
   )
 }
 
+function CardSkeleton() {
+  return (
+    <div
+      data-testid="itinerary-card-skeleton"
+      aria-hidden="true"
+      className="w-full rounded-2xl border border-gray-200 bg-white p-6 animate-pulse"
+    >
+      <div className="h-7 bg-gray-200 rounded w-2/3" />
+      <div className="mt-2 h-5 bg-gray-200 rounded w-1/2" />
+      <div className="mt-3 h-4 bg-gray-200 rounded w-1/3" />
+    </div>
+  )
+}
+
 export default function ItineraryCardsView({
   itineraries,
+  isLoading,
   onOpenItinerary,
   onCreateItinerary,
 }: ItineraryCardsViewProps) {
@@ -42,6 +58,17 @@ export default function ItineraryCardsView({
     )
     return () => window.clearTimeout(timerId)
   }, [])
+
+  if (itineraries.length === 0 && isLoading) {
+    return (
+      <div data-testid="itinerary-cards-rail" className="w-full space-y-8">
+        <CardSection title="Your itineraries">
+          <CardSkeleton />
+          <CardSkeleton />
+        </CardSection>
+      </div>
+    )
+  }
 
   if (itineraries.length === 0) {
     return (

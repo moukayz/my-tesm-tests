@@ -50,4 +50,31 @@ describe('ItineraryCardsView', () => {
     await userEvent.click(screen.getByRole('button', { name: /new itinerary/i }))
     expect(onCreateItinerary).toHaveBeenCalled()
   })
+
+  it('shows two shimmer skeleton cards when isLoading is true', () => {
+    render(
+      <ItineraryCardsView
+        itineraries={[]}
+        isLoading={true}
+        onOpenItinerary={jest.fn()}
+        onCreateItinerary={jest.fn()}
+      />
+    )
+
+    expect(screen.getAllByTestId('itinerary-card-skeleton')).toHaveLength(2)
+    expect(screen.queryByText(/no itineraries yet/i)).not.toBeInTheDocument()
+  })
+
+  it('shows "Your itineraries" heading when isLoading is true', () => {
+    render(
+      <ItineraryCardsView
+        itineraries={[]}
+        isLoading={true}
+        onOpenItinerary={jest.fn()}
+        onCreateItinerary={jest.fn()}
+      />
+    )
+
+    expect(screen.getByRole('heading', { name: /your itineraries/i })).toBeInTheDocument()
+  })
 })

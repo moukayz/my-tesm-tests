@@ -15,7 +15,7 @@ export function buildScheduleKey(trainId: string, start?: string, end?: string) 
 
 export function useTrainSchedules(days: RouteDay[]) {
   const [trainSchedules, setTrainSchedules] = useState<Record<string, TrainStopsResult | null>>({})
-  const [schedulesLoading, setSchedulesLoading] = useState(false)
+  const [schedulesLoading, setSchedulesLoading] = useState(true)
 
   useEffect(() => {
     const controller = new AbortController()

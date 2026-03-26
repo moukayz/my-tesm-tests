@@ -287,6 +287,25 @@ describe('ItineraryTab', () => {
     expect(screen.getByRole('status')).toBeInTheDocument()
   })
 
+  it('train schedule skeleton matches actual schedule grid dimensions', () => {
+    const dataWithTrain: RouteDay[] = [
+      {
+        date: '2026/9/27',
+        weekDay: '星期日',
+        dayNum: 3,
+        overnight: '科隆',
+        plan: { morning: 'morning', afternoon: 'afternoon', evening: 'evening' },
+        train: [{ train_id: 'ICE 123', start: 'augsburg', end: 'munich' }],
+      },
+    ]
+    global.fetch = jest.fn(() => new Promise(() => {})) // never resolves
+    render(<ItineraryTab initialData={dataWithTrain} />)
+    const skeleton = screen.getByRole('status')
+    expect(skeleton).toHaveClass('gap-y-0.5')
+    const bars = skeleton.querySelectorAll('div')
+    bars.forEach((bar) => expect(bar).toHaveClass('h-4'))
+  })
+
   it('renders train schedule as a list for days that have trains', async () => {
     setupFetch({
       '/api/timetable': [

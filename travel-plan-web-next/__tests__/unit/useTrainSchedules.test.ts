@@ -71,6 +71,15 @@ describe('useTrainSchedules', () => {
     expect(abortSpy).toHaveBeenCalledTimes(1)
   })
 
+  it('starts with schedulesLoading=true to avoid blank flash before skeleton', () => {
+    fetchMock.mockReturnValue(new Promise<Response>(() => {})) // never resolves
+    const { result } = renderHook(
+      ({ days }: { days: RouteDay[] }) => useTrainSchedules(days),
+      { initialProps: { days: [mockDay('ICE 1')] } }
+    )
+    expect(result.current.schedulesLoading).toBe(true)
+  })
+
   it('returns schedules on successful fetch', async () => {
     const timetableRows = [
       { station_name: 'Paris', station_num: 1, arrival_planned_time: null, departure_planned_time: '2024-01-01 08:00:00', ride_date: '2024-01-01' },
